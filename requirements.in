@@ -1,0 +1,34 @@
+-e git+https://github.com/SAEON/odp-core.git#egg=odp
+
+sqlalchemy
+psycopg2
+alembic
+argon2-cffi
+pyyaml
+python-dotenv
+fastapi
+pydantic
+starlette
+jschon
+jschon_translation
+redis
+authlib==0.15.5
+flask
+flask-mail
+flask-wtf
+wtforms
+email-validator
+bootstrap-flask
+werkzeug
+itsdangerous==2.0.1
+ory-hydra-client==1.11.7
+requests
+
+# build
+uvicorn
+gunicorn
+pytest
+coverage
+factory-boy
+faker
+sqlalchemy-utils

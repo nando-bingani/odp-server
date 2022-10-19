@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <title>
+        {% if brand == 'nccrd' %}
+            NCCRD
+        {% else %}
+            SAEON | Open Data Platform
+        {% endif %}
+    </title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+{% if brand == 'nccrd' %}
+    <link rel="icon" href="{{ url_for('static', filename='SA-favicon.ico') }}">
+{% else %}
+    <link rel="icon" href="{{ url_for('static', filename='NRF-favicon.ico') }}">
+{% endif %}
+    {{ bootstrap.load_css() }}
+</head>
+<body>
+{% if brand == 'nccrd' %}
+    <nav class="navbar">
+        <div class="container-fluid flex-nowrap">
+            <div style="flex-basis:0; flex-grow:1">
+                <a class="navbar-brand text-reset" href="http://www.environment.gov.za/" target="_blank" rel="noopener noreferrer">
+                    <img src="{{ url_for('static', filename='dffe-logo-transparent.png') }}">
+                </a>
+            </div>
+            <span style="flex-basis:0; flex-grow:1" class="navbar-text text-center h3">
+                National Climate Change Response Database
+            </span>
+            <div style="flex-basis:0; flex-grow:1">
+                <a class="navbar-brand text-reset" style="display:block" href="http://www.environment.gov.za/" target="_blank" rel="noopener noreferrer">
+                    <img src="{{ url_for('static', filename='sa-flag.jpg') }}" height="65" class="ml-auto" style="display:block">
+                </a>
+            </div>
+        </div>
+    </nav>
+    <hr class="mt-0" />
+{% else %}
+    <nav class="navbar navbar-dark bg-primary">
+        <div class="container">
+            <span class="navbar-text lead">
+                SAEON | Open Data Platform
+            </span>
+            <a class="navbar-brand text-reset mb-2" href="http://www.saeon.ac.za/" target="_blank" rel="noopener noreferrer">
+                <img src="{{ url_for('static', filename='SAEON-NRF-LOGO-alpha.png') }}" height="55">
+            </a>
+        </div>
+    </nav>
+{% endif %}
+
+    <main class="container p-5" style="width: 420px">
+        <h4 class="mb-4">{% block heading %}{% endblock %}</h4>
+
+        {% from 'bootstrap/utils.html' import render_messages %}
+        {{ render_messages(dismissible=True, dismiss_animate=True) }}
+
+        {% block content %}{% endblock %}
+
+        <footer class="text-center mt-4">
+            <hr/>
+            <small>
+                Copyright &copy; <script>document.write(new Date().getFullYear())</script>
+                <a href="http://www.saeon.ac.za/" target="_blank" rel="noopener noreferrer">SAEON</a>
+            </small>
+            <br/>
+            <small>
+                <a href="https://www.nrf.ac.za/nrf-privacy-notice" target="_blank">NRF Privacy Notice</a>
+            </small>
+        </footer>
+    </main>
+    {{ bootstrap.load_js() }}
+</body>
+</html>

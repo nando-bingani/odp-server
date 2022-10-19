@@ -1,0 +1,76 @@
+Collection.Ready:
+  type: collection
+  cardinality: one
+  public: False
+  scope_id: odp.collection:admin
+  schema_id: Tag.Generic
+
+Collection.Frozen:
+  type: collection
+  cardinality: one
+  public: False
+  scope_id: odp.collection:admin
+  schema_id: Tag.Generic
+
+Collection.Infrastructure:
+  type: collection
+  cardinality: multi
+  public: False
+  scope_id: odp.collection:admin
+  schema_id: Tag.Collection.Infrastructure
+
+Collection.Project:
+  type: collection
+  cardinality: multi
+  public: True
+  scope_id: odp.collection:project
+  schema_id: Tag.Collection.Project
+
+Collection.NotIndexed:
+  type: collection
+  cardinality: one
+  public: True
+  scope_id: odp.collection:noindex
+  schema_id: Tag.Generic
+
+Record.Migrated:
+  type: record
+  cardinality: one
+  public: False
+  scope_id: odp.record:migrate
+  schema_id: Tag.Record.Migrated
+
+Record.QC:
+  type: record
+  cardinality: user
+  public: False
+  scope_id: odp.record:qc
+  schema_id: Tag.Record.QC
+
+Record.Embargo:
+  type: record
+  cardinality: multi
+  public: True
+  scope_id: odp.record:embargo
+  schema_id: Tag.Record.Embargo
+
+Record.NotIndexed:
+  type: record
+  cardinality: one
+  public: True
+  scope_id: odp.record:noindex
+  schema_id: Tag.Generic
+
+Record.Retracted:
+  type: record
+  cardinality: one
+  public: False
+  scope_id: odp.record:retract
+  schema_id: Tag.Generic
+
+Record.Note:
+  type: record
+  cardinality: user
+  public: False
+  scope_id: odp.record:note
+  schema_id: Tag.Generic

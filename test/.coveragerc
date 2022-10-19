@@ -1,0 +1,9 @@
+[run]
+source = odp
+branch = True
+omit = */odp/ui/*
+
+[report]
+exclude_lines =
+    pragma: no cover
+    assert False

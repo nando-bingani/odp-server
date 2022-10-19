@@ -1,0 +1,14 @@
+{% extends 'base.html' %}
+{% from 'bootstrap/form.html' import render_field %}
+
+{% block heading %}
+    Create an account
+{% endblock %}
+
+{% block content %}
+    <p>To complete the signup, please click the link in the verification email.</p>
+    <form action="{{ url_for('signup.verify', token=token) }}" method="POST">
+        {{ form.csrf_token }}
+        {{ render_field(form.submit) }}
+    </form>
+{% endblock %}
