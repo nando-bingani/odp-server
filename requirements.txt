@@ -4,7 +4,7 @@
 #
 #    pip-compile
 #
--e git+https://github.com/SAEON/odp-core.git#egg=odp
+-e file:../odp-core
     # via -r requirements.in
 alembic==1.8.1
     # via -r requirements.in
@@ -132,9 +132,7 @@ python-dateutil==2.8.2
     #   faker
     #   ory-hydra-client
 python-dotenv==0.21.0
-    # via
-    #   -r requirements.in
-    #   pydantic
+    # via pydantic
 pyyaml==6.0
     # via -r requirements.in
 redis==4.3.4

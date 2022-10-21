@@ -1,11 +1,10 @@
--e git+https://github.com/SAEON/odp-core.git#egg=odp
+-e file:../odp-core
 
 sqlalchemy
 psycopg2
 alembic
 argon2-cffi
 pyyaml
-python-dotenv
 fastapi
 pydantic
 starlette
