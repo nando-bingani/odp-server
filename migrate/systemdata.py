@@ -1,42 +1,21 @@
-#!/usr/bin/env python
-"""
-This script creates the ODP database schema and initializes
-static system data. It should be run from the ../deploy or
-../develop directory, as applicable.
-
-An admin user is created, with prompts, if not found.
-
-The script may be re-run as needed to synchronize static
-data with the ODP codebase.
-"""
-
 import os
 import pathlib
-import sys
 from datetime import datetime, timezone
-from getpass import getpass
 
-import argon2
 import yaml
-from dotenv import load_dotenv
 from sqlalchemy import delete, select
 
-rootdir = pathlib.Path(__file__).parent.parent
-sys.path.append(str(rootdir))
-
-dotenv_path = pathlib.Path.cwd() / '.env'
-load_dotenv(dotenv_path)
-
-from odp.db import Base, Session, engine
-from odp.db.models import Catalog, Client, Role, Schema, SchemaType, Scope, ScopeType, Tag, User, UserRole, Vocabulary
+from migrate import ODP_ADMIN_ROLE
 from odp.const import ODPCatalog, ODPCollectionTag, ODPMetadataSchema, ODPRecordTag, ODPScope, ODPTagSchema, ODPVocabulary, ODPVocabularySchema
 from odp.const.hydra import GrantType, HydraScope, ResponseType
+from odp.db import Base, Session, engine
+from odp.db.models import Catalog, Client, Role, Schema, SchemaType, Scope, ScopeType, Tag, Vocabulary
 from odp.lib.hydra import HydraAdminAPI
 from odp.lib.schema import schema_md5
 
 datadir = pathlib.Path(__file__).parent / 'systemdata'
 
-ODP_ADMIN_ROLE = 'ODP.Admin'
+hydra_admin_api = HydraAdminAPI(os.environ['HYDRA_ADMIN_URL'])
 
 
 def create_db_schema():
@@ -86,27 +65,37 @@ def init_admin_role():
 
 def init_admin_ui_client():
     """Create or update the ODP Admin UI client."""
-    client = Session.get(Client, ODP_UI_ADMIN_CLIENT_ID) or Client(id=ODP_UI_ADMIN_CLIENT_ID)
+    client_id = os.environ['ODP_UI_ADMIN_CLIENT_ID']
+    client_name = 'ODP Admin UI'
+    client_secret = os.environ['ODP_UI_ADMIN_CLIENT_SECRET']
+    client_url = os.environ['ODP_UI_ADMIN_URL']
+
+    client = Session.get(Client, client_id) or Client(id=client_id)
     client.scopes = [Session.get(Scope, (s.value, ScopeType.odp)) for s in ODPScope] + \
                     [Session.get(Scope, (HydraScope.OPENID, ScopeType.oauth)),
                      Session.get(Scope, (HydraScope.OFFLINE_ACCESS, ScopeType.oauth))]
     client.save()
 
     hydra_admin_api.create_or_update_client(
-        id=ODP_UI_ADMIN_CLIENT_ID,
-        name=ODP_UI_ADMIN_CLIENT_NAME,
-        secret=ODP_UI_ADMIN_CLIENT_SECRET,
+        id=client_id,
+        name=client_name,
+        secret=client_secret,
         scope_ids=[s.value for s in ODPScope] + [HydraScope.OPENID, HydraScope.OFFLINE_ACCESS],
         grant_types=[GrantType.AUTHORIZATION_CODE, GrantType.REFRESH_TOKEN],
         response_types=[ResponseType.CODE],
-        redirect_uris=[ODP_UI_ADMIN_LOGGED_IN_URL],
-        post_logout_redirect_uris=[ODP_UI_ADMIN_LOGGED_OUT_URL],
+        redirect_uris=[client_url + '/oauth2/logged_in'],
+        post_logout_redirect_uris=[client_url + '/oauth2/logged_out'],
     )
 
 
 def init_public_ui_client():
     """Create or update the ODP Public UI client."""
-    client = Session.get(Client, ODP_UI_PUBLIC_CLIENT_ID) or Client(id=ODP_UI_PUBLIC_CLIENT_ID)
+    client_id = os.environ['ODP_UI_PUBLIC_CLIENT_ID']
+    client_name = 'ODP Public UI'
+    client_secret = os.environ['ODP_UI_PUBLIC_CLIENT_SECRET']
+    client_url = os.environ['ODP_UI_PUBLIC_URL']
+
+    client = Session.get(Client, client_id) or Client(id=client_id)
     client.scopes = [Session.get(Scope, (ODPScope.CATALOG_READ, ScopeType.odp)),
                      Session.get(Scope, (ODPScope.TOKEN_READ, ScopeType.odp)),
                      Session.get(Scope, (HydraScope.OPENID, ScopeType.oauth)),
@@ -114,46 +103,55 @@ def init_public_ui_client():
     client.save()
 
     hydra_admin_api.create_or_update_client(
-        id=ODP_UI_PUBLIC_CLIENT_ID,
-        name=ODP_UI_PUBLIC_CLIENT_NAME,
-        secret=ODP_UI_PUBLIC_CLIENT_SECRET,
+        id=client_id,
+        name=client_name,
+        secret=client_secret,
         scope_ids=[ODPScope.CATALOG_READ, ODPScope.TOKEN_READ, HydraScope.OPENID, HydraScope.OFFLINE_ACCESS],
         grant_types=[GrantType.AUTHORIZATION_CODE, GrantType.REFRESH_TOKEN],
         response_types=[ResponseType.CODE],
-        redirect_uris=[ODP_UI_PUBLIC_LOGGED_IN_URL],
-        post_logout_redirect_uris=[ODP_UI_PUBLIC_LOGGED_OUT_URL],
+        redirect_uris=[client_url + '/oauth2/logged_in'],
+        post_logout_redirect_uris=[client_url + '/oauth2/logged_out'],
     )
 
 
 def init_dap_ui_client():
     """Create or update the Data Access Portal client."""
-    client = Session.get(Client, ODP_UI_DAP_CLIENT_ID) or Client(id=ODP_UI_DAP_CLIENT_ID)
+    client_id = os.environ['ODP_UI_DAP_CLIENT_ID']
+    client_name = 'ODP Data Access Portal'
+    client_secret = os.environ['ODP_UI_DAP_CLIENT_SECRET']
+    client_url = os.environ['ODP_UI_DAP_URL']
+
+    client = Session.get(Client, client_id) or Client(id=client_id)
     client.scopes = [Session.get(Scope, (HydraScope.OPENID, ScopeType.oauth)),
                      Session.get(Scope, (HydraScope.OFFLINE_ACCESS, ScopeType.oauth))]
     client.save()
 
     hydra_admin_api.create_or_update_client(
-        id=ODP_UI_DAP_CLIENT_ID,
-        name=ODP_UI_DAP_CLIENT_NAME,
-        secret=ODP_UI_DAP_CLIENT_SECRET,
+        id=client_id,
+        name=client_name,
+        secret=client_secret,
         scope_ids=[HydraScope.OPENID, HydraScope.OFFLINE_ACCESS],
         grant_types=[GrantType.AUTHORIZATION_CODE, GrantType.REFRESH_TOKEN],
         response_types=[ResponseType.CODE],
-        redirect_uris=[ODP_UI_DAP_LOGGED_IN_URL],
-        post_logout_redirect_uris=[ODP_UI_DAP_LOGGED_OUT_URL],
+        redirect_uris=[client_url + '/oauth2/logged_in'],
+        post_logout_redirect_uris=[client_url + '/oauth2/logged_out'],
     )
 
 
 def init_admin_cli_client():
     """Create or update the ODP Admin system client."""
-    client = Session.get(Client, ODP_CLI_ADMIN_CLIENT_ID) or Client(id=ODP_CLI_ADMIN_CLIENT_ID)
+    client_id = os.environ['ODP_CLI_ADMIN_CLIENT_ID']
+    client_name = 'ODP Admin System Client'
+    client_secret = os.environ['ODP_CLI_ADMIN_CLIENT_SECRET']
+
+    client = Session.get(Client, client_id) or Client(id=client_id)
     client.scopes = [Session.get(Scope, (s.value, ScopeType.odp)) for s in ODPScope]
     client.save()
 
     hydra_admin_api.create_or_update_client(
-        id=ODP_CLI_ADMIN_CLIENT_ID,
-        name=ODP_CLI_ADMIN_CLIENT_NAME,
-        secret=ODP_CLI_ADMIN_CLIENT_SECRET,
+        id=client_id,
+        name=client_name,
+        secret=client_secret,
         scope_ids=[s.value for s in ODPScope],
         grant_types=[GrantType.CLIENT_CREDENTIALS],
     )
@@ -161,46 +159,21 @@ def init_admin_cli_client():
 
 def init_public_cli_client():
     """Create or update the ODP Public system client."""
-    client = Session.get(Client, ODP_CLI_PUBLIC_CLIENT_ID) or Client(id=ODP_CLI_PUBLIC_CLIENT_ID)
+    client_id = os.environ['ODP_CLI_PUBLIC_CLIENT_ID']
+    client_name = 'ODP Public System Client'
+    client_secret = os.environ['ODP_CLI_PUBLIC_CLIENT_SECRET']
+
+    client = Session.get(Client, client_id) or Client(id=client_id)
     client.scopes = [Session.get(Scope, (ODPScope.CATALOG_READ, ScopeType.odp))]
     client.save()
 
     hydra_admin_api.create_or_update_client(
-        id=ODP_CLI_PUBLIC_CLIENT_ID,
-        name=ODP_CLI_PUBLIC_CLIENT_NAME,
-        secret=ODP_CLI_PUBLIC_CLIENT_SECRET,
+        id=client_id,
+        name=client_name,
+        secret=client_secret,
         scope_ids=[ODPScope.CATALOG_READ],
         grant_types=[GrantType.CLIENT_CREDENTIALS],
     )
-
-
-def init_admin_user():
-    """Create an admin user if one is not found."""
-    if not Session.execute(
-            select(UserRole).where(UserRole.role_id == ODP_ADMIN_ROLE)
-    ).first():
-        print('Creating an admin user...')
-        while not (name := input('Full name: ')):
-            pass
-        while not (email := input('Email: ')):
-            pass
-        while not (password := getpass()):
-            pass
-
-        user = User(
-            name=name,
-            email=email,
-            password=argon2.PasswordHasher().hash(password),
-            active=True,
-            verified=True,
-        )
-        user.save()
-
-        user_role = UserRole(
-            user_id=user.id,
-            role_id=ODP_ADMIN_ROLE,
-        )
-        user_role.save()
 
 
 def init_schemas():
@@ -300,36 +273,8 @@ def init_catalogs():
         print(f'Warning: orphaned catalog definitions in catalog table {orphaned_db_catalogs}')
 
 
-if __name__ == '__main__':
+def initialize():
     print('Initializing static system data...')
-
-    ODP_UI_ADMIN_CLIENT_ID = os.getenv('ODP_UI_ADMIN_CLIENT_ID')
-    ODP_UI_ADMIN_CLIENT_SECRET = os.getenv('ODP_UI_ADMIN_CLIENT_SECRET')
-    ODP_UI_ADMIN_CLIENT_NAME = 'ODP Admin UI'
-    ODP_UI_ADMIN_LOGGED_IN_URL = os.getenv('ODP_UI_ADMIN_URL') + '/oauth2/logged_in'
-    ODP_UI_ADMIN_LOGGED_OUT_URL = os.getenv('ODP_UI_ADMIN_URL') + '/oauth2/logged_out'
-
-    ODP_UI_PUBLIC_CLIENT_ID = os.getenv('ODP_UI_PUBLIC_CLIENT_ID')
-    ODP_UI_PUBLIC_CLIENT_SECRET = os.getenv('ODP_UI_PUBLIC_CLIENT_SECRET')
-    ODP_UI_PUBLIC_CLIENT_NAME = 'ODP Public UI'
-    ODP_UI_PUBLIC_LOGGED_IN_URL = os.getenv('ODP_UI_PUBLIC_URL') + '/oauth2/logged_in'
-    ODP_UI_PUBLIC_LOGGED_OUT_URL = os.getenv('ODP_UI_PUBLIC_URL') + '/oauth2/logged_out'
-
-    ODP_UI_DAP_CLIENT_ID = os.getenv('ODP_UI_DAP_CLIENT_ID')
-    ODP_UI_DAP_CLIENT_SECRET = os.getenv('ODP_UI_DAP_CLIENT_SECRET')
-    ODP_UI_DAP_CLIENT_NAME = 'ODP Data Access Portal'
-    ODP_UI_DAP_LOGGED_IN_URL = os.getenv('ODP_UI_DAP_URL') + '/oauth2/logged_in'
-    ODP_UI_DAP_LOGGED_OUT_URL = os.getenv('ODP_UI_DAP_URL') + '/oauth2/logged_out'
-
-    ODP_CLI_ADMIN_CLIENT_ID = os.getenv('ODP_CLI_ADMIN_CLIENT_ID')
-    ODP_CLI_ADMIN_CLIENT_SECRET = os.getenv('ODP_CLI_ADMIN_CLIENT_SECRET')
-    ODP_CLI_ADMIN_CLIENT_NAME = 'ODP Admin System Client'
-
-    ODP_CLI_PUBLIC_CLIENT_ID = os.getenv('ODP_CLI_PUBLIC_CLIENT_ID')
-    ODP_CLI_PUBLIC_CLIENT_SECRET = os.getenv('ODP_CLI_PUBLIC_CLIENT_SECRET')
-    ODP_CLI_PUBLIC_CLIENT_NAME = 'ODP Public System Client'
-
-    hydra_admin_api = HydraAdminAPI(os.getenv('HYDRA_ADMIN_URL'))
 
     create_db_schema()
     with Session.begin():
@@ -338,7 +283,6 @@ if __name__ == '__main__':
         init_admin_role()
         init_admin_ui_client()
         init_admin_cli_client()
-        init_admin_user()
         init_public_ui_client()
         init_public_cli_client()
         init_dap_ui_client()

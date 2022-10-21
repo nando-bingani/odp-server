@@ -1,18 +1,17 @@
-import os
-
 import pytest
 from authlib.integrations.requests_client import OAuth2Session
 from starlette.testclient import TestClient
 
 import odp.api
-import odp.const
+from odp.config import config
+from odp.const import ODPScope
 from odp.db.models import TagCardinality
 from odp.lib.hydra import HydraAdminAPI
 from test.api import CollectionAuth
 from test.factories import ClientFactory, ScopeFactory
 
-hydra_admin_url = os.environ['HYDRA_ADMIN_URL']
-hydra_public_url = os.environ['HYDRA_PUBLIC_URL']
+hydra_admin_url = config.HYDRA.ADMIN.URL
+hydra_public_url = config.HYDRA.PUBLIC.URL
 
 
 @pytest.fixture
@@ -26,7 +25,7 @@ def api():
         token = OAuth2Session(
             client_id='odp.test',
             client_secret='secret',
-            scope=' '.join(s.value for s in odp.const.ODPScope),
+            scope=' '.join(s.value for s in ODPScope),
         ).fetch_token(
             f'{hydra_public_url}/oauth2/token',
             grant_type='client_credentials',

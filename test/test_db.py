@@ -21,11 +21,11 @@ def test_db_setup():
     migrate.systemdata.init_admin_role()
     Session.commit()
     result = Session.execute(select(Role)).scalar_one()
-    assert (result.id, result.collection_id) == (migrate.systemdata.ODP_ADMIN_ROLE, None)
+    assert (result.id, result.collection_id) == (migrate.ODP_ADMIN_ROLE, None)
 
     result = Session.execute(select(RoleScope)).scalars()
     assert [(row.role_id, row.scope_id, row.scope_type) for row in result] \
-           == [(migrate.systemdata.ODP_ADMIN_ROLE, s.value, ScopeType.odp) for s in ODPScope]
+           == [(migrate.ODP_ADMIN_ROLE, s.value, ScopeType.odp) for s in ODPScope]
 
 
 def test_create_catalog():
