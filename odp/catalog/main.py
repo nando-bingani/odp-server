@@ -1,13 +1,6 @@
-#!/usr/bin/env python
-
 import logging
-import pathlib
-import sys
 
 from sqlalchemy import select
-
-rootdir = pathlib.Path(__file__).parent.parent.parent.parent
-sys.path.append(str(rootdir))
 
 from odp.catalog.datacite import DataCitePublisher
 from odp.catalog.saeon import SAEONPublisher
@@ -26,7 +19,7 @@ publishers = {
 }
 
 
-def main():
+def publish():
     logger.info('PUBLISHING STARTED')
     try:
         for catalog_id in Session.execute(select(Catalog.id)).scalars():
@@ -37,7 +30,3 @@ def main():
 
     except Exception as e:
         logger.critical(f'PUBLISHING ABORTED: {str(e)}')
-
-
-if __name__ == '__main__':
-    main()
