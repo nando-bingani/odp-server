@@ -7,6 +7,28 @@ import odp.db
 from odp.config import config
 
 
+# noinspection PyUnresolvedReferences
+@pytest.fixture(scope='session', autouse=True)
+def ensure_coverage():
+    """Since the codebase now defines `odp` as a namespace package,
+    coverage cannot discover subpackages and modules that are not
+    imported during a test run, preventing reporting on unexecuted
+    files and hence inflating the coverage score. So, we import
+    everything we want covered here."""
+    # odp-core
+    import odp.config
+    import odp.const
+    import odp.schema
+    import odp.logfile
+    import odp.version
+    # odp-server
+    import odp.api
+    import odp.catalog
+    import odp.db
+    import odp.identity
+    import odp.lib
+
+
 @pytest.fixture(scope='session', autouse=True)
 def database():
     """An auto-use, run-once fixture that provides a clean

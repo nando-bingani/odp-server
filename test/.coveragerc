@@ -1,7 +1,19 @@
 [run]
-source = odp
+source =
+    # odp-core
+    odp.config
+    odp.const
+    odp.schema
+    odp.logfile
+    odp.version
+    # odp-server
+    odp.api
+    odp.catalog
+    odp.db
+    odp.identity
+    odp.lib
+
 branch = True
-omit = */odp/ui/*
 
 [report]
 exclude_lines =
