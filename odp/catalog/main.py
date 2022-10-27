@@ -7,9 +7,6 @@ from odp.catalog.saeon import SAEONPublisher
 from odp.const import ODPCatalog
 from odp.db import Session
 from odp.db.models import Catalog
-from odp.logger import init_logger
-
-init_logger()
 
 logger = logging.getLogger(__name__)
 

@@ -1,3 +1,4 @@
+import logging
 import os
 import pathlib
 from datetime import datetime, timezone
@@ -14,6 +15,7 @@ from odp.lib.hydra import HydraAdminAPI
 from odp.lib.schema import schema_md5
 
 datadir = pathlib.Path(__file__).parent / 'systemdata'
+logger = logging.getLogger(__name__)
 
 
 def create_db_schema():
@@ -152,15 +154,15 @@ def init_schemas():
         if (md5 := schema_md5(schema.uri)) != schema.md5:
             schema.md5 = md5
             schema.timestamp = datetime.now(timezone.utc)
-            print(f'Updated MD5 and timestamp for schema {schema_id}')
+            logger.info(f'Updated MD5 and timestamp for schema {schema_id}')
 
         schema.save()
 
     if orphaned_yml_schemas := [schema_id for schema_id in schema_data if schema_id not in schema_ids]:
-        print(f'Warning: orphaned schema definitions in schemas.yml {orphaned_yml_schemas}')
+        logger.warning(f'Orphaned schema definitions in schemas.yml {orphaned_yml_schemas}')
 
     if orphaned_db_schemas := Session.execute(select(Schema.id).where(Schema.id.not_in(schema_ids))).scalars().all():
-        print(f'Warning: orphaned schema definitions in schema table {orphaned_db_schemas}')
+        logger.warning(f'Orphaned schema definitions in schema table {orphaned_db_schemas}')
 
 
 def init_tags():
@@ -181,10 +183,10 @@ def init_tags():
         tag.save()
 
     if orphaned_yml_tags := [tag_id for tag_id in tag_data if tag_id not in tag_ids]:
-        print(f'Warning: orphaned tag definitions in tags.yml {orphaned_yml_tags}')
+        logger.warning(f'Orphaned tag definitions in tags.yml {orphaned_yml_tags}')
 
     if orphaned_db_tags := Session.execute(select(Tag.id).where(Tag.id.not_in(tag_ids))).scalars().all():
-        print(f'Warning: orphaned tag definitions in tag table {orphaned_db_tags}')
+        logger.warning(f'Orphaned tag definitions in tag table {orphaned_db_tags}')
 
 
 def init_vocabularies():
@@ -206,10 +208,10 @@ def init_vocabularies():
         vocabulary.save()
 
     if orphaned_yml_vocabularies := [vocabulary_id for vocabulary_id in vocabulary_data if vocabulary_id not in vocabulary_ids]:
-        print(f'Warning: orphaned vocabulary definitions in vocabularies.yml {orphaned_yml_vocabularies}')
+        logger.warning(f'Orphaned vocabulary definitions in vocabularies.yml {orphaned_yml_vocabularies}')
 
     if orphaned_db_vocabularies := Session.execute(select(Vocabulary.id).where(Vocabulary.id.not_in(vocabulary_ids))).scalars().all():
-        print(f'Warning: orphaned vocabulary definitions in vocabulary table {orphaned_db_vocabularies}')
+        logger.warning(f'Orphaned vocabulary definitions in vocabulary table {orphaned_db_vocabularies}')
 
 
 def init_roles():
@@ -230,11 +232,11 @@ def init_catalogs():
         catalog.save()
 
     if orphaned_db_catalogs := Session.execute(select(Catalog.id).where(Catalog.id.not_in(catalog_ids))).scalars().all():
-        print(f'Warning: orphaned catalog definitions in catalog table {orphaned_db_catalogs}')
+        logger.warning(f'Orphaned catalog definitions in catalog table {orphaned_db_catalogs}')
 
 
 def initialize():
-    print('Initializing static system data...')
+    logger.info('Initializing static system data...')
 
     hydra_admin_api = HydraAdminAPI(os.environ['HYDRA_ADMIN_URL'])
 
@@ -252,4 +254,4 @@ def initialize():
         init_roles()
         init_catalogs()
 
-    print('Done.')
+    logger.info('Done.')
