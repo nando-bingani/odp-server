@@ -3,8 +3,8 @@ source =
     # odp-core
     odp.config
     odp.const
+    odp.logger
     odp.schema
-    odp.logfile
     odp.version
     # odp-server
     odp.api
