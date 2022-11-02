@@ -15,4 +15,4 @@ The NCCRD Team at SAEON
 SAEON
 {%- endif %}
 
-Copyright © 2021 South African Environmental Observation Network http://www.saeon.ac.za/
+Copyright © 2021 South African Environmental Observation Network https://www.saeon.ac.za/
