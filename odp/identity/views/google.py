@@ -46,8 +46,8 @@ def authorized():
         login_request, challenge, brand, params = decode_token(token, 'google.authorized')
         try:
             try:
-                google_token = google_oauth2.google.authorize_access_token(state=token)
-                userinfo = google_oauth2.google.parse_id_token(google_token)
+                google_token = google_oauth2.google.authorize_access_token()
+                userinfo = google_token.pop('userinfo')
                 email = userinfo['email']
                 email_verified = userinfo.get('email_verified')
 

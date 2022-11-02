@@ -11,7 +11,7 @@ starlette
 jschon
 jschon_translation
 redis
-authlib==0.15.5
+authlib
 flask
 flask-mail
 flask-wtf
