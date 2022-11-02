@@ -19,7 +19,7 @@ wtforms
 email-validator
 bootstrap-flask
 werkzeug
-itsdangerous==2.0.1
+itsdangerous
 ory-hydra-client==1.11.7
 requests
 

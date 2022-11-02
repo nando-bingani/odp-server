@@ -1,5 +1,5 @@
 from flask import abort, current_app
-from itsdangerous import BadData, JSONWebSignatureSerializer
+from itsdangerous import BadData, URLSafeSerializer
 
 from odp.identity import hydra_admin
 
@@ -17,7 +17,7 @@ def init_app(app):
 
 def encode_token(scope: str, challenge: str, brand: str, **params):
     """
-    Create a JWS token for accessing application views (other than the Hydra workflow views)
+    Create a token for accessing application views (other than the Hydra workflow views)
     which may only be accessed within the context of the Hydra login workflow.
 
     `scope` restricts the usage of tokens and allows us to control the sequence in which
@@ -30,9 +30,9 @@ def encode_token(scope: str, challenge: str, brand: str, **params):
     :param challenge: the Hydra login challenge
     :param brand: UI branding identifier
     :param params: any additional params to pass to the view
-    :return: a JSON Web Signature
+    :return: a URL safe token
     """
-    serializer = JSONWebSignatureSerializer(current_app.secret_key, salt=scope)
+    serializer = URLSafeSerializer(current_app.secret_key, salt=scope)
     params.update({'challenge': challenge, 'brand': brand})
     token = serializer.dumps(params)
     return token
@@ -40,7 +40,7 @@ def encode_token(scope: str, challenge: str, brand: str, **params):
 
 def decode_token(token: str, scope: str):
     """
-    Decode and validate a JWS token received by a view, and return the Hydra login
+    Decode and validate a token received by a view, and return the Hydra login
     request dict and login challenge, along with the UI brand identifier and any
     additional params.
 
@@ -53,7 +53,7 @@ def decode_token(token: str, scope: str):
         abort(403)  # HTTP 403 Forbidden
 
     try:
-        serializer = JSONWebSignatureSerializer(current_app.secret_key, salt=scope)
+        serializer = URLSafeSerializer(current_app.secret_key, salt=scope)
         params = serializer.loads(token)
         challenge = params.pop('challenge', '')
         brand = params.pop('brand', '')
