@@ -24,7 +24,7 @@ def authorize():
         login_request, challenge, brand, params = decode_token(token, 'login')
         authorized_token = encode_token('google.authorized', challenge, brand)
         redirect_uri = url_for('.authorized', _external=True)
-        return google_oauth2.google.authorize_redirect(redirect_uri, state=authorized_token.decode())
+        return google_oauth2.google.authorize_redirect(redirect_uri, state=authorized_token)
 
     except x.HydraAdminError as e:
         return hydra_error_page(e)

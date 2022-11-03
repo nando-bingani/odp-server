@@ -15,7 +15,7 @@ def init_app(app):
     app.register_blueprint(google.bp, url_prefix='/google')
 
 
-def encode_token(scope: str, challenge: str, brand: str, **params):
+def encode_token(scope: str, challenge: str, brand: str, **params) -> str:
     """
     Create a token for accessing application views (other than the Hydra workflow views)
     which may only be accessed within the context of the Hydra login workflow.
@@ -38,7 +38,7 @@ def encode_token(scope: str, challenge: str, brand: str, **params):
     return token
 
 
-def decode_token(token: str, scope: str):
+def decode_token(token: str, scope: str) -> tuple:
     """
     Decode and validate a token received by a view, and return the Hydra login
     request dict and login challenge, along with the UI brand identifier and any
