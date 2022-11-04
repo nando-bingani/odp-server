@@ -1,5 +1,5 @@
 from wtforms import PasswordField, StringField
-from wtforms.validators import email, equal_to, input_required
+from wtforms.validators import data_required, email, equal_to, input_required
 
 from odp.ui.base.forms import BaseForm
 
@@ -7,7 +7,8 @@ from odp.ui.base.forms import BaseForm
 class SignupForm(BaseForm):
     name = StringField(
         label='Full name',
-        validators=[input_required()],
+        filters=[lambda s: s.strip() if s else s],
+        validators=[data_required()],
     )
     email = StringField(
         label='Email address',
@@ -56,5 +57,11 @@ class ResetPasswordForm(BaseForm):
 
 
 class ProfileForm(BaseForm):
-    name = StringField(label='Full name')
-    picture = StringField(label='Photo URL')
+    name = StringField(
+        label='Full name',
+        filters=[lambda s: s.strip() if s else s],
+        validators=[data_required()],
+    )
+    picture = StringField(
+        label='Photo URL',
+    )
