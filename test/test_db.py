@@ -112,7 +112,10 @@ def test_create_role_with_scopes():
 
 def test_create_schema():
     schema = SchemaFactory()
-    result = Session.execute(select(Schema)).scalar_one()
+    result = Session.execute(
+        select(Schema).
+        where(Schema.id.notlike('vocab-schema-%'))  # ignore schemas created by vocabulary factories
+    ).scalar_one()
     assert (result.id, result.type, result.uri) == (schema.id, schema.type, schema.uri)
 
 
