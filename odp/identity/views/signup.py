@@ -24,7 +24,7 @@ def signup():
         # switch between login and signup using the same token
         login_request, challenge, brand, params = decode_token(token, 'login')
 
-        form = SignupForm()
+        form = SignupForm(request.form)
         try:
             if request.method == 'GET':
                 # if the user is already authenticated with Hydra, their user id is

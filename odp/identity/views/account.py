@@ -109,7 +109,7 @@ def reset_password():
     try:
         login_request, challenge, brand, params = decode_token(token, 'account.reset_password')
 
-        form = ResetPasswordForm()
+        form = ResetPasswordForm(request.form)
         email = params.get('email')
 
         if request.method == 'POST':

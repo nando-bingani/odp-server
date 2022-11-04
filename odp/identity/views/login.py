@@ -24,7 +24,7 @@ def login():
 
         user_id = None
         error = None
-        form = LoginForm()
+        form = LoginForm(request.form)
 
         if request.method == 'GET':
             authenticated = login_request['skip']  # indicates whether the user is already authenticated with Hydra
@@ -114,7 +114,7 @@ def forgot_password():
     try:
         login_request, challenge, brand, params = decode_token(token, 'login')
 
-        form = ForgotPasswordForm()
+        form = ForgotPasswordForm(request.form)
         sent = False
 
         if request.method == 'POST':

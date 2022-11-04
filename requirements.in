@@ -14,7 +14,6 @@ redis
 authlib
 flask
 flask-mail
-flask-wtf
 wtforms
 email-validator
 werkzeug
