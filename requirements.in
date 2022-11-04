@@ -17,7 +17,6 @@ flask-mail
 flask-wtf
 wtforms
 email-validator
-bootstrap-flask
 werkzeug
 itsdangerous
 ory-hydra-client==1.11.7

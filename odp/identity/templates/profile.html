@@ -1,14 +1,13 @@
 {% extends 'base.html' %}
-{% from 'bootstrap/form.html' import render_field %}
+{% from 'id_macros.html' import render_form %}
 
-{% block heading %}
-    Update your profile
+{% block web_title %}
+    {{ super() }} |
+    {% block heading %}
+        Update your profile
+    {% endblock %}
 {% endblock %}
 
 {% block content %}
-    <form action="{{ url_for('account.profile', token=token) }}" method="POST">
-        {{ form.csrf_token }}
-        {{ render_field(form.name) }}
-        {{ render_field(form.submit) }}
-    </form>
+    {{ render_form(form, token, 'account.profile', 'Log in') }}
 {% endblock %}

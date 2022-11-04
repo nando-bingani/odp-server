@@ -1,5 +1,5 @@
 from flask_wtf import FlaskForm
-from wtforms import PasswordField, StringField, SubmitField
+from wtforms import PasswordField, StringField
 from wtforms.validators import email, equal_to, input_required
 
 
@@ -21,9 +21,6 @@ class SignupForm(FlaskForm):
         label='Confirm password',
         validators=[input_required()],
     )
-    submit = SubmitField(
-        label='Sign up',
-    )
 
 
 class LoginForm(FlaskForm):
@@ -36,15 +33,6 @@ class LoginForm(FlaskForm):
         label='Password',
         validators=[input_required()],
     )
-    submit = SubmitField(
-        label='Log in',
-    )
-
-
-class VerifyEmailForm(FlaskForm):
-    submit = SubmitField(
-        label='Re-send verification email',
-    )
 
 
 class ForgotPasswordForm(FlaskForm):
@@ -52,9 +40,6 @@ class ForgotPasswordForm(FlaskForm):
         label='Email address',
         filters=[lambda s: s.lower() if s else s],
         validators=[input_required(), email()],
-    )
-    submit = SubmitField(
-        label='Send reset link',
     )
 
 
@@ -67,18 +52,8 @@ class ResetPasswordForm(FlaskForm):
         label='Confirm password',
         validators=[input_required()],
     )
-    submit = SubmitField(
-        label='Set new password',
-    )
-
-
-class AutoLoginForm(FlaskForm):
-    submit = SubmitField(
-        label='Log in',
-    )
 
 
 class ProfileForm(FlaskForm):
     name = StringField(label='Full name')
     picture = StringField(label='Photo URL')
-    submit = SubmitField(label='Log in')

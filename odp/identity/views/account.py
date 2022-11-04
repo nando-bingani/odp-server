@@ -2,7 +2,7 @@ from flask import Blueprint, current_app, flash, redirect, render_template, requ
 from flask_mail import Message
 
 from odp.identity import hydra_admin, mail
-from odp.identity.forms import AutoLoginForm, ProfileForm, ResetPasswordForm
+from odp.identity.forms import ProfileForm, ResetPasswordForm
 from odp.identity.lib import (get_user_profile, password_complexity_description, update_user_password, update_user_profile, update_user_verified,
                               validate_auto_login, validate_email_verification, validate_password_reset)
 from odp.identity.views import decode_token, encode_token, hydra_error_page
@@ -50,7 +50,6 @@ def verify_email_complete():
     try:
         login_request, challenge, brand, params = decode_token(token, 'account.verify_email_complete')
 
-        form = AutoLoginForm()
         user_id = params.get('user_id')
 
         if request.method == 'POST':
@@ -64,7 +63,7 @@ def verify_email_complete():
 
             return redirect(redirect_to)
 
-        return render_template('verify_email_complete.html', form=form, token=token, brand=brand)
+        return render_template('verify_email_complete.html', token=token, brand=brand)
 
     except x.HydraAdminError as e:
         return hydra_error_page(e)
@@ -152,7 +151,6 @@ def reset_password_complete():
     try:
         login_request, challenge, brand, params = decode_token(token, 'account.reset_password_complete')
 
-        form = AutoLoginForm()
         user_id = params.get('user_id')
 
         if request.method == 'POST':
@@ -166,7 +164,7 @@ def reset_password_complete():
 
             return redirect(redirect_to)
 
-        return render_template('reset_password_complete.html', form=form, token=token, brand=brand)
+        return render_template('reset_password_complete.html', token=token, brand=brand)
 
     except x.HydraAdminError as e:
         return hydra_error_page(e)

@@ -2,7 +2,7 @@ from flask import Blueprint, redirect, render_template, request, url_for
 
 from odp.config import config
 from odp.identity import hydra_admin
-from odp.identity.forms import ForgotPasswordForm, LoginForm, VerifyEmailForm
+from odp.identity.forms import ForgotPasswordForm, LoginForm
 from odp.identity.lib import get_user_profile_by_email, validate_auto_login, validate_forgot_password, validate_user_login
 from odp.identity.views import decode_token, encode_token, hydra_error_page
 from odp.identity.views.account import send_password_reset_email, send_verification_email
@@ -91,14 +91,13 @@ def verify():
     try:
         login_request, challenge, brand, params = decode_token(token, 'login.verify')
 
-        form = VerifyEmailForm()
         email = params.get('email')
         name = params.get('name')
 
         if request.method == 'POST':
             send_verification_email(email, name, challenge, brand)
 
-        return render_template('login_verify.html', form=form, token=token, brand=brand)
+        return render_template('login_verify.html', token=token, brand=brand)
 
     except x.HydraAdminError as e:
         return hydra_error_page(e)

@@ -1,14 +1,16 @@
 {% extends 'base.html' %}
-{% from 'bootstrap/form.html' import render_field %}
+{% from 'id_macros.html' import render_single_button_form %}
 
-{% block heading %}
-    Create an account
+{% block web_title %}
+    {{ super() }} |
+    {% block heading %}
+        Create an account
+    {% endblock %}
 {% endblock %}
 
 {% block content %}
-    <p>To complete the signup, please click the link in the verification email.</p>
-    <form action="{{ url_for('signup.verify', token=token) }}" method="POST">
-        {{ form.csrf_token }}
-        {{ render_field(form.submit) }}
-    </form>
+    <p>
+        To complete the signup, please click the link in the verification email.
+    </p>
+    {{ render_single_button_form(token, 'signup.verify', 'Re-send verification email') }}
 {% endblock %}

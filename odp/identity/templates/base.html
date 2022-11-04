@@ -1,75 +1,64 @@
-<!doctype html>
-<html lang="en">
-<head>
-    <title>
-        {% if brand == 'nccrd' %}
-            NCCRD
-        {% else %}
-            SAEON | Open Data Platform
-        {% endif %}
-    </title>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-{% if brand == 'nccrd' %}
-    <link rel="icon" href="{{ url_for('static', filename='SA-favicon.ico') }}">
-{% else %}
-    <link rel="icon" href="{{ url_for('static', filename='NRF-favicon.ico') }}">
-{% endif %}
-    {{ bootstrap.load_css() }}
-</head>
-<body>
-{% if brand == 'nccrd' %}
-    <nav class="navbar">
-        <div class="container-fluid flex-nowrap">
-            <div style="flex-basis:0; flex-grow:1">
-                <a class="navbar-brand text-reset" href="https://www.dffe.gov.za/" target="_blank">
-                    <img src="{{ url_for('static', filename='dffe-logo-transparent.png') }}">
+{% extends 'layout.html' %}
+
+{% block web_title %}
+    {% if brand == 'nccrd' %}
+        NCCRD
+    {% else %}
+        SAEON | Open Data Platform
+    {% endif %}
+{% endblock %}
+
+{% block favicon_url %}
+    {% if brand == 'nccrd' %}
+        {{ url_for('static', filename='sa-favicon.ico') }}
+    {% else %}
+        {{ super() }}
+    {% endif %}
+{% endblock %}
+
+{% block navbar %}
+    {% if brand == 'nccrd' %}
+        <nav class="navbar">
+            <div class="container-fluid flex-nowrap">
+                <div style="flex-basis:0; flex-grow:1">
+                    <a class="navbar-brand text-reset" href="https://www.dffe.gov.za/" target="_blank">
+                        <img src="{{ url_for('static', filename='dffe-logo.png') }}">
+                    </a>
+                </div>
+                <span style="flex-basis:0; flex-grow:1" class="navbar-text text-center h3">
+                    National Climate Change Response Database
+                </span>
+                <div style="flex-basis:0; flex-grow:1">
+                    <a class="navbar-brand text-reset" style="display:block" href="https://www.dffe.gov.za/" target="_blank">
+                        <img src="{{ url_for('static', filename='sa-flag.jpg') }}" height="65" class="ml-auto" style="display:block">
+                    </a>
+                </div>
+            </div>
+        </nav>
+        <hr class="mt-0" />
+    {% else %}
+        <nav class="navbar navbar-dark bg-primary">
+            <div class="container">
+                <span class="navbar-text lead">
+                    SAEON | Open Data Platform
+                </span>
+                <a class="navbar-brand text-reset mb-2" href="https://www.saeon.ac.za/" target="_blank">
+                    <img src="{{ url_for('static', filename='saeon-logo.png') }}" height="55">
                 </a>
             </div>
-            <span style="flex-basis:0; flex-grow:1" class="navbar-text text-center h3">
-                National Climate Change Response Database
-            </span>
-            <div style="flex-basis:0; flex-grow:1">
-                <a class="navbar-brand text-reset" style="display:block" href="https://www.dffe.gov.za/" target="_blank">
-                    <img src="{{ url_for('static', filename='sa-flag.jpg') }}" height="65" class="ml-auto" style="display:block">
-                </a>
-            </div>
+        </nav>
+    {% endif %}
+{% endblock %}
+
+{% block main %}
+    <div class="container p-4" style="width: 410px">
+        <p class="h1">
+            {% block heading %}
+            {% endblock %}
+        </p>
+        <div class="p-1">
+            {% block content %}
+            {% endblock %}
         </div>
-    </nav>
-    <hr class="mt-0" />
-{% else %}
-    <nav class="navbar navbar-dark bg-primary">
-        <div class="container">
-            <span class="navbar-text lead">
-                SAEON | Open Data Platform
-            </span>
-            <a class="navbar-brand text-reset mb-2" href="https://www.saeon.ac.za/" target="_blank">
-                <img src="{{ url_for('static', filename='SAEON-NRF-LOGO-alpha.png') }}" height="55">
-            </a>
-        </div>
-    </nav>
-{% endif %}
-
-    <main class="container p-5" style="width: 420px">
-        <h4 class="mb-4">{% block heading %}{% endblock %}</h4>
-
-        {% from 'bootstrap/utils.html' import render_messages %}
-        {{ render_messages(dismissible=True, dismiss_animate=True) }}
-
-        {% block content %}{% endblock %}
-
-        <footer class="text-center mt-4">
-            <hr/>
-            <small>
-                Copyright &copy; <script>document.write(new Date().getFullYear())</script>
-                <a href="https://www.saeon.ac.za/" target="_blank">SAEON</a>
-            </small>
-            <br/>
-            <small>
-                <a href="https://www.nrf.ac.za/privacy-policy/" target="_blank">NRF Privacy Policy</a>
-            </small>
-        </footer>
-    </main>
-    {{ bootstrap.load_js() }}
-</body>
-</html>
+    </div>
+{% endblock %}

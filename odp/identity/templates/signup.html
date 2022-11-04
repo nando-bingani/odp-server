@@ -1,32 +1,30 @@
 {% extends 'base.html' %}
-{% from 'bootstrap/form.html' import render_field %}
+{% from 'id_macros.html' import render_form, render_single_button_form %}
 
-{% block heading %}
-    Create an account
+{% block web_title %}
+    {{ super() }} |
+    {% block heading %}
+        Create an account
+    {% endblock %}
 {% endblock %}
 
 {% block content %}
-    <form action="{{ url_for('signup.signup', token=token) }}" method="POST">
-        {{ form.csrf_token }}
-        {{ render_field(form.name) }}
-        {{ render_field(form.email) }}
-        {{ render_field(form.password) }}
-        {{ render_field(form.confirm_password) }}
-        {{ render_field(form.submit) }}
-    </form>
+    {{ render_form(form, token, 'signup.signup', 'Sign up') }}
     <hr class="my-4"/>
     <p class="text-center">
         Already have an account?
-        <a href="{{ url_for('login.login', token=token) }}">Log in</a>
+        <a href="{{ url_for('login.login', token=token) }}">
+            Log in
+        </a>
     </p>
     {% if enable_google and brand == 'saeon' %}
         <hr class="my-4"/>
-        <h6>SAEON staff</h6>
+        <p class="h5">
+            SAEON staff
+        </p>
         <p>
             Sign up with your @saeon.nrf.ac.za account
         </p>
-        <form action="{{ url_for('google.authorize', token=token) }}" method="POST">
-            <input class="btn btn-outline-primary btn-block" id="submit" name="submit" type="submit" value="Sign up via Google">
-        </form>
+        {{ render_single_button_form(token, 'google.authorize', 'Sign up via Google', True) }}
     {% endif %}
 {% endblock %}
