@@ -6,8 +6,8 @@ from sqlalchemy import select
 from odp.const import ODPScope
 from odp.db import Session
 from odp.db.models import Provider
-from test.api import all_scopes, all_scopes_excluding, assert_conflict, assert_empty_result, assert_forbidden, assert_not_found
-from test.factories import CollectionFactory, ProviderFactory
+from test.api import all_scopes, all_scopes_excluding, assert_conflict, assert_empty_result, assert_forbidden, assert_not_found, assert_unprocessable
+from test.factories import CollectionFactory, ProviderFactory, RecordFactory
 
 
 @pytest.fixture
@@ -162,20 +162,37 @@ def test_update_provider_not_found(api, provider_batch):
     assert_db_state(provider_batch)
 
 
+@pytest.fixture(params=[True, False])
+def has_record(request):
+    return request.param
+
+
 @pytest.mark.parametrize('scopes', [
     [ODPScope.PROVIDER_ADMIN],
     [],
     all_scopes,
     all_scopes_excluding(ODPScope.PROVIDER_ADMIN),
 ])
-def test_delete_provider(api, provider_batch, scopes):
+def test_delete_provider(api, provider_batch, scopes, has_record):
     authorized = ODPScope.PROVIDER_ADMIN in scopes
     modified_provider_batch = provider_batch.copy()
     del modified_provider_batch[2]
+
+    if has_record:
+        if collection := next((c for c in provider_batch[2].collections), None):
+            RecordFactory(collection=collection)
+        else:
+            has_record = False
+
     r = api(scopes).delete(f'/provider/{provider_batch[2].id}')
+
     if authorized:
-        assert_empty_result(r)
-        assert_db_state(modified_provider_batch)
+        if has_record:
+            assert_unprocessable(r, 'A provider with non-empty collections cannot be deleted.')
+            assert_db_state(provider_batch)
+        else:
+            assert_empty_result(r)
+            assert_db_state(modified_provider_batch)
     else:
         assert_forbidden(r)
         assert_db_state(provider_batch)

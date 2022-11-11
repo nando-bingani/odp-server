@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
-from starlette.status import HTTP_404_NOT_FOUND, HTTP_409_CONFLICT
+from sqlalchemy.exc import IntegrityError
+from starlette.status import HTTP_404_NOT_FOUND, HTTP_409_CONFLICT, HTTP_422_UNPROCESSABLE_ENTITY
 
 from odp.api.lib.auth import Authorize
 from odp.api.lib.paging import Page, Paginator
@@ -89,4 +90,10 @@ async def delete_provider(
     if not (provider := Session.get(Provider, provider_id)):
         raise HTTPException(HTTP_404_NOT_FOUND)
 
-    provider.delete()
+    try:
+        provider.delete()
+    except IntegrityError as e:
+        raise HTTPException(
+            HTTP_422_UNPROCESSABLE_ENTITY,
+            'A provider with non-empty collections cannot be deleted.',
+        ) from e
