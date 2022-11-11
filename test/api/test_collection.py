@@ -10,7 +10,8 @@ from odp.db import Session
 from odp.db.models import Collection, CollectionAudit, CollectionTag, CollectionTagAudit, Scope, ScopeType
 from test.api import (CollectionAuth, all_scopes, all_scopes_excluding, assert_conflict, assert_empty_result, assert_forbidden, assert_new_timestamp,
                       assert_not_found, assert_unprocessable)
-from test.factories import ClientFactory, CollectionFactory, CollectionTagFactory, ProviderFactory, RoleFactory, SchemaFactory, TagFactory
+from test.factories import (ClientFactory, CollectionFactory, CollectionTagFactory, ProviderFactory, RecordFactory, RoleFactory, SchemaFactory,
+                            TagFactory)
 
 
 @pytest.fixture
@@ -360,13 +361,18 @@ def test_update_collection_not_found(api, collection_batch, collection_auth):
     assert_no_audit_log()
 
 
+@pytest.fixture(params=[True, False])
+def has_record(request):
+    return request.param
+
+
 @pytest.mark.parametrize('scopes', [
     [ODPScope.COLLECTION_ADMIN],
     [],
     all_scopes,
     all_scopes_excluding(ODPScope.COLLECTION_ADMIN),
 ])
-def test_delete_collection(api, collection_batch, scopes, collection_auth):
+def test_delete_collection(api, collection_batch, scopes, collection_auth, has_record):
     authorized = ODPScope.COLLECTION_ADMIN in scopes and \
                  collection_auth in (CollectionAuth.NONE, CollectionAuth.MATCH)
 
@@ -381,13 +387,21 @@ def test_delete_collection(api, collection_batch, scopes, collection_auth):
     deleted_collection = modified_collection_batch[2]
     del modified_collection_batch[2]
 
-    r = api(scopes, api_client_collection).delete(f'/collection/{(collection_id := collection_batch[2].id)}')
+    if has_record:
+        RecordFactory(collection=collection_batch[2])
+
+    r = api(scopes, api_client_collection).delete(f'/collection/{collection_batch[2].id}')
 
     if authorized:
-        assert_empty_result(r)
-        # check audit log first because assert_db_state expires the deleted item
-        assert_audit_log('delete', deleted_collection)
-        assert_db_state(modified_collection_batch)
+        if has_record:
+            assert_unprocessable(r, 'A non-empty collection cannot be deleted.')
+            assert_db_state(collection_batch)
+            assert_no_audit_log()
+        else:
+            assert_empty_result(r)
+            # check audit log first because assert_db_state expires the deleted item
+            assert_audit_log('delete', deleted_collection)
+            assert_db_state(modified_collection_batch)
     else:
         assert_forbidden(r)
         assert_db_state(collection_batch)

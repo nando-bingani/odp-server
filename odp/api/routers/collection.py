@@ -4,6 +4,7 @@ from random import randint
 from fastapi import APIRouter, Depends, HTTPException
 from jschon import JSON, JSONSchema
 from sqlalchemy import func, literal_column, null, select, union_all
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import aliased
 from starlette.status import HTTP_403_FORBIDDEN, HTTP_404_NOT_FOUND, HTTP_409_CONFLICT, HTTP_422_UNPROCESSABLE_ENTITY
 
@@ -184,7 +185,11 @@ async def delete_collection(
     if not (collection := Session.get(Collection, collection_id)):
         raise HTTPException(HTTP_404_NOT_FOUND)
 
-    collection.delete()
+    try:
+        collection.delete()
+    except IntegrityError as e:
+        raise HTTPException(HTTP_422_UNPROCESSABLE_ENTITY, 'A non-empty collection cannot be deleted.') from e
+
     create_audit_record(auth, collection, datetime.now(timezone.utc), AuditCommand.delete)
 
 
