@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
-from starlette.status import HTTP_404_NOT_FOUND
+from sqlalchemy.exc import IntegrityError
+from starlette.status import HTTP_404_NOT_FOUND, HTTP_422_UNPROCESSABLE_ENTITY
 
 from odp.api.lib.auth import Authorize
 from odp.api.lib.paging import Page, Paginator
@@ -84,4 +85,10 @@ async def delete_user(
     if not (user := Session.get(User, user_id)):
         raise HTTPException(HTTP_404_NOT_FOUND)
 
-    user.delete()
+    try:
+        user.delete()
+    except IntegrityError as e:
+        raise HTTPException(
+            HTTP_422_UNPROCESSABLE_ENTITY,
+            'The user cannot be deleted due to associated tag instance data.',
+        ) from e

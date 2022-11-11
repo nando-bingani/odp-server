@@ -6,8 +6,9 @@ from sqlalchemy import select
 from odp.const import ODPScope
 from odp.db import Session
 from odp.db.models import User
-from test.api import all_scopes, all_scopes_excluding, assert_empty_result, assert_forbidden, assert_method_not_allowed, assert_not_found
-from test.factories import RoleFactory, UserFactory
+from test.api import (all_scopes, all_scopes_excluding, assert_empty_result, assert_forbidden, assert_method_not_allowed, assert_not_found,
+                      assert_unprocessable)
+from test.factories import CollectionTagFactory, RecordTagFactory, RoleFactory, UserFactory
 
 
 @pytest.fixture
@@ -143,20 +144,36 @@ def test_update_user_not_found(api, user_batch):
     assert_db_state(user_batch)
 
 
+@pytest.fixture(params=['none', 'collection', 'record', 'both'])
+def has_tag_instance(request):
+    return request.param
+
+
 @pytest.mark.parametrize('scopes', [
     [ODPScope.USER_ADMIN],
     [],
     all_scopes,
     all_scopes_excluding(ODPScope.USER_ADMIN),
 ])
-def test_delete_user(api, user_batch, scopes):
+def test_delete_user(api, user_batch, scopes, has_tag_instance):
     authorized = ODPScope.USER_ADMIN in scopes
     modified_user_batch = user_batch.copy()
     del modified_user_batch[2]
+
+    if has_tag_instance in ('collection', 'both'):
+        CollectionTagFactory(user=user_batch[2])
+    if has_tag_instance in ('record', 'both'):
+        RecordTagFactory(user=user_batch[2])
+
     r = api(scopes).delete(f'/user/{user_batch[2].id}')
+
     if authorized:
-        assert_empty_result(r)
-        assert_db_state(modified_user_batch)
+        if has_tag_instance in ('collection', 'record', 'both'):
+            assert_unprocessable(r, 'The user cannot be deleted due to associated tag instance data.')
+            assert_db_state(user_batch)
+        else:
+            assert_empty_result(r)
+            assert_db_state(modified_user_batch)
     else:
         assert_forbidden(r)
         assert_db_state(user_batch)
