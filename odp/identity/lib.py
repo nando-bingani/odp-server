@@ -5,8 +5,9 @@ import argon2
 from argon2.exceptions import VerifyMismatchError
 from sqlalchemy import select
 
+from odp.const import ODPSystemRole, SAEON_EMAIL_DOMAINS
 from odp.db import Session
-from odp.db.models import User
+from odp.db.models import User, UserRole
 from odp.lib import exceptions as x
 
 ph = argon2.PasswordHasher()
@@ -171,10 +172,9 @@ def validate_email_verification(email):
 
 def create_user_account(email, password=None, name=None):
     """
-    Create a new user account with the specified credentials.
-    Password may be omitted if the user is externally authenticated.
-    A member record is created if the email domain matches an
-    institutional domain. An ``ODPIdentityError`` is raised if
+    Create a new user account with the specified credentials and
+    assign a default role. Password may be omitted if the user is
+    externally authenticated. An ``ODPIdentityError`` is raised if
     the account cannot be created for any reason.
 
     The password, if supplied, is hashed using the Argon2id algorithm.
@@ -203,7 +203,24 @@ def create_user_account(email, password=None, name=None):
     )
     user.save()
 
+    assign_default_role(user.id)
+
     return user.id
+
+
+def assign_default_role(user_id):
+    """
+    Assign the default SAEON staff role if the email domain belongs
+    to SAEON, otherwise assign the default public user role.
+    """
+    user = Session.get(User, user_id)
+    _, _, domain = user.email.partition('@')
+
+    default_role = ODPSystemRole.SAEON_STAFF if domain in SAEON_EMAIL_DOMAINS else ODPSystemRole.DEFAULT
+
+    if not Session.get(UserRole, (user_id, default_role)):
+        user_role = UserRole(user_id=user_id, role_id=default_role)
+        user_role.save()
 
 
 def update_user_verified(user_id, verified):
