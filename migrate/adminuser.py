@@ -2,7 +2,7 @@ from getpass import getpass
 
 import argon2
 
-from migrate import ODP_ADMIN_ROLE
+from odp.const import ODPSystemRole
 from odp.db import Session
 from odp.db.models import User, UserRole
 
@@ -27,6 +27,6 @@ def create_admin_user():
 
         user_role = UserRole(
             user_id=user.id,
-            role_id=ODP_ADMIN_ROLE,
+            role_id=ODPSystemRole.ODP_ADMIN,
         )
         user_role.save()

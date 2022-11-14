@@ -1,7 +1,7 @@
 from sqlalchemy import select
 
 import migrate.systemdata
-from odp.const import ODPScope
+from odp.const import ODPScope, ODPSystemRole
 from odp.db import Session
 from odp.db.models import (Catalog, Client, ClientScope, Collection, CollectionTag, Provider, Record, RecordTag, Role,
                            RoleScope, Schema, Scope, ScopeType, Tag, User, UserRole, Vocabulary, VocabularyTerm)
@@ -15,17 +15,30 @@ def test_db_setup():
     result = Session.execute(select(Scope)).scalars()
     assert [row.id for row in result] == [s.value for s in ODPScope]
 
-    # create a batch of arbitrary scopes, which should not be assigned to the sysadmin
-    ScopeFactory.create_batch(5)
+    # create a batch of arbitrary scopes; these should not be assigned to
+    # any predefined system roles by init_system_roles()
+    scopes = ScopeFactory.create_batch(5)
 
-    migrate.systemdata.init_admin_role()
+    migrate.systemdata.init_system_roles()
     Session.commit()
-    result = Session.execute(select(Role)).scalar_one()
-    assert (result.id, result.collection_id) == (migrate.ODP_ADMIN_ROLE, None)
+    result = Session.execute(select(Role)).scalars()
+    assert [(row.id, row.collection_id) for row in result] == [(r.value, None) for r in ODPSystemRole]
 
-    result = Session.execute(select(RoleScope)).scalars()
-    assert [(row.role_id, row.scope_id, row.scope_type) for row in result] \
-           == [(migrate.ODP_ADMIN_ROLE, s.value, ScopeType.odp) for s in ODPScope]
+    result = Session.execute(
+        select(RoleScope).
+        where(RoleScope.role_id == ODPSystemRole.ODP_ADMIN)
+    ).scalars()
+    assert [(row.scope_id, row.scope_type) for row in result] \
+           == [(s.value, ScopeType.odp) for s in ODPScope]
+
+    result = Session.execute(
+        select(RoleScope).
+        where(RoleScope.role_id != ODPSystemRole.ODP_ADMIN)
+    ).scalars()
+    assert all(
+        row.scope_id not in (s.id for s in scopes) and row.scope_type == ScopeType.odp
+        for row in result
+    )
 
 
 def test_create_catalog():

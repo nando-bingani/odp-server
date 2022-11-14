@@ -6,8 +6,8 @@ from datetime import datetime, timezone
 import yaml
 from sqlalchemy import delete, select
 
-from migrate import ODP_ADMIN_ROLE
-from odp.const import ODPCatalog, ODPCollectionTag, ODPMetadataSchema, ODPRecordTag, ODPScope, ODPTagSchema, ODPVocabulary, ODPVocabularySchema
+from odp.const import (ODPCatalog, ODPCollectionTag, ODPMetadataSchema, ODPRecordTag, ODPScope, ODPSystemRole, ODPTagSchema, ODPVocabulary,
+                       ODPVocabularySchema)
 from odp.const.hydra import GrantType, HydraScope, ResponseType
 from odp.db import Base, Session, engine
 from odp.db.models import Catalog, Client, Role, Schema, SchemaType, Scope, ScopeType, Tag, Vocabulary
@@ -55,12 +55,23 @@ def init_standard_scopes():
     )
 
 
-def init_admin_role():
-    """Create the ODP admin role if it does not exist, and
-    synchronize its scopes with the system."""
-    role = Session.get(Role, ODP_ADMIN_ROLE) or Role(id=ODP_ADMIN_ROLE)
-    role.scopes = [Session.get(Scope, (s.value, ScopeType.odp)) for s in ODPScope]
-    role.save()
+def init_system_roles():
+    """Create or update system roles."""
+    with open(datadir / 'roles.yml') as f:
+        role_data = yaml.safe_load(f)
+
+    for role_id in (role_ids := [r.value for r in ODPSystemRole]):
+        role = Session.get(Role, role_id) or Role(id=role_id)
+        if role_id == ODPSystemRole.ODP_ADMIN:
+            role.scopes = [Session.get(Scope, (s.value, ScopeType.odp)) for s in ODPScope]
+        else:
+            role_spec = role_data[role_id]
+            role.scopes = [Session.get(Scope, (scope_id, ScopeType.odp)) for scope_id in role_spec['scopes']]
+
+        role.save()
+
+    if orphaned_yml_roles := [role_id for role_id in role_data if role_id not in role_ids]:
+        logger.warning(f'Orphaned role definitions in roles.yml {orphaned_yml_roles}')
 
 
 def init_admin_ui_client(hydra_admin_api):
@@ -214,17 +225,6 @@ def init_vocabularies():
         logger.warning(f'Orphaned vocabulary definitions in vocabulary table {orphaned_db_vocabularies}')
 
 
-def init_roles():
-    """Create or update role definitions."""
-    with open(datadir / 'roles.yml') as f:
-        role_data = yaml.safe_load(f)
-
-    for role_id, role_spec in role_data.items():
-        role = Session.get(Role, role_id) or Role(id=role_id)
-        role.scopes = [Session.get(Scope, (scope_id, ScopeType.odp)) for scope_id in role_spec['scopes']]
-        role.save()
-
-
 def init_catalogs():
     """Create or update catalog definitions."""
     for catalog_id in (catalog_ids := [c.value for c in ODPCatalog]):
@@ -244,14 +244,13 @@ def initialize():
     with Session.begin():
         init_system_scopes()
         init_standard_scopes()
-        init_admin_role()
+        init_system_roles()
         init_admin_ui_client(hydra_admin_api)
         init_public_ui_client(hydra_admin_api)
         init_dap_ui_client(hydra_admin_api)
         init_schemas()
         init_tags()
         init_vocabularies()
-        init_roles()
         init_catalogs()
 
     logger.info('Done.')
