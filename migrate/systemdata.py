@@ -4,7 +4,11 @@ import pathlib
 from datetime import datetime, timezone
 
 import yaml
-from sqlalchemy import delete, select
+from alembic import command
+from alembic.config import Config
+from dotenv import load_dotenv
+from sqlalchemy import delete, select, text
+from sqlalchemy.exc import ProgrammingError
 
 from odp.const import (ODPCatalog, ODPCollectionTag, ODPMetadataSchema, ODPRecordTag, ODPScope, ODPSystemRole, ODPTagSchema, ODPVocabulary,
                        ODPVocabularySchema)
@@ -18,13 +22,21 @@ datadir = pathlib.Path(__file__).parent / 'systemdata'
 logger = logging.getLogger(__name__)
 
 
-def create_db_schema():
-    """Create the ODP database schema.
+def create_database_schema():
+    """Create the ODP database schema if this is a new system."""
+    try:
+        with engine.connect() as conn:
+            conn.execute(text('select version_num from alembic_version'))
+        schema_exists = True
+    except ProgrammingError:  # from psycopg2.errors.UndefinedTable
+        schema_exists = False
 
-    Only tables that do not exist are created. To modify existing table
-    definitions, use Alembic migrations.
-    """
-    Base.metadata.create_all(engine)
+    if not schema_exists:
+        Base.metadata.create_all(engine)
+        os.chdir(pathlib.Path(__file__).parent)
+        alembic_cfg = Config('alembic.ini')
+        command.stamp(alembic_cfg, 'head')
+        logger.info('Created the ODP database schema.')
 
 
 def init_system_scopes():
@@ -238,10 +250,13 @@ def init_catalogs():
 def initialize():
     logger.info('Initializing static system data...')
 
+    # for a local run; in a container there's no .env
+    load_dotenv(pathlib.Path(os.getcwd()) / '.env')
+
     hydra_admin_api = HydraAdminAPI(os.environ['HYDRA_ADMIN_URL'])
 
-    create_db_schema()
     with Session.begin():
+        create_database_schema()
         init_system_scopes()
         init_standard_scopes()
         init_system_roles()
