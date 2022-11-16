@@ -24,21 +24,25 @@ logger = logging.getLogger(__name__)
 
 def init_database_schema():
     """Create or update the ODP database schema."""
+    cwd = os.getcwd()
     os.chdir(pathlib.Path(__file__).parent)
-    alembic_cfg = Config('alembic.ini')
     try:
-        with engine.connect() as conn:
-            conn.execute(text('select version_num from alembic_version'))
-        schema_exists = True
-    except ProgrammingError:  # from psycopg2.errors.UndefinedTable
-        schema_exists = False
+        alembic_cfg = Config('alembic.ini')
+        try:
+            with engine.connect() as conn:
+                conn.execute(text('select version_num from alembic_version'))
+            schema_exists = True
+        except ProgrammingError:  # from psycopg2.errors.UndefinedTable
+            schema_exists = False
 
-    if schema_exists:
-        command.upgrade(alembic_cfg, 'head')
-    else:
-        Base.metadata.create_all(engine)
-        command.stamp(alembic_cfg, 'head')
-        logger.info('Created the ODP database schema.')
+        if schema_exists:
+            command.upgrade(alembic_cfg, 'head')
+        else:
+            Base.metadata.create_all(engine)
+            command.stamp(alembic_cfg, 'head')
+            logger.info('Created the ODP database schema.')
+    finally:
+        os.chdir(cwd)
 
 
 def init_system_scopes():
