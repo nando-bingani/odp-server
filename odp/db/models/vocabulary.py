@@ -31,7 +31,7 @@ class Vocabulary(Base):
         ),
     )
 
-    id = Column(String, unique=True, primary_key=True)
+    id = Column(String, primary_key=True)
 
     schema_id = Column(String, nullable=False)
     schema_type = Column(Enum(SchemaType), nullable=False)
