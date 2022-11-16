@@ -125,19 +125,21 @@ class ClientFactory(ODPModelFactory):
         exclude = ('is_collection_client',)
 
     id = factory.Sequence(lambda n: id_from_fake('catch_phrase', n))
-
-    is_collection_client = False
-    collection = factory.Maybe(
-        'is_collection_client',
-        yes_declaration=factory.SubFactory(CollectionFactory),
-        no_declaration=None,
-    )
+    collection_specific = factory.LazyFunction(lambda: randint(0, 1))
 
     @factory.post_generation
     def scopes(obj, create, scopes):
         if scopes:
             for scope in scopes:
                 obj.scopes.append(scope)
+            if create:
+                Session.commit()
+
+    @factory.post_generation
+    def collections(obj, create, collections):
+        if collections:
+            for collection in collections:
+                obj.collections.append(collection)
             if create:
                 Session.commit()
 
@@ -216,19 +218,21 @@ class RoleFactory(ODPModelFactory):
         exclude = ('is_collection_role',)
 
     id = factory.Sequence(lambda n: id_from_fake('job', n))
-
-    is_collection_role = False
-    collection = factory.Maybe(
-        'is_collection_role',
-        yes_declaration=factory.SubFactory(CollectionFactory),
-        no_declaration=None,
-    )
+    collection_specific = factory.LazyFunction(lambda: randint(0, 1))
 
     @factory.post_generation
     def scopes(obj, create, scopes):
         if scopes:
             for scope in scopes:
                 obj.scopes.append(scope)
+            if create:
+                Session.commit()
+
+    @factory.post_generation
+    def collections(obj, create, collections):
+        if collections:
+            for collection in collections:
+                obj.collections.append(collection)
             if create:
                 Session.commit()
 

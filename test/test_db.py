@@ -3,8 +3,8 @@ from sqlalchemy import select
 import migrate.systemdata
 from odp.const import ODPScope, ODPSystemRole
 from odp.db import Session
-from odp.db.models import (Catalog, Client, ClientScope, Collection, CollectionTag, Provider, Record, RecordTag, Role,
-                           RoleScope, Schema, Scope, ScopeType, Tag, User, UserRole, Vocabulary, VocabularyTerm)
+from odp.db.models import (Catalog, Client, ClientCollection, ClientScope, Collection, CollectionTag, Provider, Record, RecordTag, Role,
+                           RoleCollection, RoleScope, Schema, Scope, ScopeType, Tag, User, UserRole, Vocabulary, VocabularyTerm)
 from test.factories import (CatalogFactory, ClientFactory, CollectionFactory, CollectionTagFactory, ProviderFactory, RecordFactory,
                             RecordTagFactory, RoleFactory, SchemaFactory, ScopeFactory, TagFactory, UserFactory, VocabularyFactory)
 
@@ -22,7 +22,7 @@ def test_db_setup():
     migrate.systemdata.init_system_roles()
     Session.commit()
     result = Session.execute(select(Role)).scalars()
-    assert [(row.id, row.collection_id) for row in result] == [(r.value, None) for r in ODPSystemRole]
+    assert [(row.id, row.collection_specific) for row in result] == [(r.value, False) for r in ODPSystemRole]
 
     result = Session.execute(
         select(RoleScope).
@@ -50,14 +50,15 @@ def test_create_catalog():
 def test_create_client():
     client = ClientFactory()
     result = Session.execute(select(Client)).scalar_one()
-    assert (result.id, result.collection_id) == (client.id, None)
+    assert (result.id, result.collection_specific) == (client.id, client.collection_specific)
 
 
-def test_create_client_with_collection():
-    client = ClientFactory(is_collection_client=True)
-    result = Session.execute(select(Client, Collection).join(Collection)).one()
-    assert (result.Client.id, result.Client.collection_id, result.Collection.name) \
-           == (client.id, client.collection.id, client.collection.name)
+def test_create_client_with_collections():
+    collections = CollectionFactory.create_batch(5)
+    client = ClientFactory(collections=collections)
+    result = Session.execute(select(ClientCollection)).scalars()
+    assert [(row.client_id, row.collection_id) for row in result] \
+           == [(client.id, collection.id) for collection in collections]
 
 
 def test_create_client_with_scopes():
@@ -105,14 +106,15 @@ def test_create_record_tag():
 def test_create_role():
     role = RoleFactory()
     result = Session.execute(select(Role)).scalar_one()
-    assert (result.id, result.collection_id) == (role.id, None)
+    assert (result.id, result.collection_specific) == (role.id, role.collection_specific)
 
 
-def test_create_role_with_collection():
-    role = RoleFactory(is_collection_role=True)
-    result = Session.execute(select(Role, Collection).join(Collection)).one()
-    assert (result.Role.id, result.Role.collection_id, result.Collection.name) \
-           == (role.id, role.collection.id, role.collection.name)
+def test_create_role_with_collections():
+    collections = CollectionFactory.create_batch(5)
+    role = RoleFactory(collections=collections)
+    result = Session.execute(select(RoleCollection)).scalars()
+    assert [(row.role_id, row.collection_id) for row in result] \
+           == [(role.id, collection.id) for collection in collections]
 
 
 def test_create_role_with_scopes():
