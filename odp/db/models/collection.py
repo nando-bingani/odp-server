@@ -22,8 +22,9 @@ class Collection(Base):
     # view of associated tags (one-to-many)
     tags = relationship('CollectionTag', viewonly=True)
 
-    # view of associated roles (zero-or-one-to-many)
-    roles = relationship('Role', viewonly=True)
+    # view of associated roles via many-to-many role_collection relation
+    collection_roles = relationship('RoleCollection', viewonly=True)
+    roles = association_proxy('collection_roles', 'role')
 
     # view of associated clients via many-to-many client_collection relation
     collection_clients = relationship('ClientCollection', viewonly=True)

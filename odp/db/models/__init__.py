@@ -10,6 +10,7 @@ from .published_doi import PublishedDOI
 from .record import Record, RecordAudit
 from .record_tag import RecordTag, RecordTagAudit
 from .role import Role
+from .role_collection import RoleCollection
 from .role_scope import RoleScope
 from .schema import Schema
 from .scope import Scope
