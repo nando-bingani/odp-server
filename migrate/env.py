@@ -1,8 +1,13 @@
+import pathlib
+import sys
 from logging.config import fileConfig
 
 from alembic import context
 from sqlalchemy import create_engine
 from sqlalchemy import pool
+
+rootdir = pathlib.Path(__file__).parent.parent
+sys.path.append(str(rootdir))
 
 import odp.db.models
 from odp.config import config as odp_config

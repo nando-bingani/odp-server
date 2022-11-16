@@ -1,4 +1,5 @@
 from sqlalchemy import Column, Enum, ForeignKey, Identity, Integer, String, TIMESTAMP
+from sqlalchemy.ext.associationproxy import association_proxy
 from sqlalchemy.orm import relationship
 
 from odp.db import Base
@@ -24,8 +25,9 @@ class Collection(Base):
     # view of associated roles (zero-or-one-to-many)
     roles = relationship('Role', viewonly=True)
 
-    # view of associated clients (zero-or-one-to-many)
-    clients = relationship('Client', viewonly=True)
+    # view of associated clients via many-to-many client_collection relation
+    collection_clients = relationship('ClientCollection', viewonly=True)
+    clients = association_proxy('collection_clients', 'client')
 
     _repr_ = 'id', 'name', 'doi_key', 'provider_id'
 
