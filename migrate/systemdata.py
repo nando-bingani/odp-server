@@ -22,8 +22,10 @@ datadir = pathlib.Path(__file__).parent / 'systemdata'
 logger = logging.getLogger(__name__)
 
 
-def create_database_schema():
-    """Create the ODP database schema if this is a new system."""
+def init_database_schema():
+    """Create or update the ODP database schema."""
+    os.chdir(pathlib.Path(__file__).parent)
+    alembic_cfg = Config('alembic.ini')
     try:
         with engine.connect() as conn:
             conn.execute(text('select version_num from alembic_version'))
@@ -31,10 +33,10 @@ def create_database_schema():
     except ProgrammingError:  # from psycopg2.errors.UndefinedTable
         schema_exists = False
 
-    if not schema_exists:
+    if schema_exists:
+        command.upgrade(alembic_cfg, 'head')
+    else:
         Base.metadata.create_all(engine)
-        os.chdir(pathlib.Path(__file__).parent)
-        alembic_cfg = Config('alembic.ini')
         command.stamp(alembic_cfg, 'head')
         logger.info('Created the ODP database schema.')
 
@@ -256,7 +258,7 @@ def initialize():
     hydra_admin_api = HydraAdminAPI(os.environ['HYDRA_ADMIN_URL'])
 
     with Session.begin():
-        create_database_schema()
+        init_database_schema()
         init_system_scopes()
         init_standard_scopes()
         init_system_roles()
