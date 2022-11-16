@@ -31,8 +31,10 @@ def get_client_permissions(client_id: str) -> Permissions:
     if not client:
         raise x.ODPClientNotFound
 
+    scope_applicability = ('*' if not client.collection_specific
+                           else [collection.id for collection in client.collections])
     return {
-        scope.id: '*' if not client.collection else [client.collection_id]
+        scope.id: scope_applicability
         for scope in client.scopes
     }
 
@@ -49,9 +51,9 @@ def get_user_permissions(user_id: str, client_id: str) -> Permissions:
         raise x.ODPClientNotFound
 
     platform_scopes = set()
-    if not client.collection:
+    if not client.collection_specific:
         for role in user.roles:
-            if not role.collection:
+            if not role.collection_specific:
                 platform_scopes |= {
                     scope.id for scope in role.scopes
                     if scope in client.scopes
@@ -59,16 +61,26 @@ def get_user_permissions(user_id: str, client_id: str) -> Permissions:
 
     collection_scopes = {}
     for role in user.roles:
-        if role.collection or client.collection:
-            if role.collection and client.collection and role.collection_id != client.collection_id:
+        if role.collection_specific and client.collection_specific:
+            collection_ids = set(c.id for c in role.collections).intersection(c.id for c in client.collections)
+        elif role.collection_specific:
+            collection_ids = set(c.id for c in role.collections)
+        elif client.collection_specific:
+            collection_ids = set(c.id for c in client.collections)
+        else:
+            continue
+
+        if not collection_ids:
+            continue
+
+        for scope in role.scopes:
+            if scope.id in platform_scopes:
                 continue
-            for scope in role.scopes:
-                if scope.id in platform_scopes:
-                    continue
-                if scope not in client.scopes:
-                    continue
-                collection_scopes.setdefault(scope.id, set())
-                collection_scopes[scope.id] |= {role.collection_id if role.collection else client.collection_id}
+            if scope not in client.scopes:
+                continue
+
+            collection_scopes.setdefault(scope.id, set())
+            collection_scopes[scope.id] |= collection_ids
 
     collection_scopes = {
         scope: list(collections)
@@ -101,6 +113,7 @@ def get_user_info(user_id: str, client_id: str) -> UserInfo:
         picture=user.picture,
         roles=[
             role.id for role in user.roles
-            if not role.collection or not client.collection or role.collection_id == client.collection_id
+            if (not role.collection_specific or not client.collection_specific
+                or set(c.id for c in role.collections).intersection(c.id for c in client.collections))
         ],
     )
