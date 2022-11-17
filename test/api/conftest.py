@@ -16,11 +16,12 @@ hydra_public_url = config.HYDRA.PUBLIC.URL
 
 @pytest.fixture
 def api():
-    def scoped_client(scopes, collection=None):
+    def scoped_client(scopes, collections=None):
         ClientFactory(
             id='odp.test',
             scopes=[ScopeFactory(id=s.value, type='odp') for s in scopes],
-            collection=collection,
+            collection_specific=collections is not None,
+            collections=collections,
         )
         token = OAuth2Session(
             client_id='odp.test',

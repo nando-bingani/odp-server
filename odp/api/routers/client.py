@@ -7,7 +7,7 @@ from odp.api.lib.paging import Page, Paginator
 from odp.api.models import ClientModel, ClientModelIn
 from odp.const import ODPScope
 from odp.db import Session
-from odp.db.models import Client
+from odp.db.models import Client, Collection
 
 router = APIRouter()
 
@@ -18,7 +18,8 @@ def output_client_model(client: Client) -> ClientModel:
         id=client.id,
         name=hydra_client.name,
         scope_ids=[scope.id for scope in client.scopes],
-        collection_id=client.collection_id,
+        collection_specific=client.collection_specific,
+        collection_ids=[collection.id for collection in client.collections] if client.collection_specific else [],
         grant_types=hydra_client.grant_types,
         response_types=hydra_client.response_types,
         redirect_uris=hydra_client.redirect_uris,
@@ -46,17 +47,13 @@ def create_or_update_hydra_client(client_in: ClientModelIn) -> None:
 @router.get(
     '/',
     response_model=Page[ClientModel],
+    dependencies=[Depends(Authorize(ODPScope.CLIENT_READ))],
 )
 async def list_clients(
-        auth: Authorized = Depends(Authorize(ODPScope.CLIENT_READ)),
         paginator: Paginator = Depends(),
 ):
-    stmt = select(Client)
-    if auth.collection_ids != '*':
-        stmt = stmt.where(Client.collection_id.in_(auth.collection_ids))
-
     return paginator.paginate(
-        stmt,
+        select(Client),
         lambda row: output_client_model(row.Client),
     )
 
@@ -64,16 +61,13 @@ async def list_clients(
 @router.get(
     '/{client_id}',
     response_model=ClientModel,
+    dependencies=[Depends(Authorize(ODPScope.CLIENT_READ))],
 )
 async def get_client(
         client_id: str,
-        auth: Authorized = Depends(Authorize(ODPScope.CLIENT_READ)),
 ):
     if not (client := Session.get(Client, client_id)):
         raise HTTPException(HTTP_404_NOT_FOUND)
-
-    if auth.collection_ids != '*' and client.collection_id not in auth.collection_ids:
-        raise HTTPException(HTTP_403_FORBIDDEN)
 
     return output_client_model(client)
 
@@ -85,7 +79,7 @@ async def create_client(
         client_in: ClientModelIn,
         auth: Authorized = Depends(Authorize(ODPScope.CLIENT_ADMIN)),
 ):
-    if auth.collection_ids != '*' and client_in.collection_id not in auth.collection_ids:
+    if auth.collection_ids != '*' and not set(client_in.collection_ids).issubset(auth.collection_ids):
         raise HTTPException(HTTP_403_FORBIDDEN)
 
     if Session.get(Client, client_in.id):
@@ -97,7 +91,11 @@ async def create_client(
     client = Client(
         id=client_in.id,
         scopes=select_scopes(client_in.scope_ids),
-        collection_id=client_in.collection_id,
+        collection_specific=client_in.collection_specific,
+        collections=[
+            Session.get(Collection, collection_id)
+            for collection_id in client_in.collection_ids
+        ],
     )
     client.save()
     create_or_update_hydra_client(client_in)
@@ -110,14 +108,21 @@ async def update_client(
         client_in: ClientModelIn,
         auth: Authorized = Depends(Authorize(ODPScope.CLIENT_ADMIN)),
 ):
-    if auth.collection_ids != '*' and client_in.collection_id not in auth.collection_ids:
+    if auth.collection_ids != '*' and not set(client_in.collection_ids).issubset(auth.collection_ids):
         raise HTTPException(HTTP_403_FORBIDDEN)
 
     if not (client := Session.get(Client, client_in.id)):
         raise HTTPException(HTTP_404_NOT_FOUND)
 
+    if auth.collection_ids != '*' and not set(c.id for c in client.collections).issubset(auth.collection_ids):
+        raise HTTPException(HTTP_403_FORBIDDEN)
+
     client.scopes = select_scopes(client_in.scope_ids)
-    client.collection_id = client_in.collection_id,
+    client.collection_specific = client_in.collection_specific
+    client.collections = [
+        Session.get(Collection, collection_id)
+        for collection_id in client_in.collection_ids
+    ]
     client.save()
     create_or_update_hydra_client(client_in)
 
@@ -132,7 +137,7 @@ async def delete_client(
     if not (client := Session.get(Client, client_id)):
         raise HTTPException(HTTP_404_NOT_FOUND)
 
-    if auth.collection_ids != '*' and client.collection_id not in auth.collection_ids:
+    if auth.collection_ids != '*' and not set(c.id for c in client.collections).issubset(auth.collection_ids):
         raise HTTPException(HTTP_403_FORBIDDEN)
 
     client.delete()

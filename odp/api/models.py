@@ -4,8 +4,8 @@ from typing import Any, Literal, Optional
 from pydantic import AnyHttpUrl, BaseModel, Field, root_validator, validator
 
 from odp.const import DOI_REGEX, ID_REGEX, SID_REGEX
-from odp.db.models import AuditCommand, TagCardinality
 from odp.const.hydra import GrantType, ResponseType, TokenEndpointAuthMethod
+from odp.db.models import AuditCommand, TagCardinality
 
 
 class AccessTokenModel(BaseModel):
@@ -80,7 +80,8 @@ class ClientModel(BaseModel):
     id: str
     name: str
     scope_ids: list[str]
-    collection_id: Optional[str]
+    collection_specific: bool
+    collection_ids: list[str]
     grant_types: list[GrantType]
     response_types: list[ResponseType]
     redirect_uris: list[AnyHttpUrl]
@@ -92,6 +93,16 @@ class ClientModel(BaseModel):
 class ClientModelIn(ClientModel):
     id: str = Field(..., regex=ID_REGEX)
     secret: str = Field(None, min_length=16)
+
+    @validator('collection_ids')
+    def validate_collection_ids(cls, collection_ids, values):
+        try:
+            if not values['collection_specific'] and collection_ids:
+                raise ValueError("Collections can only be associated with a collection-specific client.")
+        except KeyError:
+            pass  # ignore: collection_specific validation already failed
+
+        return collection_ids
 
 
 class CollectionModel(BaseModel):
