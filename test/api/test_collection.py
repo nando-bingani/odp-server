@@ -16,12 +16,17 @@ from test.factories import (ClientFactory, CollectionFactory, CollectionTagFacto
 
 @pytest.fixture
 def collection_batch():
+    """Create and commit a batch of Collection instances."""
+    return [CollectionFactory() for _ in range(randint(3, 5))]
+
+
+@pytest.fixture
+def collection_batch_with_roles_and_clients():
     """Create and commit a batch of Collection instances,
     with associated clients and roles."""
     collections = [CollectionFactory() for _ in range(randint(3, 5))]
-    for collection in collections:
-        ClientFactory.create_batch(randint(0, 3), collection=collection)
-        RoleFactory.create_batch(randint(0, 3), collection=collection)
+    ClientFactory.create_batch(randint(0, 3), collections=collections)
+    RoleFactory.create_batch(randint(0, 3), collections=collections)
     return collections
 
 
@@ -158,28 +163,28 @@ def assert_doi_result(response, collection):
     all_scopes,
     all_scopes_excluding(ODPScope.COLLECTION_READ),
 ])
-def test_list_collections(api, collection_batch, scopes, collection_auth):
+def test_list_collections(api, collection_batch_with_roles_and_clients, scopes, collection_auth):
     authorized = ODPScope.COLLECTION_READ in scopes
 
     if collection_auth == CollectionAuth.MATCH:
-        api_client_collection = collection_batch[2]
-        expected_result_batch = [collection_batch[2]]
+        api_client_collections = [collection_batch_with_roles_and_clients[2]]
+        expected_result_batch = api_client_collections
     elif collection_auth == CollectionAuth.MISMATCH:
-        api_client_collection = CollectionFactory()
-        expected_result_batch = [api_client_collection]
-        collection_batch += [api_client_collection]
+        api_client_collections = [CollectionFactory()]
+        expected_result_batch = api_client_collections
+        collection_batch_with_roles_and_clients += api_client_collections
     else:
-        api_client_collection = None
-        expected_result_batch = collection_batch
+        api_client_collections = None
+        expected_result_batch = collection_batch_with_roles_and_clients
 
-    r = api(scopes, api_client_collection).get('/collection/')
+    r = api(scopes, api_client_collections).get('/collection/')
 
     if authorized:
         assert_json_collection_results(r, r.json(), expected_result_batch)
     else:
         assert_forbidden(r)
 
-    assert_db_state(collection_batch)
+    assert_db_state(collection_batch_with_roles_and_clients)
     assert_no_audit_log()
 
 
@@ -189,45 +194,45 @@ def test_list_collections(api, collection_batch, scopes, collection_auth):
     all_scopes,
     all_scopes_excluding(ODPScope.COLLECTION_READ),
 ])
-def test_get_collection(api, collection_batch, scopes, collection_auth):
+def test_get_collection(api, collection_batch_with_roles_and_clients, scopes, collection_auth):
     authorized = ODPScope.COLLECTION_READ in scopes and \
                  collection_auth in (CollectionAuth.NONE, CollectionAuth.MATCH)
 
     if collection_auth == CollectionAuth.MATCH:
-        api_client_collection = collection_batch[2]
+        api_client_collections = [collection_batch_with_roles_and_clients[2]]
     elif collection_auth == CollectionAuth.MISMATCH:
-        api_client_collection = collection_batch[1]
+        api_client_collections = [collection_batch_with_roles_and_clients[1]]
     else:
-        api_client_collection = None
+        api_client_collections = None
 
-    r = api(scopes, api_client_collection).get(f'/collection/{collection_batch[2].id}')
+    r = api(scopes, api_client_collections).get(f'/collection/{collection_batch_with_roles_and_clients[2].id}')
 
     if authorized:
-        assert_json_collection_result(r, r.json(), collection_batch[2])
+        assert_json_collection_result(r, r.json(), collection_batch_with_roles_and_clients[2])
     else:
         assert_forbidden(r)
 
-    assert_db_state(collection_batch)
+    assert_db_state(collection_batch_with_roles_and_clients)
     assert_no_audit_log()
 
 
-def test_get_collection_not_found(api, collection_batch, collection_auth):
+def test_get_collection_not_found(api, collection_batch_with_roles_and_clients, collection_auth):
     scopes = [ODPScope.COLLECTION_READ]
     authorized = collection_auth == CollectionAuth.NONE
 
     if collection_auth == CollectionAuth.NONE:
-        api_client_collection = None
+        api_client_collections = None
     else:
-        api_client_collection = collection_batch[2]
+        api_client_collections = [collection_batch_with_roles_and_clients[2]]
 
-    r = api(scopes, api_client_collection).get('/collection/foo')
+    r = api(scopes, api_client_collections).get('/collection/foo')
 
     if authorized:
         assert_not_found(r)
     else:
         assert_forbidden(r)
 
-    assert_db_state(collection_batch)
+    assert_db_state(collection_batch_with_roles_and_clients)
     assert_no_audit_log()
 
 
@@ -243,13 +248,13 @@ def test_create_collection(api, collection_batch, scopes, collection_auth):
                  collection_auth == CollectionAuth.NONE
 
     if collection_auth == CollectionAuth.NONE:
-        api_client_collection = None
+        api_client_collections = None
     else:
-        api_client_collection = collection_batch[2]
+        api_client_collections = [collection_batch[2]]
 
     modified_collection_batch = collection_batch + [collection := collection_build()]
 
-    r = api(scopes, api_client_collection).post('/collection/', json=dict(
+    r = api(scopes, api_client_collections).post('/collection/', json=dict(
         id=collection.id,
         name=collection.name,
         doi_key=collection.doi_key,
@@ -271,13 +276,13 @@ def test_create_collection_conflict(api, collection_batch, collection_auth):
     authorized = collection_auth == CollectionAuth.NONE
 
     if collection_auth == CollectionAuth.NONE:
-        api_client_collection = None
+        api_client_collections = None
     else:
-        api_client_collection = collection_batch[2]
+        api_client_collections = [collection_batch[2]]
 
     collection = collection_build(id=collection_batch[2].id)
 
-    r = api(scopes, api_client_collection).post('/collection/', json=dict(
+    r = api(scopes, api_client_collections).post('/collection/', json=dict(
         id=collection.id,
         name=collection.name,
         doi_key=collection.doi_key,
@@ -304,20 +309,18 @@ def test_update_collection(api, collection_batch, scopes, collection_auth):
                  collection_auth in (CollectionAuth.NONE, CollectionAuth.MATCH)
 
     if collection_auth == CollectionAuth.MATCH:
-        api_client_collection = collection_batch[2]
+        api_client_collections = [collection_batch[2]]
     elif collection_auth == CollectionAuth.MISMATCH:
-        api_client_collection = collection_batch[1]
+        api_client_collections = [collection_batch[1]]
     else:
-        api_client_collection = None
+        api_client_collections = None
 
     modified_collection_batch = collection_batch.copy()
     modified_collection_batch[2] = (collection := collection_build(
         id=collection_batch[2].id,
-        clients=collection_batch[2].clients,
-        roles=collection_batch[2].roles,
     ))
 
-    r = api(scopes, api_client_collection).put('/collection/', json=dict(
+    r = api(scopes, api_client_collections).put('/collection/', json=dict(
         id=collection.id,
         name=collection.name,
         doi_key=collection.doi_key,
@@ -339,13 +342,13 @@ def test_update_collection_not_found(api, collection_batch, collection_auth):
     authorized = collection_auth == CollectionAuth.NONE
 
     if collection_auth == CollectionAuth.NONE:
-        api_client_collection = None
+        api_client_collections = None
     else:
-        api_client_collection = collection_batch[2]
+        api_client_collections = [collection_batch[2]]
 
     collection = collection_build(id='foo')
 
-    r = api(scopes, api_client_collection).put('/collection/', json=dict(
+    r = api(scopes, api_client_collections).put('/collection/', json=dict(
         id=collection.id,
         name=collection.name,
         doi_key=collection.doi_key,
@@ -377,11 +380,11 @@ def test_delete_collection(api, collection_batch, scopes, collection_auth, has_r
                  collection_auth in (CollectionAuth.NONE, CollectionAuth.MATCH)
 
     if collection_auth == CollectionAuth.MATCH:
-        api_client_collection = collection_batch[2]
+        api_client_collections = [collection_batch[2]]
     elif collection_auth == CollectionAuth.MISMATCH:
-        api_client_collection = collection_batch[1]
+        api_client_collections = [collection_batch[1]]
     else:
-        api_client_collection = None
+        api_client_collections = None
 
     modified_collection_batch = collection_batch.copy()
     deleted_collection = modified_collection_batch[2]
@@ -390,7 +393,7 @@ def test_delete_collection(api, collection_batch, scopes, collection_auth, has_r
     if has_record:
         RecordFactory(collection=collection_batch[2])
 
-    r = api(scopes, api_client_collection).delete(f'/collection/{collection_batch[2].id}')
+    r = api(scopes, api_client_collections).delete(f'/collection/{collection_batch[2].id}')
 
     if authorized:
         if has_record:
@@ -413,11 +416,11 @@ def test_delete_collection_not_found(api, collection_batch, collection_auth):
     authorized = collection_auth == CollectionAuth.NONE
 
     if collection_auth == CollectionAuth.NONE:
-        api_client_collection = None
+        api_client_collections = None
     else:
-        api_client_collection = collection_batch[2]
+        api_client_collections = [collection_batch[2]]
 
-    r = api(scopes, api_client_collection).delete('/collection/foo')
+    r = api(scopes, api_client_collections).delete('/collection/foo')
 
     if authorized:
         assert_not_found(r)
@@ -439,13 +442,13 @@ def test_get_new_doi(api, collection_batch, scopes, collection_auth):
                  collection_auth in (CollectionAuth.NONE, CollectionAuth.MATCH)
 
     if collection_auth == CollectionAuth.MATCH:
-        api_client_collection = collection_batch[2]
+        api_client_collections = [collection_batch[2]]
     elif collection_auth == CollectionAuth.MISMATCH:
-        api_client_collection = collection_batch[1]
+        api_client_collections = [collection_batch[1]]
     else:
-        api_client_collection = None
+        api_client_collections = None
 
-    r = api(scopes, api_client_collection).get(f'/collection/{(collection := collection_batch[2]).id}/doi/new')
+    r = api(scopes, api_client_collections).get(f'/collection/{(collection := collection_batch[2]).id}/doi/new')
 
     if authorized:
         if collection.doi_key:
@@ -487,13 +490,13 @@ def test_tag_collection(api, collection_batch, scopes, collection_auth, tag_card
                  collection_auth in (CollectionAuth.NONE, CollectionAuth.MATCH)
 
     if collection_auth == CollectionAuth.MATCH:
-        api_client_collection = collection_batch[2]
+        api_client_collections = [collection_batch[2]]
     elif collection_auth == CollectionAuth.MISMATCH:
-        api_client_collection = collection_batch[1]
+        api_client_collections = [collection_batch[1]]
     else:
-        api_client_collection = None
+        api_client_collections = None
 
-    client = api(scopes, api_client_collection)
+    client = api(scopes, api_client_collections)
     tag = new_generic_tag(tag_cardinality)
 
     r = client.post(
@@ -557,13 +560,13 @@ def test_tag_collection_user_conflict(api, collection_batch, scopes, collection_
                  collection_auth in (CollectionAuth.NONE, CollectionAuth.MATCH)
 
     if collection_auth == CollectionAuth.MATCH:
-        api_client_collection = collection_batch[2]
+        api_client_collections = [collection_batch[2]]
     elif collection_auth == CollectionAuth.MISMATCH:
-        api_client_collection = collection_batch[1]
+        api_client_collections = [collection_batch[1]]
     else:
-        api_client_collection = None
+        api_client_collections = None
 
-    client = api(scopes, api_client_collection)
+    client = api(scopes, api_client_collections)
     tag = new_generic_tag(tag_cardinality)
     collection_tag_1 = CollectionTagFactory(
         collection=collection_batch[2],
@@ -622,13 +625,13 @@ def test_untag_collection(api, collection_batch, admin_route, scopes, collection
     authorized = authorized and collection_auth in (CollectionAuth.NONE, CollectionAuth.MATCH)
 
     if collection_auth == CollectionAuth.MATCH:
-        api_client_collection = collection_batch[2]
+        api_client_collections = [collection_batch[2]]
     elif collection_auth == CollectionAuth.MISMATCH:
-        api_client_collection = collection_batch[1]
+        api_client_collections = [collection_batch[1]]
     else:
-        api_client_collection = None
+        api_client_collections = None
 
-    client = api(scopes, api_client_collection)
+    client = api(scopes, api_client_collections)
     collection = collection_batch[2]
     collection_tags = CollectionTagFactory.create_batch(randint(1, 3), collection=collection)
 
