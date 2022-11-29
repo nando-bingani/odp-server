@@ -188,16 +188,16 @@ def test_list_records(api, record_batch, scopes, collection_auth):
     authorized = ODPScope.RECORD_READ in scopes
 
     if collection_auth == CollectionAuth.MATCH:
-        api_client_collection = record_batch[2].collection
+        api_client_collections = [record_batch[2].collection]
         expected_result_batch = [record_batch[2]]
     elif collection_auth == CollectionAuth.MISMATCH:
-        api_client_collection = CollectionFactory()
+        api_client_collections = [CollectionFactory()]
         expected_result_batch = []
     else:
-        api_client_collection = None
+        api_client_collections = None
         expected_result_batch = record_batch
 
-    r = api(scopes, api_client_collection).get('/record/')
+    r = api(scopes, api_client_collections).get('/record/')
 
     if authorized:
         assert_json_record_results(r, r.json(), expected_result_batch)
@@ -219,13 +219,13 @@ def test_get_record(api, record_batch, scopes, collection_auth):
                  collection_auth in (CollectionAuth.NONE, CollectionAuth.MATCH)
 
     if collection_auth == CollectionAuth.MATCH:
-        api_client_collection = record_batch[2].collection
+        api_client_collections = [record_batch[2].collection]
     elif collection_auth == CollectionAuth.MISMATCH:
-        api_client_collection = record_batch[1].collection
+        api_client_collections = [record_batch[1].collection]
     else:
-        api_client_collection = None
+        api_client_collections = None
 
-    r = api(scopes, api_client_collection).get(f'/record/{record_batch[2].id}')
+    r = api(scopes, api_client_collections).get(f'/record/{record_batch[2].id}')
 
     if authorized:
         assert_json_record_result(r, r.json(), record_batch[2])
@@ -240,11 +240,11 @@ def test_get_record_not_found(api, record_batch, collection_auth):
     scopes = [ODPScope.RECORD_READ]
 
     if collection_auth == CollectionAuth.NONE:
-        api_client_collection = None
+        api_client_collections = None
     else:
-        api_client_collection = record_batch[2].collection
+        api_client_collections = [record_batch[2].collection]
 
-    r = api(scopes, api_client_collection).get('/record/foo')
+    r = api(scopes, api_client_collections).get('/record/foo')
 
     assert_not_found(r)
     assert_db_state(record_batch)
@@ -273,11 +273,11 @@ def test_create_record(api, record_batch, admin_route, scopes, collection_tags, 
     authorized = authorized and collection_auth in (CollectionAuth.NONE, CollectionAuth.MATCH)
 
     if collection_auth == CollectionAuth.MATCH:
-        api_client_collection = record_batch[2].collection
+        api_client_collections = [record_batch[2].collection]
     elif collection_auth == CollectionAuth.MISMATCH:
-        api_client_collection = record_batch[1].collection
+        api_client_collections = [record_batch[1].collection]
     else:
-        api_client_collection = None
+        api_client_collections = None
 
     if collection_auth in (CollectionAuth.MATCH, CollectionAuth.MISMATCH):
         new_record_collection = record_batch[2].collection
@@ -289,7 +289,7 @@ def test_create_record(api, record_batch, admin_route, scopes, collection_tags, 
         collection_tags=collection_tags,
     )]
 
-    r = api(scopes, api_client_collection).post(route, json=dict(
+    r = api(scopes, api_client_collections).post(route, json=dict(
         doi=record.doi,
         sid=record.sid,
         collection_id=record.collection_id,
@@ -329,11 +329,11 @@ def test_create_record_conflict(api, record_batch_with_ids, admin, collection_au
     authorized = collection_auth in (CollectionAuth.NONE, CollectionAuth.MATCH)
 
     if collection_auth == CollectionAuth.MATCH:
-        api_client_collection = record_batch_with_ids[2].collection
+        api_client_collections = [record_batch_with_ids[2].collection]
     elif collection_auth == CollectionAuth.MISMATCH:
-        api_client_collection = record_batch_with_ids[1].collection
+        api_client_collections = [record_batch_with_ids[1].collection]
     else:
-        api_client_collection = None
+        api_client_collections = None
 
     if collection_auth in (CollectionAuth.MATCH, CollectionAuth.MISMATCH):
         new_record_collection = record_batch_with_ids[2].collection
@@ -357,7 +357,7 @@ def test_create_record_conflict(api, record_batch_with_ids, admin, collection_au
             collection=new_record_collection,
         )
 
-    r = api(scopes, api_client_collection).post(route, json=dict(
+    r = api(scopes, api_client_collections).post(route, json=dict(
         doi=record.doi,
         sid=record.sid,
         collection_id=record.collection_id,
@@ -399,11 +399,11 @@ def test_update_record(api, record_batch, admin_route, scopes, collection_tags, 
     authorized = authorized and collection_auth in (CollectionAuth.NONE, CollectionAuth.MATCH)
 
     if collection_auth == CollectionAuth.MATCH:
-        api_client_collection = record_batch[2].collection
+        api_client_collections = [record_batch[2].collection]
     elif collection_auth == CollectionAuth.MISMATCH:
-        api_client_collection = record_batch[1].collection
+        api_client_collections = [record_batch[1].collection]
     else:
-        api_client_collection = None
+        api_client_collections = None
 
     if collection_auth in (CollectionAuth.MATCH, CollectionAuth.MISMATCH):
         modified_record_collection = record_batch[2].collection
@@ -418,7 +418,7 @@ def test_update_record(api, record_batch, admin_route, scopes, collection_tags, 
         collection_tags=collection_tags,
     ))
 
-    r = api(scopes, api_client_collection).put(route + record.id, json=dict(
+    r = api(scopes, api_client_collections).put(route + record.id, json=dict(
         doi=record.doi,
         sid=record.sid,
         collection_id=record.collection_id,
@@ -448,11 +448,11 @@ def test_update_record_not_found(api, record_batch, admin, collection_auth):
     authorized = collection_auth in (CollectionAuth.NONE, CollectionAuth.MATCH)
 
     if collection_auth == CollectionAuth.MATCH:
-        api_client_collection = record_batch[2].collection
+        api_client_collections = [record_batch[2].collection]
     elif collection_auth == CollectionAuth.MISMATCH:
-        api_client_collection = record_batch[1].collection
+        api_client_collections = [record_batch[1].collection]
     else:
-        api_client_collection = None
+        api_client_collections = None
 
     if collection_auth in (CollectionAuth.MATCH, CollectionAuth.MISMATCH):
         modified_record_collection = record_batch[2].collection
@@ -464,7 +464,7 @@ def test_update_record_not_found(api, record_batch, admin, collection_auth):
         collection=modified_record_collection,
     )]
 
-    r = api(scopes, api_client_collection).put(route + record.id, json=dict(
+    r = api(scopes, api_client_collections).put(route + record.id, json=dict(
         doi=record.doi,
         sid=record.sid,
         collection_id=record.collection_id,
@@ -493,11 +493,11 @@ def test_update_record_conflict(api, record_batch_with_ids, admin, collection_au
     authorized = collection_auth in (CollectionAuth.NONE, CollectionAuth.MATCH)
 
     if collection_auth == CollectionAuth.MATCH:
-        api_client_collection = record_batch_with_ids[2].collection
+        api_client_collections = [record_batch_with_ids[2].collection]
     elif collection_auth == CollectionAuth.MISMATCH:
-        api_client_collection = record_batch_with_ids[1].collection
+        api_client_collections = [record_batch_with_ids[1].collection]
     else:
-        api_client_collection = None
+        api_client_collections = None
 
     if collection_auth in (CollectionAuth.MATCH, CollectionAuth.MISMATCH):
         modified_record_collection = record_batch_with_ids[2].collection
@@ -524,7 +524,7 @@ def test_update_record_conflict(api, record_batch_with_ids, admin, collection_au
             collection=modified_record_collection,
         )
 
-    r = api(scopes, api_client_collection).put(route + record.id, json=dict(
+    r = api(scopes, api_client_collections).put(route + record.id, json=dict(
         doi=record.doi,
         sid=record.sid,
         collection_id=record.collection_id,
@@ -560,11 +560,11 @@ def test_update_record_doi_change(api, record_batch_with_ids, admin, collection_
     authorized = collection_auth in (CollectionAuth.NONE, CollectionAuth.MATCH)
 
     if collection_auth == CollectionAuth.MATCH:
-        api_client_collection = record_batch_with_ids[2].collection
+        api_client_collections = [record_batch_with_ids[2].collection]
     elif collection_auth == CollectionAuth.MISMATCH:
-        api_client_collection = record_batch_with_ids[1].collection
+        api_client_collections = [record_batch_with_ids[1].collection]
     else:
-        api_client_collection = None
+        api_client_collections = None
 
     if collection_auth in (CollectionAuth.MATCH, CollectionAuth.MISMATCH):
         modified_record_collection = record_batch_with_ids[2].collection
@@ -588,7 +588,7 @@ def test_update_record_doi_change(api, record_batch_with_ids, admin, collection_
             collection=modified_record_collection,
         ))
 
-    r = api(scopes, api_client_collection).put(route + record.id, json=dict(
+    r = api(scopes, api_client_collections).put(route + record.id, json=dict(
         doi=record.doi,
         sid=record.sid,
         collection_id=record.collection_id,
@@ -633,11 +633,11 @@ def test_delete_record(api, record_batch_with_ids, admin_route, scopes, collecti
     authorized = authorized and collection_auth in (CollectionAuth.NONE, CollectionAuth.MATCH)
 
     if collection_auth == CollectionAuth.MATCH:
-        api_client_collection = record_batch_with_ids[2].collection
+        api_client_collections = [record_batch_with_ids[2].collection]
     elif collection_auth == CollectionAuth.MISMATCH:
-        api_client_collection = record_batch_with_ids[1].collection
+        api_client_collections = [record_batch_with_ids[1].collection]
     else:
-        api_client_collection = None
+        api_client_collections = None
 
     for ct in collection_tags:
         CollectionTagFactory(
@@ -652,7 +652,7 @@ def test_delete_record(api, record_batch_with_ids, admin_route, scopes, collecti
     deleted_record = modified_record_batch[2]
     del modified_record_batch[2]
 
-    r = api(scopes, api_client_collection).delete(f'{route}{(record_id := record_batch_with_ids[2].id)}')
+    r = api(scopes, api_client_collections).delete(f'{route}{(record_id := record_batch_with_ids[2].id)}')
 
     if authorized:
         if not admin_route and set(collection_tags) & {ODPCollectionTag.FROZEN, ODPCollectionTag.READY}:
@@ -679,11 +679,11 @@ def test_delete_record_not_found(api, record_batch, admin, collection_auth):
     scopes = [ODPScope.RECORD_ADMIN] if admin else [ODPScope.RECORD_WRITE]
 
     if collection_auth == CollectionAuth.NONE:
-        api_client_collection = None
+        api_client_collections = None
     else:
-        api_client_collection = record_batch[2].collection
+        api_client_collections = [record_batch[2].collection]
 
-    r = api(scopes, api_client_collection).delete(f'{route}foo')
+    r = api(scopes, api_client_collections).delete(f'{route}foo')
 
     assert_not_found(r)
     assert_db_state(record_batch)
@@ -717,13 +717,13 @@ def test_tag_record(api, record_batch_no_tags, scopes, collection_auth, tag_card
                  collection_auth in (CollectionAuth.NONE, CollectionAuth.MATCH)
 
     if collection_auth == CollectionAuth.MATCH:
-        api_client_collection = record_batch_no_tags[2].collection
+        api_client_collections = [record_batch_no_tags[2].collection]
     elif collection_auth == CollectionAuth.MISMATCH:
-        api_client_collection = record_batch_no_tags[1].collection
+        api_client_collections = [record_batch_no_tags[1].collection]
     else:
-        api_client_collection = None
+        api_client_collections = None
 
-    client = api(scopes, api_client_collection)
+    client = api(scopes, api_client_collections)
     tag = new_generic_tag(tag_cardinality)
 
     r = client.post(
@@ -787,13 +787,13 @@ def test_tag_record_user_conflict(api, record_batch_no_tags, scopes, collection_
                  collection_auth in (CollectionAuth.NONE, CollectionAuth.MATCH)
 
     if collection_auth == CollectionAuth.MATCH:
-        api_client_collection = record_batch_no_tags[2].collection
+        api_client_collections = [record_batch_no_tags[2].collection]
     elif collection_auth == CollectionAuth.MISMATCH:
-        api_client_collection = record_batch_no_tags[1].collection
+        api_client_collections = [record_batch_no_tags[1].collection]
     else:
-        api_client_collection = None
+        api_client_collections = None
 
-    client = api(scopes, api_client_collection)
+    client = api(scopes, api_client_collections)
     tag = new_generic_tag(tag_cardinality)
     record_tag_1 = RecordTagFactory(
         record=record_batch_no_tags[2],
@@ -852,13 +852,13 @@ def test_untag_record(api, record_batch_no_tags, admin_route, scopes, collection
     authorized = authorized and collection_auth in (CollectionAuth.NONE, CollectionAuth.MATCH)
 
     if collection_auth == CollectionAuth.MATCH:
-        api_client_collection = record_batch_no_tags[2].collection
+        api_client_collections = [record_batch_no_tags[2].collection]
     elif collection_auth == CollectionAuth.MISMATCH:
-        api_client_collection = record_batch_no_tags[1].collection
+        api_client_collections = [record_batch_no_tags[1].collection]
     else:
-        api_client_collection = None
+        api_client_collections = None
 
-    client = api(scopes, api_client_collection)
+    client = api(scopes, api_client_collections)
     record = record_batch_no_tags[2]
     record_tags = RecordTagFactory.create_batch(randint(1, 3), record=record)
 
