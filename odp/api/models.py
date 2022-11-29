@@ -185,13 +185,22 @@ class RecordModelIn(BaseModel):
 class RoleModel(BaseModel):
     id: str
     scope_ids: list[str]
-    collection_id: Optional[str]
+    collection_specific: bool
+    collection_ids: list[str]
 
 
-class RoleModelIn(BaseModel):
+class RoleModelIn(RoleModel):
     id: str = Field(..., regex=ID_REGEX)
-    scope_ids: list[str]
-    collection_id: Optional[str]
+
+    @validator('collection_ids')
+    def validate_collection_ids(cls, collection_ids, values):
+        try:
+            if not values['collection_specific'] and collection_ids:
+                raise ValueError("Collections can only be associated with a collection-specific role.")
+        except KeyError:
+            pass  # ignore: collection_specific validation already failed
+
+        return collection_ids
 
 
 class SchemaModel(BaseModel):
