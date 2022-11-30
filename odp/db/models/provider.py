@@ -1,3 +1,5 @@
+import uuid
+
 from sqlalchemy import Column, String
 from sqlalchemy.orm import relationship
 
@@ -14,10 +16,11 @@ class Provider(Base):
 
     __tablename__ = 'provider'
 
-    id = Column(String, primary_key=True)
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    abbr = Column(String, unique=True, nullable=False)
     name = Column(String, nullable=False)
 
     # view of associated collections (one-to-many)
     collections = relationship('Collection', viewonly=True)
 
-    _repr_ = 'id', 'name'
+    _repr_ = 'id', 'abbr', 'name'

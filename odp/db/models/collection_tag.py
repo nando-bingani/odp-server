@@ -25,7 +25,7 @@ class CollectionTag(Base):
     )
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    collection_id = Column(String, ForeignKey('collection.id', onupdate='CASCADE', ondelete='CASCADE'), nullable=False)
+    collection_id = Column(String, ForeignKey('collection.id', ondelete='CASCADE'), nullable=False)
     tag_id = Column(String, nullable=False)
     tag_type = Column(Enum(TagType), nullable=False)
     user_id = Column(String, ForeignKey('user.id', ondelete='RESTRICT'))

@@ -1,3 +1,5 @@
+import uuid
+
 from sqlalchemy import Column, Enum, ForeignKey, Identity, Integer, String, TIMESTAMP
 from sqlalchemy.ext.associationproxy import association_proxy
 from sqlalchemy.orm import relationship
@@ -11,12 +13,13 @@ class Collection(Base):
 
     __tablename__ = 'collection'
 
-    id = Column(String, primary_key=True)
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    abbr = Column(String, unique=True, nullable=False)
     name = Column(String, nullable=False)
     doi_key = Column(String)
     timestamp = Column(TIMESTAMP(timezone=True), nullable=False)
 
-    provider_id = Column(String, ForeignKey('provider.id', onupdate='CASCADE', ondelete='CASCADE'), nullable=False)
+    provider_id = Column(String, ForeignKey('provider.id', ondelete='CASCADE'), nullable=False)
     provider = relationship('Provider')
 
     # view of associated tags (one-to-many)
@@ -30,7 +33,7 @@ class Collection(Base):
     collection_clients = relationship('ClientCollection', viewonly=True)
     clients = association_proxy('collection_clients', 'client')
 
-    _repr_ = 'id', 'name', 'doi_key', 'provider_id'
+    _repr_ = 'id', 'abbr', 'name', 'doi_key', 'provider_id'
 
 
 class CollectionAudit(Base):
