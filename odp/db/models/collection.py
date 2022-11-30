@@ -48,6 +48,7 @@ class CollectionAudit(Base):
     timestamp = Column(TIMESTAMP(timezone=True), nullable=False)
 
     _id = Column(String, nullable=False)
+    _abbr = Column(String, nullable=False)
     _name = Column(String, nullable=False)
     _doi_key = Column(String)
     _provider_id = Column(String, nullable=False)
