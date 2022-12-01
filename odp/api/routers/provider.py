@@ -13,6 +13,15 @@ from odp.db.models import Provider
 router = APIRouter()
 
 
+def output_provider_model(provider: Provider) -> ProviderModel:
+    return ProviderModel(
+        id=provider.id,
+        abbr=provider.abbr,
+        name=provider.name,
+        collection_ids=[collection.id for collection in provider.collections],
+    )
+
+
 @router.get(
     '/',
     response_model=Page[ProviderModel],
@@ -23,11 +32,7 @@ async def list_providers(
 ):
     return paginator.paginate(
         select(Provider),
-        lambda row: ProviderModel(
-            id=row.Provider.id,
-            name=row.Provider.name,
-            collection_ids=[collection.id for collection in row.Provider.collections],
-        )
+        lambda row: output_provider_model(row.Provider),
     )
 
 
@@ -42,40 +47,51 @@ async def get_provider(
     if not (provider := Session.get(Provider, provider_id)):
         raise HTTPException(HTTP_404_NOT_FOUND)
 
-    return ProviderModel(
-        id=provider.id,
-        name=provider.name,
-        collection_ids=[collection.id for collection in provider.collections],
-    )
+    return output_provider_model(provider)
 
 
 @router.post(
     '/',
+    response_model=ProviderModel,
     dependencies=[Depends(Authorize(ODPScope.PROVIDER_ADMIN))],
 )
 async def create_provider(
         provider_in: ProviderModelIn,
 ):
-    if Session.get(Provider, provider_in.id):
-        raise HTTPException(HTTP_409_CONFLICT, 'Provider id is already in use')
+    if Session.execute(
+            select(Provider).
+            where(Provider.abbr == provider_in.abbr)
+    ).first() is not None:
+        raise HTTPException(HTTP_409_CONFLICT, 'Provider abbreviation is already in use')
 
     provider = Provider(
-        id=provider_in.id,
+        abbr=provider_in.abbr,
         name=provider_in.name,
     )
     provider.save()
 
+    return output_provider_model(provider)
+
 
 @router.put(
-    '/',
+    '/{provider_id}',
     dependencies=[Depends(Authorize(ODPScope.PROVIDER_ADMIN))],
 )
 async def update_provider(
+        provider_id: str,
         provider_in: ProviderModelIn,
 ):
-    if not (provider := Session.get(Provider, provider_in.id)):
+    if not (provider := Session.get(Provider, provider_id)):
         raise HTTPException(HTTP_404_NOT_FOUND)
 
+    if Session.execute(
+            select(Provider).
+            where(Provider.id != provider_id).
+            where(Provider.abbr == provider_in.abbr)
+    ).first() is not None:
+        raise HTTPException(HTTP_409_CONFLICT, 'Provider abbreviation is already in use')
+
+    provider.abbr = provider_in.abbr
     provider.name = provider_in.name
     provider.save()
 

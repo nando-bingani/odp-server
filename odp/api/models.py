@@ -127,12 +127,13 @@ class CollectionModelIn(BaseModel):
 
 class ProviderModel(BaseModel):
     id: str
+    abbr: str
     name: str
     collection_ids: list[str]
 
 
 class ProviderModelIn(BaseModel):
-    id: str = Field(..., regex=ID_REGEX)
+    abbr: str = Field(..., regex=SID_REGEX)
     name: str
 
 

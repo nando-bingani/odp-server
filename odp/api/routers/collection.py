@@ -177,7 +177,7 @@ async def update_collection(
 
     if Session.execute(
             select(Collection).
-            where(Collection.id != collection.id).
+            where(Collection.id != collection_id).
             where(Collection.abbr == collection_in.abbr)
     ).first() is not None:
         raise HTTPException(HTTP_409_CONFLICT, 'Collection abbreviation is already in use')
