@@ -1,4 +1,5 @@
 import re
+import uuid
 from datetime import datetime
 from random import randint
 
@@ -57,6 +58,7 @@ def assert_db_state(collections):
     assert len(result) == len(collections)
     for n, row in enumerate(result):
         assert row.id == collections[n].id
+        assert row.abbr == collections[n].abbr
         assert row.name == collections[n].name
         assert row.doi_key == collections[n].doi_key
         assert row.provider_id == collections[n].provider_id
@@ -92,6 +94,7 @@ def assert_audit_log(command, collection):
     assert result.command == command
     assert_new_timestamp(result.timestamp)
     assert result._id == collection.id
+    assert result._abbr == collection.abbr
     assert result._name == collection.name
     assert result._doi_key == collection.doi_key
     assert result._provider_id == collection.provider_id
@@ -119,6 +122,7 @@ def assert_json_collection_result(response, json, collection):
     """Verify that the API result matches the given collection object."""
     assert response.status_code == 200
     assert json['id'] == collection.id
+    assert json['abbr'] == collection.abbr
     assert json['name'] == collection.name
     assert json['doi_key'] == collection.doi_key
     assert json['provider_id'] == collection.provider_id
@@ -255,14 +259,15 @@ def test_create_collection(api, collection_batch, scopes, collection_auth):
     modified_collection_batch = collection_batch + [collection := collection_build()]
 
     r = api(scopes, api_client_collections).post('/collection/', json=dict(
-        id=collection.id,
+        abbr=collection.abbr,
         name=collection.name,
         doi_key=collection.doi_key,
         provider_id=collection.provider_id,
     ))
 
     if authorized:
-        assert_empty_result(r)
+        collection.id = r.json().get('id')
+        assert_json_collection_result(r, r.json(), collection)
         assert_db_state(modified_collection_batch)
         assert_audit_log('insert', collection)
     else:
@@ -280,17 +285,17 @@ def test_create_collection_conflict(api, collection_batch, collection_auth):
     else:
         api_client_collections = [collection_batch[2]]
 
-    collection = collection_build(id=collection_batch[2].id)
+    collection = collection_build(abbr=collection_batch[2].abbr)
 
     r = api(scopes, api_client_collections).post('/collection/', json=dict(
-        id=collection.id,
+        abbr=collection.abbr,
         name=collection.name,
         doi_key=collection.doi_key,
         provider_id=collection.provider_id,
     ))
 
     if authorized:
-        assert_conflict(r, 'Collection id is already in use')
+        assert_conflict(r, 'Collection abbreviation is already in use')
     else:
         assert_forbidden(r)
 
@@ -320,8 +325,8 @@ def test_update_collection(api, collection_batch, scopes, collection_auth):
         id=collection_batch[2].id,
     ))
 
-    r = api(scopes, api_client_collections).put('/collection/', json=dict(
-        id=collection.id,
+    r = api(scopes, api_client_collections).put(f'/collection/{collection.id}', json=dict(
+        abbr=collection.abbr,
         name=collection.name,
         doi_key=collection.doi_key,
         provider_id=collection.provider_id,
@@ -346,10 +351,10 @@ def test_update_collection_not_found(api, collection_batch, collection_auth):
     else:
         api_client_collections = [collection_batch[2]]
 
-    collection = collection_build(id='foo')
+    collection = collection_build(id=str(uuid.uuid4()))
 
-    r = api(scopes, api_client_collections).put('/collection/', json=dict(
-        id=collection.id,
+    r = api(scopes, api_client_collections).put(f'/collection/{collection.id}', json=dict(
+        abbr=collection.abbr,
         name=collection.name,
         doi_key=collection.doi_key,
         provider_id=collection.provider_id,
@@ -357,6 +362,38 @@ def test_update_collection_not_found(api, collection_batch, collection_auth):
 
     if authorized:
         assert_not_found(r)
+    else:
+        assert_forbidden(r)
+
+    assert_db_state(collection_batch)
+    assert_no_audit_log()
+
+
+def test_update_collection_conflict(api, collection_batch, collection_auth):
+    scopes = [ODPScope.COLLECTION_ADMIN]
+    authorized = collection_auth in (CollectionAuth.NONE, CollectionAuth.MATCH)
+
+    if collection_auth == CollectionAuth.MATCH:
+        api_client_collections = [collection_batch[2]]
+    elif collection_auth == CollectionAuth.MISMATCH:
+        api_client_collections = [collection_batch[1]]
+    else:
+        api_client_collections = None
+
+    collection = collection_build(
+        id=collection_batch[2].id,
+        abbr=collection_batch[0].abbr,
+    )
+
+    r = api(scopes, api_client_collections).put(f'/collection/{collection.id}', json=dict(
+        abbr=collection.abbr,
+        name=collection.name,
+        doi_key=collection.doi_key,
+        provider_id=collection.provider_id,
+    ))
+
+    if authorized:
+        assert_conflict(r, 'Collection abbreviation is already in use')
     else:
         assert_forbidden(r)
 

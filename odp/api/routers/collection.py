@@ -24,6 +24,7 @@ router = APIRouter()
 def output_collection_model(result) -> CollectionModel:
     return CollectionModel(
         id=result.Collection.id,
+        abbr=result.Collection.abbr,
         name=result.Collection.name,
         doi_key=result.Collection.doi_key,
         provider_id=result.Collection.provider_id,
@@ -50,6 +51,7 @@ def create_audit_record(
         command=command,
         timestamp=timestamp,
         _id=collection.id,
+        _abbr=collection.abbr,
         _name=collection.name,
         _doi_key=collection.doi_key,
         _provider_id=collection.provider_id,
@@ -124,6 +126,7 @@ async def get_collection(
 
 @router.post(
     '/',
+    response_model=CollectionModel,
 )
 async def create_collection(
         collection_in: CollectionModelIn,
@@ -132,11 +135,14 @@ async def create_collection(
     if auth.collection_ids != '*':
         raise HTTPException(HTTP_403_FORBIDDEN)
 
-    if Session.get(Collection, collection_in.id):
-        raise HTTPException(HTTP_409_CONFLICT, 'Collection id is already in use')
+    if Session.execute(
+            select(Collection).
+            where(Collection.abbr == collection_in.abbr)
+    ).first() is not None:
+        raise HTTPException(HTTP_409_CONFLICT, 'Collection abbreviation is already in use')
 
     collection = Collection(
-        id=collection_in.id,
+        abbr=collection_in.abbr,
         name=collection_in.name,
         doi_key=collection_in.doi_key,
         provider_id=collection_in.provider_id,
@@ -145,25 +151,44 @@ async def create_collection(
     collection.save()
     create_audit_record(auth, collection, timestamp, AuditCommand.insert)
 
+    result = Session.execute(
+        select(Collection, func.count(Record.id)).
+        outerjoin(Record).
+        where(Collection.id == collection.id).
+        group_by(Collection)
+    ).first()
+
+    return output_collection_model(result)
+
 
 @router.put(
-    '/',
+    '/{collection_id}',
 )
 async def update_collection(
+        collection_id: str,
         collection_in: CollectionModelIn,
         auth: Authorized = Depends(Authorize(ODPScope.COLLECTION_ADMIN)),
 ):
-    if auth.collection_ids != '*' and collection_in.id not in auth.collection_ids:
+    if auth.collection_ids != '*' and collection_id not in auth.collection_ids:
         raise HTTPException(HTTP_403_FORBIDDEN)
 
-    if not (collection := Session.get(Collection, collection_in.id)):
+    if not (collection := Session.get(Collection, collection_id)):
         raise HTTPException(HTTP_404_NOT_FOUND)
 
+    if Session.execute(
+            select(Collection).
+            where(Collection.id != collection.id).
+            where(Collection.abbr == collection_in.abbr)
+    ).first() is not None:
+        raise HTTPException(HTTP_409_CONFLICT, 'Collection abbreviation is already in use')
+
     if (
+            collection.abbr != collection_in.abbr or
             collection.name != collection_in.name or
             collection.doi_key != collection_in.doi_key or
             collection.provider_id != collection_in.provider_id
     ):
+        collection.abbr = collection_in.abbr
         collection.name = collection_in.name
         collection.doi_key = collection_in.doi_key
         collection.provider_id = collection_in.provider_id
@@ -434,6 +459,7 @@ async def get_collection_audit_detail(
         command=row.CollectionAudit.command,
         timestamp=row.CollectionAudit.timestamp.isoformat(),
         collection_id=row.CollectionAudit._id,
+        collection_abbr=row.CollectionAudit._abbr,
         collection_name=row.CollectionAudit._name,
         collection_doi_key=row.CollectionAudit._doi_key,
         collection_provider_id=row.CollectionAudit._provider_id,

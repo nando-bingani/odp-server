@@ -107,6 +107,7 @@ class ClientModelIn(ClientModel):
 
 class CollectionModel(BaseModel):
     id: str
+    abbr: str
     name: str
     doi_key: Optional[str]
     provider_id: str
@@ -118,7 +119,7 @@ class CollectionModel(BaseModel):
 
 
 class CollectionModelIn(BaseModel):
-    id: str = Field(..., regex=ID_REGEX)
+    abbr: str = Field(..., regex=SID_REGEX)
     name: str
     doi_key: Optional[str]
     provider_id: str
@@ -273,6 +274,7 @@ class AuditModel(BaseModel):
 
 class CollectionAuditModel(AuditModel):
     collection_id: str
+    collection_abbr: str
     collection_name: str
     collection_doi_key: Optional[str]
     collection_provider_id: str
