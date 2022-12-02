@@ -28,6 +28,7 @@ def output_record_model(record: Record) -> RecordModel:
         doi=record.doi,
         sid=record.sid,
         collection_id=record.collection_id,
+        collection_key=record.collection.key,
         schema_id=record.schema_id,
         metadata=record.metadata_,
         validity=record.validity,
@@ -158,7 +159,7 @@ async def list_records(
     return paginator.paginate(
         stmt,
         lambda row: output_record_model(row.Record),
-        custom_sort='collection.id, record.doi, record.sid',
+        custom_sort='collection.key, record.doi, record.sid',
     )
 
 

@@ -135,6 +135,7 @@ def assert_json_record_result(response, json, record):
     assert json['doi'] == record.doi
     assert json['sid'] == record.sid
     assert json['collection_id'] == record.collection_id
+    assert json['collection_key'] == record.collection.key
     assert json['schema_id'] == record.schema_id
     assert json['metadata'] == record.metadata_
     assert_new_timestamp(datetime.fromisoformat(json['timestamp']))

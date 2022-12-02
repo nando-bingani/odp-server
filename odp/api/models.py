@@ -143,6 +143,7 @@ class RecordModel(BaseModel):
     doi: Optional[str]
     sid: Optional[str]
     collection_id: str
+    collection_key: str
     schema_id: str
     metadata: dict[str, Any]
     validity: dict[str, Any]
