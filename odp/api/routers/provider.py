@@ -18,7 +18,10 @@ def output_provider_model(provider: Provider) -> ProviderModel:
         id=provider.id,
         key=provider.key,
         name=provider.name,
-        collection_ids=[collection.id for collection in provider.collections],
+        collection_keys={
+            collection.key: collection.id
+            for collection in provider.collections
+        },
     )
 
 

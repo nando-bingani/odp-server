@@ -129,7 +129,7 @@ class ProviderModel(BaseModel):
     id: str
     key: str
     name: str
-    collection_ids: list[str]
+    collection_keys: dict[str, str]
 
 
 class ProviderModelIn(BaseModel):

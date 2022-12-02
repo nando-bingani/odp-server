@@ -30,6 +30,10 @@ def collection_ids(provider):
     return tuple(sorted(collection.id for collection in provider.collections))
 
 
+def collection_keys(provider):
+    return {collection.key: collection.id for collection in provider.collections}
+
+
 def assert_db_state(providers):
     """Verify that the DB provider table contains the given provider batch."""
     Session.expire_all()
@@ -44,7 +48,7 @@ def assert_json_result(response, json, provider):
     assert json['id'] == provider.id
     assert json['key'] == provider.key
     assert json['name'] == provider.name
-    assert tuple(sorted(json['collection_ids'])) == collection_ids(provider)
+    assert json['collection_keys'] == collection_keys(provider)
 
 
 def assert_json_results(response, json, providers):
