@@ -19,7 +19,8 @@ def output_client_model(client: Client) -> ClientModel:
         name=hydra_client.name,
         scope_ids=[scope.id for scope in client.scopes],
         collection_specific=client.collection_specific,
-        collection_ids=[collection.id for collection in client.collections] if client.collection_specific else [],
+        collection_keys={collection.key: collection.id
+                         for collection in client.collections} if client.collection_specific else {},
         grant_types=hydra_client.grant_types,
         response_types=hydra_client.response_types,
         redirect_uris=hydra_client.redirect_uris,

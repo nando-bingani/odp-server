@@ -81,7 +81,7 @@ class ClientModel(BaseModel):
     name: str
     scope_ids: list[str]
     collection_specific: bool
-    collection_ids: list[str]
+    collection_keys: dict[str, str]
     grant_types: list[GrantType]
     response_types: list[ResponseType]
     redirect_uris: list[AnyHttpUrl]
@@ -90,9 +90,19 @@ class ClientModel(BaseModel):
     allowed_cors_origins: list[AnyHttpUrl]
 
 
-class ClientModelIn(ClientModel):
+class ClientModelIn(BaseModel):
     id: str = Field(..., regex=ID_REGEX)
+    name: str
     secret: str = Field(None, min_length=16)
+    scope_ids: list[str]
+    collection_specific: bool
+    collection_ids: list[str]
+    grant_types: list[GrantType]
+    response_types: list[ResponseType]
+    redirect_uris: list[AnyHttpUrl]
+    post_logout_redirect_uris: list[AnyHttpUrl]
+    token_endpoint_auth_method: TokenEndpointAuthMethod
+    allowed_cors_origins: list[AnyHttpUrl]
 
     @validator('collection_ids')
     def validate_collection_ids(cls, collection_ids, values):
@@ -190,11 +200,14 @@ class RoleModel(BaseModel):
     id: str
     scope_ids: list[str]
     collection_specific: bool
-    collection_ids: list[str]
+    collection_keys: dict[str, str]
 
 
-class RoleModelIn(RoleModel):
+class RoleModelIn(BaseModel):
     id: str = Field(..., regex=ID_REGEX)
+    scope_ids: list[str]
+    collection_specific: bool
+    collection_ids: list[str]
 
     @validator('collection_ids')
     def validate_collection_ids(cls, collection_ids, values):

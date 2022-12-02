@@ -17,7 +17,8 @@ def output_role_model(role: Role) -> RoleModel:
         id=role.id,
         scope_ids=[scope.id for scope in role.scopes],
         collection_specific=role.collection_specific,
-        collection_ids=[collection.id for collection in role.collections] if role.collection_specific else [],
+        collection_keys={collection.key: collection.id
+                         for collection in role.collections} if role.collection_specific else {},
     )
 
 

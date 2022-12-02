@@ -20,7 +20,7 @@ def client_batch(hydra_admin_api):
         clients += [client := ClientFactory(
             scopes=(scopes := ScopeFactory.create_batch(randint(1, 3))),
             collection_specific=n in (1, 2) or randint(0, 1),
-            collections=CollectionFactory.create_batch(randint(1, 2)) if n in (1, 2) else None,
+            collections=CollectionFactory.create_batch(randint(1, 2)) if n > 1 else None,
         )]
         hydra_admin_api.create_or_update_client(
             client.id,
@@ -63,6 +63,12 @@ def collection_ids(client):
     return tuple(sorted(collection.id for collection in client.collections))
 
 
+def collection_keys(client):
+    return {
+        collection.key: collection.id for collection in client.collections
+    } if client.collection_specific else {}
+
+
 def assert_db_state(clients):
     """Verify that the DB client table contains the given client batch."""
     Session.expire_all()
@@ -79,7 +85,7 @@ def assert_json_result(response, json, client):
     assert response.status_code == 200
     assert json['id'] == client.id
     assert json['collection_specific'] == client.collection_specific
-    assert tuple(sorted(json['collection_ids'])) == collection_ids(client)
+    assert json['collection_keys'] == collection_keys(client)
     assert tuple(sorted(json['scope_ids'])) == scope_ids(client)
 
 

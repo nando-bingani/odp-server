@@ -17,7 +17,7 @@ def role_batch():
         RoleFactory(
             scopes=ScopeFactory.create_batch(randint(0, 3), type=choice(('odp', 'client'))),
             collection_specific=n in (1, 2) or randint(0, 1),
-            collections=CollectionFactory.create_batch(randint(1, 2)) if n in (1, 2) else None,
+            collections=CollectionFactory.create_batch(randint(1, 2)) if n > 1 else None,
         )
         for n in range(randint(3, 5))
     ]
@@ -38,8 +38,14 @@ def scope_ids(role):
     return tuple(sorted(scope.id for scope in role.scopes))
 
 
-def collection_ids(client):
-    return tuple(sorted(collection.id for collection in client.collections))
+def collection_ids(role):
+    return tuple(sorted(collection.id for collection in role.collections))
+
+
+def collection_keys(role):
+    return {
+        collection.key: collection.id for collection in role.collections
+    } if role.collection_specific else {}
 
 
 def assert_db_state(roles):
@@ -55,7 +61,7 @@ def assert_json_result(response, json, role):
     assert response.status_code == 200
     assert json['id'] == role.id
     assert json['collection_specific'] == role.collection_specific
-    assert tuple(sorted(json['collection_ids'])) == collection_ids(role)
+    assert json['collection_keys'] == collection_keys(role)
     assert tuple(sorted(json['scope_ids'])) == scope_ids(role)
 
 
