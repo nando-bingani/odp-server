@@ -126,6 +126,7 @@ def assert_json_collection_result(response, json, collection):
     assert json['name'] == collection.name
     assert json['doi_key'] == collection.doi_key
     assert json['provider_id'] == collection.provider_id
+    assert json['provider_key'] == collection.provider.key
     assert tuple(sorted(cid for cid in json['client_ids'] if cid != 'odp.test')) == client_ids(collection)
     assert tuple(sorted(json['role_ids'])) == role_ids(collection)
     assert_new_timestamp(datetime.fromisoformat(json['timestamp']))
