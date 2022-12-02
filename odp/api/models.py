@@ -119,7 +119,7 @@ class CollectionModel(BaseModel):
 
 
 class CollectionModelIn(BaseModel):
-    key: str = Field(..., regex=SID_REGEX)
+    key: str = Field(..., regex=ID_REGEX)
     name: str
     doi_key: Optional[str]
     provider_id: str
@@ -133,7 +133,7 @@ class ProviderModel(BaseModel):
 
 
 class ProviderModelIn(BaseModel):
-    key: str = Field(..., regex=SID_REGEX)
+    key: str = Field(..., regex=ID_REGEX)
     name: str
 
 
