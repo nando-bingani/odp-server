@@ -16,7 +16,7 @@ router = APIRouter()
 def output_provider_model(provider: Provider) -> ProviderModel:
     return ProviderModel(
         id=provider.id,
-        abbr=provider.abbr,
+        key=provider.key,
         name=provider.name,
         collection_ids=[collection.id for collection in provider.collections],
     )
@@ -60,12 +60,12 @@ async def create_provider(
 ):
     if Session.execute(
             select(Provider).
-            where(Provider.abbr == provider_in.abbr)
+            where(Provider.key == provider_in.key)
     ).first() is not None:
-        raise HTTPException(HTTP_409_CONFLICT, 'Provider abbreviation is already in use')
+        raise HTTPException(HTTP_409_CONFLICT, 'Provider key is already in use')
 
     provider = Provider(
-        abbr=provider_in.abbr,
+        key=provider_in.key,
         name=provider_in.name,
     )
     provider.save()
@@ -87,11 +87,11 @@ async def update_provider(
     if Session.execute(
             select(Provider).
             where(Provider.id != provider_id).
-            where(Provider.abbr == provider_in.abbr)
+            where(Provider.key == provider_in.key)
     ).first() is not None:
-        raise HTTPException(HTTP_409_CONFLICT, 'Provider abbreviation is already in use')
+        raise HTTPException(HTTP_409_CONFLICT, 'Provider key is already in use')
 
-    provider.abbr = provider_in.abbr
+    provider.key = provider_in.key
     provider.name = provider_in.name
     provider.save()
 

@@ -14,7 +14,7 @@ class Collection(Base):
     __tablename__ = 'collection'
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    abbr = Column(String, unique=True, nullable=False)
+    key = Column(String, unique=True, nullable=False)
     name = Column(String, nullable=False)
     doi_key = Column(String)
     timestamp = Column(TIMESTAMP(timezone=True), nullable=False)
@@ -33,7 +33,7 @@ class Collection(Base):
     collection_clients = relationship('ClientCollection', viewonly=True)
     clients = association_proxy('collection_clients', 'client')
 
-    _repr_ = 'id', 'abbr', 'name', 'doi_key', 'provider_id'
+    _repr_ = 'id', 'key', 'name', 'doi_key', 'provider_id'
 
 
 class CollectionAudit(Base):
@@ -48,7 +48,7 @@ class CollectionAudit(Base):
     timestamp = Column(TIMESTAMP(timezone=True), nullable=False)
 
     _id = Column(String, nullable=False)
-    _abbr = Column(String, nullable=False)
+    _key = Column(String, nullable=False)
     _name = Column(String, nullable=False)
     _doi_key = Column(String)
     _provider_id = Column(String, nullable=False)

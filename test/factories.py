@@ -105,7 +105,7 @@ class ProviderFactory(ODPModelFactory):
         model = Provider
 
     id = factory.Faker('uuid4')
-    abbr = factory.LazyAttribute(id_from_name)
+    key = factory.LazyAttribute(id_from_name)
     name = factory.Sequence(lambda n: f'{fake.company()}.{n}')
 
 
@@ -114,7 +114,7 @@ class CollectionFactory(ODPModelFactory):
         model = Collection
 
     id = factory.Faker('uuid4')
-    abbr = factory.LazyAttribute(id_from_name)
+    key = factory.LazyAttribute(id_from_name)
     name = factory.Sequence(lambda n: f'{fake.catch_phrase()}.{n}')
     doi_key = factory.LazyFunction(lambda: fake.word() if randint(0, 1) else None)
     provider = factory.SubFactory(ProviderFactory)

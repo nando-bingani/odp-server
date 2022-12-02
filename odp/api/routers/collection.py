@@ -24,7 +24,7 @@ router = APIRouter()
 def output_collection_model(result) -> CollectionModel:
     return CollectionModel(
         id=result.Collection.id,
-        abbr=result.Collection.abbr,
+        key=result.Collection.key,
         name=result.Collection.name,
         doi_key=result.Collection.doi_key,
         provider_id=result.Collection.provider_id,
@@ -51,7 +51,7 @@ def create_audit_record(
         command=command,
         timestamp=timestamp,
         _id=collection.id,
-        _abbr=collection.abbr,
+        _key=collection.key,
         _name=collection.name,
         _doi_key=collection.doi_key,
         _provider_id=collection.provider_id,
@@ -137,12 +137,12 @@ async def create_collection(
 
     if Session.execute(
             select(Collection).
-            where(Collection.abbr == collection_in.abbr)
+            where(Collection.key == collection_in.key)
     ).first() is not None:
-        raise HTTPException(HTTP_409_CONFLICT, 'Collection abbreviation is already in use')
+        raise HTTPException(HTTP_409_CONFLICT, 'Collection key is already in use')
 
     collection = Collection(
-        abbr=collection_in.abbr,
+        key=collection_in.key,
         name=collection_in.name,
         doi_key=collection_in.doi_key,
         provider_id=collection_in.provider_id,
@@ -178,17 +178,17 @@ async def update_collection(
     if Session.execute(
             select(Collection).
             where(Collection.id != collection_id).
-            where(Collection.abbr == collection_in.abbr)
+            where(Collection.key == collection_in.key)
     ).first() is not None:
-        raise HTTPException(HTTP_409_CONFLICT, 'Collection abbreviation is already in use')
+        raise HTTPException(HTTP_409_CONFLICT, 'Collection key is already in use')
 
     if (
-            collection.abbr != collection_in.abbr or
+            collection.key != collection_in.key or
             collection.name != collection_in.name or
             collection.doi_key != collection_in.doi_key or
             collection.provider_id != collection_in.provider_id
     ):
-        collection.abbr = collection_in.abbr
+        collection.key = collection_in.key
         collection.name = collection_in.name
         collection.doi_key = collection_in.doi_key
         collection.provider_id = collection_in.provider_id
@@ -459,7 +459,7 @@ async def get_collection_audit_detail(
         command=row.CollectionAudit.command,
         timestamp=row.CollectionAudit.timestamp.isoformat(),
         collection_id=row.CollectionAudit._id,
-        collection_abbr=row.CollectionAudit._abbr,
+        collection_key=row.CollectionAudit._key,
         collection_name=row.CollectionAudit._name,
         collection_doi_key=row.CollectionAudit._doi_key,
         collection_provider_id=row.CollectionAudit._provider_id,

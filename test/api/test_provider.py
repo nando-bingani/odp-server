@@ -34,15 +34,15 @@ def assert_db_state(providers):
     """Verify that the DB provider table contains the given provider batch."""
     Session.expire_all()
     result = Session.execute(select(Provider)).scalars().all()
-    assert set((row.id, row.abbr, row.name, collection_ids(row)) for row in result) \
-           == set((provider.id, provider.abbr, provider.name, collection_ids(provider)) for provider in providers)
+    assert set((row.id, row.key, row.name, collection_ids(row)) for row in result) \
+           == set((provider.id, provider.key, provider.name, collection_ids(provider)) for provider in providers)
 
 
 def assert_json_result(response, json, provider):
     """Verify that the API result matches the given provider object."""
     assert response.status_code == 200
     assert json['id'] == provider.id
-    assert json['abbr'] == provider.abbr
+    assert json['key'] == provider.key
     assert json['name'] == provider.name
     assert tuple(sorted(json['collection_ids'])) == collection_ids(provider)
 
@@ -106,7 +106,7 @@ def test_create_provider(api, provider_batch, scopes):
     authorized = ODPScope.PROVIDER_ADMIN in scopes
     modified_provider_batch = provider_batch + [provider := provider_build()]
     r = api(scopes).post('/provider/', json=dict(
-        abbr=provider.abbr,
+        key=provider.key,
         name=provider.name,
     ))
     if authorized:
@@ -120,12 +120,12 @@ def test_create_provider(api, provider_batch, scopes):
 
 def test_create_provider_conflict(api, provider_batch):
     scopes = [ODPScope.PROVIDER_ADMIN]
-    provider = provider_build(abbr=provider_batch[2].abbr)
+    provider = provider_build(key=provider_batch[2].key)
     r = api(scopes).post('/provider/', json=dict(
-        abbr=provider.abbr,
+        key=provider.key,
         name=provider.name,
     ))
-    assert_conflict(r, 'Provider abbreviation is already in use')
+    assert_conflict(r, 'Provider key is already in use')
     assert_db_state(provider_batch)
 
 
@@ -143,7 +143,7 @@ def test_update_provider(api, provider_batch, scopes):
         collections=provider_batch[2].collections,
     ))
     r = api(scopes).put(f'/provider/{provider.id}', json=dict(
-        abbr=provider.abbr,
+        key=provider.key,
         name=provider.name,
     ))
     if authorized:
@@ -158,7 +158,7 @@ def test_update_provider_not_found(api, provider_batch):
     scopes = [ODPScope.PROVIDER_ADMIN]
     provider = provider_build(id=str(uuid.uuid4()))
     r = api(scopes).put(f'/provider/{provider.id}', json=dict(
-        abbr=provider.abbr,
+        key=provider.key,
         name=provider.name,
     ))
     assert_not_found(r)
@@ -169,13 +169,13 @@ def test_update_provider_conflict(api, provider_batch):
     scopes = [ODPScope.PROVIDER_ADMIN]
     provider = provider_build(
         id=provider_batch[2].id,
-        abbr=provider_batch[0].abbr,
+        key=provider_batch[0].key,
     )
     r = api(scopes).put(f'/provider/{provider.id}', json=dict(
-        abbr=provider.abbr,
+        key=provider.key,
         name=provider.name,
     ))
-    assert_conflict(r, 'Provider abbreviation is already in use')
+    assert_conflict(r, 'Provider key is already in use')
     assert_db_state(provider_batch)
 
 

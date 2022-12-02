@@ -72,8 +72,8 @@ def test_create_client_with_scopes():
 def test_create_collection():
     collection = CollectionFactory()
     result = Session.execute(select(Collection, Provider).join(Provider)).one()
-    assert (result.Collection.id, result.Collection.abbr, result.Collection.name, result.Collection.doi_key, result.Collection.provider_id, result.Provider.name) \
-           == (collection.id, collection.abbr, collection.name, collection.doi_key, collection.provider.id, collection.provider.name)
+    assert (result.Collection.id, result.Collection.key, result.Collection.name, result.Collection.doi_key, result.Collection.provider_id, result.Provider.name) \
+           == (collection.id, collection.key, collection.name, collection.doi_key, collection.provider.id, collection.provider.name)
 
 
 def test_create_collection_tag():
@@ -86,7 +86,7 @@ def test_create_collection_tag():
 def test_create_provider():
     provider = ProviderFactory()
     result = Session.execute(select(Provider)).scalar_one()
-    assert (result.id, result.abbr, result.name) == (provider.id, provider.abbr, provider.name)
+    assert (result.id, result.key, result.name) == (provider.id, provider.key, provider.name)
 
 
 def test_create_record():
