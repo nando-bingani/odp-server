@@ -506,9 +506,9 @@ def new_generic_tag(cardinality):
         type='collection',
         cardinality=cardinality,
         scope=Session.get(
-            Scope, (ODPScope.COLLECTION_READ, ScopeType.odp)
+            Scope, (ODPScope.COLLECTION_FREEZE, ScopeType.odp)
         ) or Scope(
-            id=ODPScope.COLLECTION_READ, type=ScopeType.odp
+            id=ODPScope.COLLECTION_FREEZE, type=ScopeType.odp
         ),
         schema=SchemaFactory(
             type='tag',
@@ -518,13 +518,13 @@ def new_generic_tag(cardinality):
 
 
 @pytest.mark.parametrize('scopes', [
-    [ODPScope.COLLECTION_READ],  # the scope we've associated with the generic tag
+    [ODPScope.COLLECTION_FREEZE],  # the scope we've associated with the generic tag
     [],
     all_scopes,
-    all_scopes_excluding(ODPScope.COLLECTION_READ),
+    all_scopes_excluding(ODPScope.COLLECTION_FREEZE),
 ])
 def test_tag_collection(api, collection_batch, scopes, collection_auth, tag_cardinality):
-    authorized = ODPScope.COLLECTION_READ in scopes and \
+    authorized = ODPScope.COLLECTION_FREEZE in scopes and \
                  collection_auth in (CollectionAuth.NONE, CollectionAuth.MATCH)
 
     if collection_auth == CollectionAuth.MATCH:
@@ -588,13 +588,13 @@ def test_tag_collection(api, collection_batch, scopes, collection_auth, tag_card
 
 
 @pytest.mark.parametrize('scopes', [
-    [ODPScope.COLLECTION_READ],  # the scope we've associated with the generic tag
+    [ODPScope.COLLECTION_FREEZE],  # the scope we've associated with the generic tag
     [],
     all_scopes,
-    all_scopes_excluding(ODPScope.COLLECTION_READ),
+    all_scopes_excluding(ODPScope.COLLECTION_FREEZE),
 ])
 def test_tag_collection_user_conflict(api, collection_batch, scopes, collection_auth, tag_cardinality):
-    authorized = ODPScope.COLLECTION_READ in scopes and \
+    authorized = ODPScope.COLLECTION_FREEZE in scopes and \
                  collection_auth in (CollectionAuth.NONE, CollectionAuth.MATCH)
 
     if collection_auth == CollectionAuth.MATCH:
@@ -646,10 +646,10 @@ def same_user(request):
 
 
 @pytest.mark.parametrize('admin_route, scopes', [
-    (False, [ODPScope.COLLECTION_READ]),  # the scope we've associated with the generic tag
+    (False, [ODPScope.COLLECTION_FREEZE]),  # the scope we've associated with the generic tag
     (False, []),
     (False, all_scopes),
-    (False, all_scopes_excluding(ODPScope.COLLECTION_READ)),
+    (False, all_scopes_excluding(ODPScope.COLLECTION_FREEZE)),
     (True, [ODPScope.COLLECTION_ADMIN]),
     (True, []),
     (True, all_scopes),
@@ -659,7 +659,7 @@ def test_untag_collection(api, collection_batch, admin_route, scopes, collection
     route = '/collection/admin/' if admin_route else '/collection/'
 
     authorized = admin_route and ODPScope.COLLECTION_ADMIN in scopes or \
-                 not admin_route and ODPScope.COLLECTION_READ in scopes
+                 not admin_route and ODPScope.COLLECTION_FREEZE in scopes
     authorized = authorized and collection_auth in (CollectionAuth.NONE, CollectionAuth.MATCH)
 
     if collection_auth == CollectionAuth.MATCH:

@@ -2,21 +2,21 @@ Collection.Ready:
   type: collection
   cardinality: one
   public: False
-  scope_id: odp.collection:admin
+  scope_id: odp.collection:ready
   schema_id: Tag.Generic
 
 Collection.Frozen:
   type: collection
   cardinality: one
   public: False
-  scope_id: odp.collection:admin
+  scope_id: odp.collection:freeze
   schema_id: Tag.Generic
 
 Collection.Infrastructure:
   type: collection
   cardinality: multi
   public: False
-  scope_id: odp.collection:admin
+  scope_id: odp.collection:infrastructure
   schema_id: Tag.Collection.Infrastructure
 
 Collection.Project:
