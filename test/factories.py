@@ -199,7 +199,10 @@ class RecordFactory(ODPModelFactory):
     metadata_ = factory.LazyAttribute(lambda r: {'doi': r.doi} if r.doi else {})
     validity = {}
     collection = factory.SubFactory(CollectionFactory)
-    schema = factory.SubFactory(SchemaFactory, type='metadata')
+    schema_id = factory.LazyFunction(lambda: choice(('SAEON.DataCite.4', 'SAEON.ISO19115')))
+    schema_type = 'metadata'
+    schema = factory.LazyAttribute(lambda r: Session.get(Schema, (r.schema_id, 'metadata')) or
+                                             SchemaFactory(id=r.schema_id, type='metadata'))
     timestamp = factory.LazyFunction(lambda: datetime.now(timezone.utc))
 
 

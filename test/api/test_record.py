@@ -40,14 +40,11 @@ def record_batch_with_ids():
 
 def record_build(collection=None, collection_tags=None, **id):
     """Build and return an uncommitted Record instance.
-    Referenced collection and schema are however committed."""
+    Referenced collection is however committed."""
     record = RecordFactory.build(
         **id,
         collection=collection or (collection := CollectionFactory()),
         collection_id=collection.id,
-        schema=(schema := SchemaFactory(type='metadata')),
-        schema_id=schema.id,
-        schema_type=schema.type,
     )
     if collection_tags:
         for ct in collection_tags:

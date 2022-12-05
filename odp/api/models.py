@@ -3,7 +3,7 @@ from typing import Any, Literal, Optional
 
 from pydantic import AnyHttpUrl, BaseModel, Field, root_validator, validator
 
-from odp.const import DOI_REGEX, ID_REGEX, SID_REGEX
+from odp.const import DOI_REGEX, ID_REGEX, ODPMetadataSchema, SID_REGEX
 from odp.const.hydra import GrantType, ResponseType, TokenEndpointAuthMethod
 from odp.db.models import AuditCommand, TagCardinality
 
@@ -181,6 +181,13 @@ class RecordModelIn(BaseModel):
             raise ValueError("The secondary ID cannot be a DOI")
 
         return sid
+
+    @validator('schema_id')
+    def validate_schema_id(cls, schema_id):
+        if schema_id not in (ODPMetadataSchema.SAEON_DATACITE_4, ODPMetadataSchema.SAEON_ISO19115):
+            raise ValueError("SAEON metadata schema required")
+
+        return schema_id
 
     @root_validator
     def set_metadata_doi(cls, values):
