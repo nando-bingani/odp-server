@@ -6,8 +6,9 @@ from sqlalchemy import select
 
 from odp.const import ODPScope
 from odp.db import Session
-from odp.db.models import Provider
-from test.api import all_scopes, all_scopes_excluding, assert_conflict, assert_empty_result, assert_forbidden, assert_not_found, assert_unprocessable
+from odp.db.models import Provider, ProviderAudit
+from test.api import (all_scopes, all_scopes_excluding, assert_conflict, assert_empty_result, assert_forbidden, assert_new_timestamp,
+                      assert_not_found, assert_unprocessable)
 from test.factories import CollectionFactory, ProviderFactory, RecordFactory
 
 
@@ -40,6 +41,21 @@ def assert_db_state(providers):
     result = Session.execute(select(Provider)).scalars().all()
     assert set((row.id, row.key, row.name, collection_ids(row)) for row in result) \
            == set((provider.id, provider.key, provider.name, collection_ids(provider)) for provider in providers)
+
+
+def assert_audit_log(command, provider):
+    result = Session.execute(select(ProviderAudit)).scalar_one_or_none()
+    assert result.client_id == 'odp.test'
+    assert result.user_id is None
+    assert result.command == command
+    assert_new_timestamp(result.timestamp)
+    assert result._id == provider.id
+    assert result._key == provider.key
+    assert result._name == provider.name
+
+
+def assert_no_audit_log():
+    assert Session.execute(select(ProviderAudit)).first() is None
 
 
 def assert_json_result(response, json, provider):
@@ -75,6 +91,7 @@ def test_list_providers(api, provider_batch, scopes):
     else:
         assert_forbidden(r)
     assert_db_state(provider_batch)
+    assert_no_audit_log()
 
 
 @pytest.mark.parametrize('scopes', [
@@ -91,6 +108,7 @@ def test_get_provider(api, provider_batch, scopes):
     else:
         assert_forbidden(r)
     assert_db_state(provider_batch)
+    assert_no_audit_log()
 
 
 def test_get_provider_not_found(api, provider_batch):
@@ -98,6 +116,7 @@ def test_get_provider_not_found(api, provider_batch):
     r = api(scopes).get('/provider/foo')
     assert_not_found(r)
     assert_db_state(provider_batch)
+    assert_no_audit_log()
 
 
 @pytest.mark.parametrize('scopes', [
@@ -117,9 +136,11 @@ def test_create_provider(api, provider_batch, scopes):
         provider.id = r.json().get('id')
         assert_json_result(r, r.json(), provider)
         assert_db_state(modified_provider_batch)
+        assert_audit_log('insert', provider)
     else:
         assert_forbidden(r)
         assert_db_state(provider_batch)
+        assert_no_audit_log()
 
 
 def test_create_provider_conflict(api, provider_batch):
@@ -131,6 +152,7 @@ def test_create_provider_conflict(api, provider_batch):
     ))
     assert_conflict(r, 'Provider key is already in use')
     assert_db_state(provider_batch)
+    assert_no_audit_log()
 
 
 @pytest.mark.parametrize('scopes', [
@@ -153,9 +175,11 @@ def test_update_provider(api, provider_batch, scopes):
     if authorized:
         assert_empty_result(r)
         assert_db_state(modified_provider_batch)
+        assert_audit_log('update', provider)
     else:
         assert_forbidden(r)
         assert_db_state(provider_batch)
+        assert_no_audit_log()
 
 
 def test_update_provider_not_found(api, provider_batch):
@@ -167,6 +191,7 @@ def test_update_provider_not_found(api, provider_batch):
     ))
     assert_not_found(r)
     assert_db_state(provider_batch)
+    assert_no_audit_log()
 
 
 def test_update_provider_conflict(api, provider_batch):
@@ -181,6 +206,7 @@ def test_update_provider_conflict(api, provider_batch):
     ))
     assert_conflict(r, 'Provider key is already in use')
     assert_db_state(provider_batch)
+    assert_no_audit_log()
 
 
 @pytest.fixture(params=[True, False])
@@ -197,6 +223,7 @@ def has_record(request):
 def test_delete_provider(api, provider_batch, scopes, has_record):
     authorized = ODPScope.PROVIDER_ADMIN in scopes
     modified_provider_batch = provider_batch.copy()
+    deleted_provider = modified_provider_batch[2]
     del modified_provider_batch[2]
 
     if has_record:
@@ -211,12 +238,16 @@ def test_delete_provider(api, provider_batch, scopes, has_record):
         if has_record:
             assert_unprocessable(r, 'A provider with non-empty collections cannot be deleted.')
             assert_db_state(provider_batch)
+            assert_no_audit_log()
         else:
             assert_empty_result(r)
+            # check audit log first because assert_db_state expires the deleted item
+            assert_audit_log('delete', deleted_provider)
             assert_db_state(modified_provider_batch)
     else:
         assert_forbidden(r)
         assert_db_state(provider_batch)
+        assert_no_audit_log()
 
 
 def test_delete_provider_not_found(api, provider_batch):
@@ -224,3 +255,4 @@ def test_delete_provider_not_found(api, provider_batch):
     r = api(scopes).delete('/provider/foo')
     assert_not_found(r)
     assert_db_state(provider_batch)
+    assert_no_audit_log()

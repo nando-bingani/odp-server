@@ -1,14 +1,16 @@
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from starlette.status import HTTP_404_NOT_FOUND, HTTP_409_CONFLICT, HTTP_422_UNPROCESSABLE_ENTITY
 
-from odp.api.lib.auth import Authorize
+from odp.api.lib.auth import Authorize, Authorized
 from odp.api.lib.paging import Page, Paginator
 from odp.api.models import ProviderModel, ProviderModelIn
 from odp.const import ODPScope
 from odp.db import Session
-from odp.db.models import Provider
+from odp.db.models import AuditCommand, Provider, ProviderAudit
 
 router = APIRouter()
 
@@ -23,6 +25,22 @@ def output_provider_model(provider: Provider) -> ProviderModel:
             for collection in provider.collections
         },
     )
+
+
+def create_audit_record(
+        auth: Authorized,
+        provider: Provider,
+        command: AuditCommand,
+) -> None:
+    ProviderAudit(
+        client_id=auth.client_id,
+        user_id=auth.user_id,
+        command=command,
+        timestamp=datetime.now(timezone.utc),
+        _id=provider.id,
+        _key=provider.key,
+        _name=provider.name,
+    ).save()
 
 
 @router.get(
@@ -56,10 +74,10 @@ async def get_provider(
 @router.post(
     '/',
     response_model=ProviderModel,
-    dependencies=[Depends(Authorize(ODPScope.PROVIDER_ADMIN))],
 )
 async def create_provider(
         provider_in: ProviderModelIn,
+        auth: Authorized = Depends(Authorize(ODPScope.PROVIDER_ADMIN)),
 ):
     if Session.execute(
             select(Provider).
@@ -72,17 +90,18 @@ async def create_provider(
         name=provider_in.name,
     )
     provider.save()
+    create_audit_record(auth, provider, AuditCommand.insert)
 
     return output_provider_model(provider)
 
 
 @router.put(
     '/{provider_id}',
-    dependencies=[Depends(Authorize(ODPScope.PROVIDER_ADMIN))],
 )
 async def update_provider(
         provider_id: str,
         provider_in: ProviderModelIn,
+        auth: Authorized = Depends(Authorize(ODPScope.PROVIDER_ADMIN)),
 ):
     if not (provider := Session.get(Provider, provider_id)):
         raise HTTPException(HTTP_404_NOT_FOUND)
@@ -94,17 +113,22 @@ async def update_provider(
     ).first() is not None:
         raise HTTPException(HTTP_409_CONFLICT, 'Provider key is already in use')
 
-    provider.key = provider_in.key
-    provider.name = provider_in.name
-    provider.save()
+    if (
+            provider.key != provider_in.key or
+            provider.name != provider_in.name
+    ):
+        provider.key = provider_in.key
+        provider.name = provider_in.name
+        provider.save()
+        create_audit_record(auth, provider, AuditCommand.update)
 
 
 @router.delete(
     '/{provider_id}',
-    dependencies=[Depends(Authorize(ODPScope.PROVIDER_ADMIN))],
 )
 async def delete_provider(
         provider_id: str,
+        auth: Authorized = Depends(Authorize(ODPScope.PROVIDER_ADMIN)),
 ):
     if not (provider := Session.get(Provider, provider_id)):
         raise HTTPException(HTTP_404_NOT_FOUND)
@@ -116,3 +140,5 @@ async def delete_provider(
             HTTP_422_UNPROCESSABLE_ENTITY,
             'A provider with non-empty collections cannot be deleted.',
         ) from e
+
+    create_audit_record(auth, provider, AuditCommand.delete)
