@@ -1,9 +1,10 @@
 import uuid
 
-from sqlalchemy import Column, String
+from sqlalchemy import Column, Enum, Identity, Integer, String, TIMESTAMP
 from sqlalchemy.orm import relationship
 
 from odp.db import Base
+from odp.db.models.types import AuditCommand
 
 
 class Provider(Base):
@@ -24,3 +25,19 @@ class Provider(Base):
     collections = relationship('Collection', viewonly=True)
 
     _repr_ = 'id', 'key', 'name'
+
+
+class ProviderAudit(Base):
+    """Provider audit log."""
+
+    __tablename__ = 'provider_audit'
+
+    id = Column(Integer, Identity(), primary_key=True)
+    client_id = Column(String, nullable=False)
+    user_id = Column(String)
+    command = Column(Enum(AuditCommand), nullable=False)
+    timestamp = Column(TIMESTAMP(timezone=True), nullable=False)
+
+    _id = Column(String, nullable=False)
+    _key = Column(String, nullable=False)
+    _name = Column(String, nullable=False)
