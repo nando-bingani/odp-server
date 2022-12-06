@@ -328,6 +328,12 @@ class RecordTagAuditModel(AuditModel):
     record_tag_data: dict[str, Any]
 
 
+class ProviderAuditModel(AuditModel):
+    provider_id: str
+    provider_key: str
+    provider_name: str
+
+
 class VocabularyTermAuditModel(AuditModel):
     vocabulary_id: str
     term_id: str

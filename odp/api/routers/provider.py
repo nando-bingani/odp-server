@@ -7,10 +7,10 @@ from starlette.status import HTTP_404_NOT_FOUND, HTTP_409_CONFLICT, HTTP_422_UNP
 
 from odp.api.lib.auth import Authorize, Authorized
 from odp.api.lib.paging import Page, Paginator
-from odp.api.models import ProviderModel, ProviderModelIn
+from odp.api.models import ProviderAuditModel, ProviderModel, ProviderModelIn
 from odp.const import ODPScope
 from odp.db import Session
-from odp.db.models import AuditCommand, Provider, ProviderAudit
+from odp.db.models import AuditCommand, Provider, ProviderAudit, User
 
 router = APIRouter()
 
@@ -24,6 +24,22 @@ def output_provider_model(provider: Provider) -> ProviderModel:
             collection.key: collection.id
             for collection in provider.collections
         },
+    )
+
+
+def output_audit_model(row) -> ProviderAuditModel:
+    return ProviderAuditModel(
+        table='provider',
+        tag_id=None,
+        audit_id=row.ProviderAudit.id,
+        client_id=row.ProviderAudit.client_id,
+        user_id=row.ProviderAudit.user_id,
+        user_name=row.user_name,
+        command=row.ProviderAudit.command,
+        timestamp=row.ProviderAudit.timestamp.isoformat(),
+        provider_id=row.ProviderAudit._id,
+        provider_key=row.ProviderAudit._key,
+        provider_name=row.ProviderAudit._name,
     )
 
 
@@ -142,3 +158,45 @@ async def delete_provider(
         ) from e
 
     create_audit_record(auth, provider, AuditCommand.delete)
+
+
+@router.get(
+    '/{provider_id}/audit',
+    response_model=Page[ProviderAuditModel],
+    dependencies=[Depends(Authorize(ODPScope.PROVIDER_READ))],
+)
+async def get_provider_audit_log(
+        provider_id: str,
+        paginator: Paginator = Depends(),
+):
+    stmt = (
+        select(ProviderAudit, User.name.label('user_name')).
+        outerjoin(User, ProviderAudit.user_id == User.id).
+        where(ProviderAudit._id == provider_id)
+    )
+
+    paginator.sort = 'timestamp'
+    return paginator.paginate(
+        stmt,
+        lambda row: output_audit_model(row),
+    )
+
+
+@router.get(
+    '/{provider_id}/audit/{audit_id}',
+    response_model=ProviderAuditModel,
+    dependencies=[Depends(Authorize(ODPScope.PROVIDER_READ))],
+)
+async def get_provider_audit_detail(
+        provider_id: str,
+        audit_id: int,
+):
+    if not (row := Session.execute(
+            select(ProviderAudit, User.name.label('user_name')).
+            outerjoin(User, ProviderAudit.user_id == User.id).
+            where(ProviderAudit.id == audit_id).
+            where(ProviderAudit._id == provider_id)
+    ).one_or_none()):
+        raise HTTPException(HTTP_404_NOT_FOUND)
+
+    return output_audit_model(row)
