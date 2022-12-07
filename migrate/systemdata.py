@@ -256,9 +256,7 @@ def init_catalogs():
 def initialize():
     logger.info('Initializing static system data...')
 
-    # for a local run; in a container there's no .env
-    load_dotenv(pathlib.Path(os.getcwd()) / '.env')
-
+    load_dotenv(pathlib.Path(os.getcwd()) / '.env')  # for a local run; in a container there's no .env
     hydra_admin_api = HydraAdminAPI(os.environ['HYDRA_ADMIN_URL'])
 
     with Session.begin():
@@ -266,12 +264,14 @@ def initialize():
         init_system_scopes()
         init_standard_scopes()
         init_system_roles()
-        init_admin_ui_client(hydra_admin_api)
-        init_public_ui_client(hydra_admin_api)
-        init_dap_ui_client(hydra_admin_api)
         init_schemas()
         init_tags()
         init_vocabularies()
         init_catalogs()
+
+        init_admin_ui_client(hydra_admin_api)
+        if os.environ['ODP_ENV'] == 'development':  # these clients are still rudimentary / experimental
+            init_public_ui_client(hydra_admin_api)
+            init_dap_ui_client(hydra_admin_api)
 
     logger.info('Done.')
