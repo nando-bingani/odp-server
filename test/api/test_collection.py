@@ -88,7 +88,7 @@ def assert_db_tag_state(collection_id, *collection_tags):
 
 
 def assert_audit_log(command, collection):
-    result = Session.execute(select(CollectionAudit)).scalar_one_or_none()
+    result = Session.execute(select(CollectionAudit)).scalar_one()
     assert result.client_id == 'odp.test'
     assert result.user_id is None
     assert result.command == command

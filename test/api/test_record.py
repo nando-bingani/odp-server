@@ -94,7 +94,7 @@ def assert_db_tag_state(record_id, *record_tags):
 
 
 def assert_audit_log(command, record):
-    result = Session.execute(select(RecordAudit)).scalar_one_or_none()
+    result = Session.execute(select(RecordAudit)).scalar_one()
     assert result.client_id == 'odp.test'
     assert result.user_id is None
     assert result.command == command
