@@ -259,8 +259,9 @@ def initialize():
     load_dotenv(pathlib.Path(os.getcwd()) / '.env')  # for a local run; in a container there's no .env
     hydra_admin_api = HydraAdminAPI(os.environ['HYDRA_ADMIN_URL'])
 
+    init_database_schema()
+
     with Session.begin():
-        init_database_schema()
         init_system_scopes()
         init_standard_scopes()
         init_system_roles()
