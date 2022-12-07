@@ -196,7 +196,7 @@ class RecordFactory(ODPModelFactory):
     identifiers = factory.LazyFunction(lambda: choice(('doi', 'sid', 'both')))
     doi = factory.LazyAttributeSequence(lambda r, n: f'10.5555/test-{n}' if r.identifiers in ('doi', 'both') else None)
     sid = factory.LazyAttributeSequence(lambda r, n: f'test-{n}' if r.doi is None or r.identifiers in ('sid', 'both') else None)
-    metadata_ = factory.LazyAttribute(lambda r: {'doi': r.doi} if r.doi else {})
+    metadata_ = factory.LazyAttributeSequence(lambda r, n: {'doi': r.doi, 'foo': f'test-{n}'} if r.doi else {'foo': f'test-{n}'})
     validity = {}
     collection = factory.SubFactory(CollectionFactory)
     schema_id = factory.LazyFunction(lambda: choice(('SAEON.DataCite.4', 'SAEON.ISO19115')))
