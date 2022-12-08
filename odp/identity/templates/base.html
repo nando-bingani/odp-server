@@ -51,14 +51,16 @@
 {% endblock %}
 
 {% block main %}
-    <div class="container p-4" style="width: 410px">
-        <p class="h1">
-            {% block heading %}
-            {% endblock %}
-        </p>
-        <div class="p-1">
-            {% block content %}
-            {% endblock %}
+    <main class="flex-grow-1 mx-4">
+        <div class="container p-4" style="width: 410px">
+            <p class="h1">
+                {% block heading %}
+                {% endblock %}
+            </p>
+            <div class="p-1">
+                {% block content %}
+                {% endblock %}
+            </div>
         </div>
-    </div>
+    </main>
 {% endblock %}
