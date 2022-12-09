@@ -65,13 +65,10 @@ def create_app():
     ])
     app.static_folder = base.STATIC_DIR
 
-    base.init_app(app, is_odp_client=False)
+    base.init_app(app)
     db.init_app(app)
     views.init_app(app)
     mail.init_app(app)
     google_oauth2.init_app(app)
-
-    # trust the X-Forwarded-* headers set by the proxy server
-    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_prefix=1)
 
     return app
