@@ -3,6 +3,7 @@ import logging
 from sqlalchemy import select
 
 from odp.catalog.datacite import DataCitePublisher
+from odp.catalog.mims import MIMSPublisher
 from odp.catalog.saeon import SAEONPublisher
 from odp.const import ODPCatalog
 from odp.db import Session
@@ -13,6 +14,7 @@ logger = logging.getLogger(__name__)
 publishers = {
     ODPCatalog.SAEON: SAEONPublisher,
     ODPCatalog.DATACITE: DataCitePublisher,
+    ODPCatalog.MIMS: MIMSPublisher,
 }
 
 

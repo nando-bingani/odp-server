@@ -22,7 +22,7 @@ def output_published_record_model(catalog_record: CatalogRecord) -> Optional[Pub
     if not catalog_record.published:
         return None
 
-    if catalog_record.catalog_id == ODPCatalog.SAEON:
+    if catalog_record.catalog_id in (ODPCatalog.SAEON, ODPCatalog.MIMS):
         return PublishedSAEONRecordModel(**catalog_record.published_record)
 
     if catalog_record.catalog_id == ODPCatalog.DATACITE:
