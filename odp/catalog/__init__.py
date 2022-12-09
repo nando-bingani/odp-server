@@ -19,6 +19,7 @@ class PublishedReason(str, Enum):
     QC_PASSED = 'QC passed'
     COLLECTION_READY = 'collection ready'
     MIGRATED_PUBLISHED = 'migrated as published'
+    MIMS_COLLECTION = 'MIMS collection'
 
 
 class NotPublishedReason(str, Enum):
@@ -28,6 +29,7 @@ class NotPublishedReason(str, Enum):
     RECORD_RETRACTED = 'record retracted'
     MIGRATED_NOT_PUBLISHED = 'migrated as not published'
     NO_DOI = 'no DOI'
+    NOT_MIMS_COLLECTION = 'not a MIMS collection'
 
 
 class Publisher:
