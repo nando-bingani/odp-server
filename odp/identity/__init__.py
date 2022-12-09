@@ -4,8 +4,6 @@ import redis
 from authlib.integrations.flask_client import OAuth
 from flask import Flask
 from flask_mail import Mail
-from jinja2 import ChoiceLoader, FileSystemLoader
-from werkzeug.middleware.proxy_fix import ProxyFix
 
 from odp.config import config
 from odp.lib.hydra_admin import HydraAdminClient
@@ -54,18 +52,9 @@ def create_app():
         MAIL_USERNAME=config.ODP.MAIL.USERNAME,
         MAIL_PASSWORD=config.ODP.MAIL.PASSWORD,
         SESSION_COOKIE_NAME='idsession',  # avoid conflict with public UI session cookie on same domain
-        SESSION_COOKIE_SECURE=True,
-        SESSION_COOKIE_SAMESITE='Lax',
     )
 
-    template_dir = Path(__file__).parent / 'templates'
-    app.jinja_loader = ChoiceLoader([
-        FileSystemLoader(template_dir),
-        FileSystemLoader(base.TEMPLATE_DIR),
-    ])
-    app.static_folder = base.STATIC_DIR
-
-    base.init_app(app)
+    base.init_app(app, template_dir=Path(__file__).parent / 'templates')
     db.init_app(app)
     views.init_app(app)
     mail.init_app(app)
