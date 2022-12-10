@@ -3,14 +3,14 @@ from datetime import datetime
 from jschon import JSON, URI
 
 from odp.api.models import PublishedMetadataModel, PublishedRecordModel, PublishedSAEONRecordModel, PublishedTagInstanceModel, RecordModel
-from odp.catalog import Publisher
+from odp.catalog import Catalog
 from odp.const import ODPMetadataSchema
 from odp.db import Session
 from odp.db.models import Schema, SchemaType
 from odp.lib.schema import schema_catalog
 
 
-class SAEONPublisher(Publisher):
+class SAEONCatalog(Catalog):
     def __init__(self, catalog_id: str) -> None:
         super().__init__(catalog_id)
         self.indexed = True

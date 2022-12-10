@@ -1,10 +1,10 @@
 from odp.api.models import RecordModel
 from odp.catalog import NotPublishedReason, PublishedReason
-from odp.catalog.saeon import SAEONPublisher
+from odp.catalog.saeon import SAEONCatalog
 from odp.const import ODPCollectionTag
 
 
-class MIMSPublisher(SAEONPublisher):
+class MIMSCatalog(SAEONCatalog):
 
     def evaluate_record(self, record_model: RecordModel) -> tuple[bool, list[PublishedReason | NotPublishedReason]]:
         """Evaluate whether a record can be published.

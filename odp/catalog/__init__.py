@@ -8,7 +8,7 @@ from sqlalchemy import func, or_, select
 from odp.api.lib.utils import output_published_record_model
 from odp.api.models import PublishedRecordModel, RecordModel
 from odp.api.routers.record import output_record_model
-from odp.const import ODPCollectionTag, ODPMetadataSchema, ODPRecordTag
+from odp.const import ODPCatalog, ODPCollectionTag, ODPMetadataSchema, ODPRecordTag
 from odp.db import Session
 from odp.db.models import CatalogRecord, Collection, PublishedDOI, Record, RecordTag
 
@@ -32,7 +32,7 @@ class NotPublishedReason(str, Enum):
     NOT_MIMS_COLLECTION = 'not a MIMS collection'
 
 
-class Publisher:
+class Catalog:
     def __init__(self, catalog_id: str) -> None:
         self.catalog_id = catalog_id
         self.indexed = False
@@ -40,7 +40,7 @@ class Publisher:
         self.max_attempts = 3
 
     @final
-    def run(self) -> None:
+    def publish(self) -> None:
         records = self._select_records()
         logger.info(f'{self.catalog_id} catalog: {(total := len(records))} records selected for evaluation')
 
@@ -54,7 +54,6 @@ class Publisher:
         if self.external:
             self._sync_external()
 
-    @final
     def _select_records(self) -> list[tuple[str, datetime]]:
         """Select records to be evaluated for publication to, or
         retraction from, a catalog.
@@ -110,7 +109,6 @@ class Publisher:
 
         return Session.execute(stmt).all()
 
-    @final
     def _sync_catalog_record(self, record_id: str, timestamp: datetime) -> bool:
         """Synchronize a catalog_record entry with the current state of the
         corresponding record.
@@ -130,11 +128,12 @@ class Publisher:
             self._save_published_doi(record_model)
             catalog_record.published = True
             catalog_record.published_record = self.create_published_record(record_model).dict()
-            self._add_search_data(catalog_record)
         else:
             catalog_record.published = False
             catalog_record.published_record = None
-            self._clear_search_data(catalog_record)
+
+        if self.indexed:
+            self._index_catalog_record(catalog_record)
 
         if self.external:
             catalog_record.synced = False
@@ -257,7 +256,6 @@ class Publisher:
             published_doi = PublishedDOI(doi=record_model.doi)
             published_doi.save()
 
-    @final
     def _sync_external(self) -> None:
         """Synchronize with an external catalog."""
         unsynced_catalog_records = Session.execute(
@@ -291,10 +289,9 @@ class Publisher:
         """Create / update / delete a record on an external catalog."""
         pass
 
-    @final
-    def _add_search_data(self, catalog_record: CatalogRecord) -> None:
+    def _index_catalog_record(self, catalog_record: CatalogRecord) -> None:
         """Add pre-computed search data to a catalog record."""
-        if self.indexed:
+        if catalog_record.published:
             published_record = output_published_record_model(catalog_record)
             catalog_record.full_text = select(
                 func.to_tsvector('english', self.create_full_text_search_data(published_record))
@@ -308,18 +305,15 @@ class Publisher:
             if start_end := self.create_temporal_search_data(published_record):
                 (catalog_record.temporal_start,
                  catalog_record.temporal_end) = start_end
-
-    @final
-    def _clear_search_data(self, catalog_record: CatalogRecord) -> None:
-        """Remove pre-computed search data from a catalog record."""
-        catalog_record.full_text = None
-        catalog_record.keywords = None
-        catalog_record.spatial_north = None
-        catalog_record.spatial_east = None
-        catalog_record.spatial_south = None
-        catalog_record.spatial_west = None
-        catalog_record.temporal_start = None
-        catalog_record.temporal_end = None
+        else:
+            catalog_record.full_text = None
+            catalog_record.keywords = None
+            catalog_record.spatial_north = None
+            catalog_record.spatial_east = None
+            catalog_record.spatial_south = None
+            catalog_record.spatial_west = None
+            catalog_record.temporal_start = None
+            catalog_record.temporal_end = None
 
     def create_full_text_search_data(self, published_record: PublishedRecordModel) -> str:
         """Create a string from metadata field values to be indexed for full text search."""
@@ -336,3 +330,25 @@ class Publisher:
     def create_temporal_search_data(self, published_record: PublishedRecordModel) -> tuple[datetime, datetime]:
         """Create a start-end tuple of the temporal extent to be indexed for temporal search."""
         pass
+
+
+def publish_all():
+    from odp.catalog.datacite import DataCiteCatalog
+    from odp.catalog.mims import MIMSCatalog
+    from odp.catalog.saeon import SAEONCatalog
+
+    catalog_classes = {
+        ODPCatalog.SAEON: SAEONCatalog,
+        ODPCatalog.MIMS: MIMSCatalog,
+        ODPCatalog.DATACITE: DataCiteCatalog,
+    }
+
+    logger.info('PUBLISHING STARTED')
+    try:
+        for catalog_id, catalog_cls in catalog_classes.items():
+            catalog_cls(catalog_id).publish()
+
+        logger.info('PUBLISHING FINISHED')
+
+    except Exception as e:
+        logger.critical(f'PUBLISHING ABORTED: {str(e)}')
