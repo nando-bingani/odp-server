@@ -6,9 +6,9 @@ import sys
 rootdir = pathlib.Path(__file__).parent.parent
 sys.path.append(str(rootdir))
 
-import odp.catalog
+import odp.catalog.main
 import odp.logger
 
 if __name__ == '__main__':
     odp.logger.initialize()
-    odp.catalog.publish()
+    odp.catalog.main.publish()
