@@ -1,7 +1,7 @@
 from jschon import JSON, URI
 
 from odp.api.models import PublishedDataCiteRecordModel, PublishedRecordModel, RecordModel
-from odp.catalog import NotPublishedReason, PublishedReason, Publisher
+from odp.catalog.publisher import NotPublishedReason, PublishedReason, Publisher
 from odp.config import config
 from odp.const import DOI_PREFIX, ODPMetadataSchema
 from odp.db import Session

@@ -3,7 +3,7 @@ from datetime import datetime
 from jschon import JSON, URI
 
 from odp.api.models import PublishedMetadataModel, PublishedRecordModel, PublishedSAEONRecordModel, PublishedTagInstanceModel, RecordModel
-from odp.catalog import Publisher
+from odp.catalog.publisher import Publisher
 from odp.const import ODPMetadataSchema
 from odp.db import Session
 from odp.db.models import Schema, SchemaType

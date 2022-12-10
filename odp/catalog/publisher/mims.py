@@ -1,6 +1,6 @@
 from odp.api.models import RecordModel
-from odp.catalog import NotPublishedReason, PublishedReason
-from odp.catalog.saeon import SAEONPublisher
+from odp.catalog.publisher import NotPublishedReason, PublishedReason
+from odp.catalog.publisher.saeon import SAEONPublisher
 from odp.const import ODPCollectionTag
 
 
