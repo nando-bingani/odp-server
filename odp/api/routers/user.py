@@ -1,3 +1,5 @@
+from functools import partial
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -19,7 +21,7 @@ router = APIRouter()
     dependencies=[Depends(Authorize(ODPScope.USER_READ))],
 )
 async def list_users(
-        paginator: Paginator = Depends(),
+        paginator: Paginator = Depends(partial(Paginator, sort='email')),
 ):
     return paginator.paginate(
         select(User),

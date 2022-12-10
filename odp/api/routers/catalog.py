@@ -1,4 +1,5 @@
 import re
+from functools import partial
 from typing import Any, Optional
 from uuid import UUID
 
@@ -76,7 +77,7 @@ async def get_catalog(
 )
 async def list_published_records(
         catalog_id: str,
-        paginator: Paginator = Depends(),
+        paginator: Paginator = Depends(partial(Paginator, sort='record_id')),
         text_q: str = Query(None, title='Search terms'),
 ):
     if not Session.get(Catalog, catalog_id):
@@ -93,7 +94,6 @@ async def list_published_records(
             "full_text @@ plainto_tsquery('english', :text_q)"
         ).bindparams(text_q=text_q))
 
-    paginator.sort = 'record_id'
     return paginator.paginate(
         stmt,
         lambda row: output_published_record_model(row.CatalogRecord),

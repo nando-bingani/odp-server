@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from functools import partial
 from random import randint
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -84,7 +85,7 @@ def create_tag_audit_record(
 )
 async def list_collections(
         auth: Authorized = Depends(Authorize(ODPScope.COLLECTION_READ)),
-        paginator: Paginator = Depends(),
+        paginator: Paginator = Depends(partial(Paginator, sort='key')),
 ):
     stmt = (
         select(Collection, func.count(Record.id)).
@@ -383,7 +384,7 @@ async def get_new_doi(
 async def get_collection_audit_log(
         collection_id: str,
         auth: Authorized = Depends(Authorize(ODPScope.COLLECTION_READ)),
-        paginator: Paginator = Depends(),
+        paginator: Paginator = Depends(partial(Paginator, sort='timestamp')),
 ):
     if auth.collection_ids != '*' and collection_id not in auth.collection_ids:
         raise HTTPException(HTTP_403_FORBIDDEN)
@@ -414,7 +415,6 @@ async def get_collection_audit_log(
         outerjoin(User, audit_subq.c.user_id == User.id)
     )
 
-    paginator.sort = 'timestamp'
     return paginator.paginate(
         stmt,
         lambda row: AuditModel(

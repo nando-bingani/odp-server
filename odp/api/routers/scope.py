@@ -24,7 +24,7 @@ async def list_scopes(
             id=row.Scope.id,
             type=row.Scope.type,
         ),
-        custom_sort="array_position(array['openid'], id),"
-                    "array_position(array['oauth','odp','client'], type::text),"
-                    "id"
+        sort="array_position(array['openid'], id),"
+             "array_position(array['oauth','odp','client'], type::text),"
+             "id"
     )

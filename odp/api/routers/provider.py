@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from functools import partial
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
@@ -65,7 +66,7 @@ def create_audit_record(
     dependencies=[Depends(Authorize(ODPScope.PROVIDER_READ))],
 )
 async def list_providers(
-        paginator: Paginator = Depends(),
+        paginator: Paginator = Depends(partial(Paginator, sort='key')),
 ):
     return paginator.paginate(
         select(Provider),
@@ -167,7 +168,7 @@ async def delete_provider(
 )
 async def get_provider_audit_log(
         provider_id: str,
-        paginator: Paginator = Depends(),
+        paginator: Paginator = Depends(partial(Paginator, sort='timestamp')),
 ):
     stmt = (
         select(ProviderAudit, User.name.label('user_name')).
@@ -175,7 +176,6 @@ async def get_provider_audit_log(
         where(ProviderAudit._id == provider_id)
     )
 
-    paginator.sort = 'timestamp'
     return paginator.paginate(
         stmt,
         lambda row: output_audit_model(row),

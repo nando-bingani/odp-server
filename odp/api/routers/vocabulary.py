@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from functools import partial
 
 from fastapi import APIRouter, Depends, HTTPException
 from jschon import JSON, JSONSchema, URI
@@ -162,7 +163,7 @@ async def delete_term(
 )
 async def get_vocabulary_audit_log(
         vocabulary_id: str,
-        paginator: Paginator = Depends(),
+        paginator: Paginator = Depends(partial(Paginator, sort='timestamp')),
 ):
     stmt = (
         select(VocabularyTermAudit, User.name.label('user_name')).
@@ -170,7 +171,6 @@ async def get_vocabulary_audit_log(
         where(VocabularyTermAudit._vocabulary_id == vocabulary_id)
     )
 
-    paginator.sort = 'timestamp'
     return paginator.paginate(
         stmt,
         lambda row: output_audit_model(row),

@@ -38,21 +38,28 @@ class Paginator:
             query: Select,
             item_factory: Callable[[Row], ModelT],
             *,
+            sort: str = None,
             sort_model: Base = None,
-            custom_sort: str = None,
     ) -> Page[ModelT]:
+        """Return a page of API models of type ModelT.
+
+        :param query: the select query for the total (unpaged) result set
+        :param item_factory: a callable that takes a row from the result set
+            and produces an object of type ModelT
+        :param sort: a custom sort column/clause; overrides the 'sort' request
+            param and the API default
+        :param sort_model: the ORM class associated with a given sort column,
+            in case the query selects from multiple tables
+        """
         total = Session.execute(
             select(func.count()).
             select_from(query.subquery())
         ).scalar_one()
 
         try:
+            sort_col = text(sort) if sort else self.sort
             if sort_model:
-                sort_col = getattr(sort_model, self.sort)
-            elif custom_sort:
-                sort_col = text(custom_sort)
-            else:
-                sort_col = self.sort
+                sort_col = getattr(sort_model, sort_col)
 
             limit = self.size or total
 

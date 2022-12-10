@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from functools import partial
 from typing import Any
 from uuid import UUID
 
@@ -159,7 +160,7 @@ async def list_records(
     return paginator.paginate(
         stmt,
         lambda row: output_record_model(row.Record),
-        custom_sort='collection.key, record.doi, record.sid',
+        sort='collection.key, record.doi, record.sid',
     )
 
 
@@ -541,7 +542,7 @@ def _untag_record(
 async def list_catalog_records(
         record_id: str,
         auth: Authorized = Depends(Authorize(ODPScope.RECORD_READ)),
-        paginator: Paginator = Depends(),
+        paginator: Paginator = Depends(partial(Paginator, sort='catalog_id')),
 ):
     if not (record := Session.get(Record, record_id)):
         raise HTTPException(HTTP_404_NOT_FOUND)
@@ -553,7 +554,6 @@ async def list_catalog_records(
         select(CatalogRecord).
         where(CatalogRecord.record_id == record_id)
     )
-    paginator.sort = 'catalog_id'
 
     return paginator.paginate(
         stmt,
@@ -586,7 +586,7 @@ async def get_catalog_record(
 async def get_record_audit_log(
         record_id: str,
         auth: Authorized = Depends(Authorize(ODPScope.RECORD_READ)),
-        paginator: Paginator = Depends(),
+        paginator: Paginator = Depends(partial(Paginator, sort='timestamp')),
 ):
     # allow retrieving the audit log for a deleted record,
     # except if auth is collection-specific
@@ -623,7 +623,6 @@ async def get_record_audit_log(
         outerjoin(User, audit_subq.c.user_id == User.id)
     )
 
-    paginator.sort = 'timestamp'
     return paginator.paginate(
         stmt,
         lambda row: AuditModel(
