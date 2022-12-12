@@ -13,10 +13,10 @@ from odp.api.lib.catalog import get_catalog_ui_url
 from odp.api.lib.datacite import get_datacite_client
 from odp.api.lib.paging import Page, Paginator
 from odp.api.lib.utils import output_published_record_model
-from odp.api.models import CatalogModel, PublishedDataCiteRecordModel, PublishedSAEONRecordModel
+from odp.api.models import CatalogModel, PublishedCollectionModel, PublishedDataCiteRecordModel, PublishedSAEONRecordModel
 from odp.const import DOI_REGEX, ODPCatalog, ODPScope
 from odp.db import Session
-from odp.db.models import Catalog, CatalogRecord
+from odp.db.models import Catalog, CatalogCollection, CatalogRecord
 from odp.lib.datacite import DataciteClient
 from odp.lib.exceptions import DataciteError
 
@@ -67,6 +67,35 @@ async def get_catalog(
     return CatalogModel(
         id=result.Catalog.id,
         record_count=result.count,
+    )
+
+
+@router.get(
+    '/{catalog_id}/collections',
+    response_model=Page[PublishedCollectionModel],
+    dependencies=[Depends(Authorize(ODPScope.CATALOG_READ))],
+)
+async def list_published_collections(
+        catalog_id: str,
+        paginator: Paginator = Depends(partial(Paginator, sort='collection_id')),
+):
+    if not Session.get(Catalog, catalog_id):
+        raise HTTPException(HTTP_404_NOT_FOUND)
+
+    stmt = (
+        select(CatalogCollection).
+        where(CatalogCollection.catalog_id == catalog_id)
+    )
+
+    return paginator.paginate(
+        stmt,
+        lambda row: PublishedCollectionModel(
+            id=row.CatalogCollection.collection_id,
+            key=row.CatalogCollection.collection.key,
+            name=row.CatalogCollection.collection.name,
+            provider_key=row.CatalogCollection.collection.provider.key,
+            provider_name=row.CatalogCollection.collection.provider.name,
+        ),
     )
 
 

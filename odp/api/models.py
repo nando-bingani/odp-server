@@ -67,6 +67,14 @@ class PublishedDataCiteRecordModel(PublishedRecordModel):
     metadata: dict[str, Any]
 
 
+class PublishedCollectionModel(BaseModel):
+    id: str
+    key: str
+    name: str
+    provider_key: str
+    provider_name: str
+
+
 class CatalogRecordModel(BaseModel):
     catalog_id: str
     record_id: str
