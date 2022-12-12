@@ -1,7 +1,7 @@
 from flask import Blueprint, current_app, flash, redirect, render_template, request, url_for
 from flask_mail import Message
 
-from odp.identity import hydra_admin, mail
+from odp.identity import hydra_admin_api, mail
 from odp.identity.forms import ProfileForm, ResetPasswordForm
 from odp.identity.lib import (get_user_profile, password_complexity_description, update_user_password, update_user_profile, update_user_verified,
                               validate_auto_login, validate_email_verification, validate_password_reset)
@@ -32,7 +32,7 @@ def verify_email():
 
         except x.ODPIdentityError as e:
             # any validation error => reject login
-            redirect_to = hydra_admin.reject_login_request(challenge, e.error_code, e.error_description)
+            redirect_to = hydra_admin_api.reject_login_request(challenge, e.error_code, e.error_description)
 
         return redirect(redirect_to)
 
@@ -55,11 +55,11 @@ def verify_email_complete():
         if request.method == 'POST':
             try:
                 validate_auto_login(user_id)
-                redirect_to = hydra_admin.accept_login_request(challenge, user_id)
+                redirect_to = hydra_admin_api.accept_login_request(challenge, user_id)
 
             except x.ODPIdentityError as e:
                 # any validation error => reject login
-                redirect_to = hydra_admin.reject_login_request(challenge, e.error_code, e.error_description)
+                redirect_to = hydra_admin_api.reject_login_request(challenge, e.error_code, e.error_description)
 
             return redirect(redirect_to)
 
@@ -85,11 +85,11 @@ def profile():
             try:
                 validate_auto_login(user_id)
                 update_user_profile(user_id, **form.data)
-                redirect_to = hydra_admin.accept_login_request(challenge, user_id)
+                redirect_to = hydra_admin_api.accept_login_request(challenge, user_id)
 
             except x.ODPIdentityError as e:
                 # any validation error => reject login
-                redirect_to = hydra_admin.reject_login_request(challenge, e.error_code, e.error_description)
+                redirect_to = hydra_admin_api.reject_login_request(challenge, e.error_code, e.error_description)
 
             return redirect(redirect_to)
 
@@ -130,7 +130,7 @@ def reset_password():
 
                 except x.ODPIdentityError as e:
                     # any other validation error => reject login
-                    redirect_to = hydra_admin.reject_login_request(challenge, e.error_code, e.error_description)
+                    redirect_to = hydra_admin_api.reject_login_request(challenge, e.error_code, e.error_description)
 
                 if redirect_to:
                     return redirect(redirect_to)
@@ -156,11 +156,11 @@ def reset_password_complete():
         if request.method == 'POST':
             try:
                 validate_auto_login(user_id)
-                redirect_to = hydra_admin.accept_login_request(challenge, user_id)
+                redirect_to = hydra_admin_api.accept_login_request(challenge, user_id)
 
             except x.ODPIdentityError as e:
                 # any validation error => reject login
-                redirect_to = hydra_admin.reject_login_request(challenge, e.error_code, e.error_description)
+                redirect_to = hydra_admin_api.reject_login_request(challenge, e.error_code, e.error_description)
 
             return redirect(redirect_to)
 

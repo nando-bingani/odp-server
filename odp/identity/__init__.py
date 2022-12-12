@@ -6,7 +6,7 @@ from flask import Flask
 from flask_mail import Mail
 
 from odp.config import config
-from odp.lib.hydra_admin import HydraAdminClient
+from odp.lib.hydra import HydraAdminAPI
 from odp.ui import base
 
 if config.ODP.ENV != 'testing':
@@ -14,11 +14,7 @@ if config.ODP.ENV != 'testing':
 
     mail = Mail()
 
-    hydra_admin = HydraAdminClient(
-        server_url=config.HYDRA.ADMIN.URL,
-        verify_tls=config.ODP.ENV != 'development',
-        remember_login_for=config.ODP.IDENTITY.LOGIN_EXPIRY,
-    )
+    hydra_admin_api = HydraAdminAPI(config.HYDRA.ADMIN.URL)
 
     redis_cache = redis.Redis(
         host=config.REDIS.HOST,

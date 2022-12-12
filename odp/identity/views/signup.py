@@ -1,7 +1,7 @@
 from flask import Blueprint, flash, redirect, render_template, request, url_for
 
 from odp.config import config
-from odp.identity import hydra_admin
+from odp.identity import hydra_admin_api
 from odp.identity.forms import SignupForm
 from odp.identity.lib import create_user_account, password_complexity_description
 from odp.identity.views import decode_token, encode_token, hydra_error_page
@@ -60,7 +60,7 @@ def signup():
 
         except x.ODPIdentityError as e:
             # any other validation error (e.g. user already authenticated) => reject login
-            redirect_to = hydra_admin.reject_login_request(challenge, e.error_code, e.error_description)
+            redirect_to = hydra_admin_api.reject_login_request(challenge, e.error_code, e.error_description)
             return redirect(redirect_to)
 
     except x.HydraAdminError as e:

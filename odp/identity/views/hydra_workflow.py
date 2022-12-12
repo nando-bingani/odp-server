@@ -6,7 +6,7 @@ from flask import Blueprint, redirect, request, url_for
 
 from odp.config import config
 from odp.const import ODPScope
-from odp.identity import hydra_admin
+from odp.identity import hydra_admin_api
 from odp.identity.views import encode_token, hydra_error_page
 from odp.lib import exceptions as x
 from odp.lib.auth import get_user_info, get_user_permissions
@@ -49,7 +49,7 @@ def login():
     """
     try:
         challenge = request.args.get('login_challenge')
-        login_request = hydra_admin.get_login_request(challenge)
+        login_request = hydra_admin_api.get_login_request(challenge)
         mode = LoginMode.from_login_request(login_request)
         brand = Brand.from_login_request(login_request).value
 
@@ -77,29 +77,29 @@ def consent():
     """
     challenge = request.args.get('consent_challenge')
     try:
-        consent_request = hydra_admin.get_consent_request(challenge)
+        consent_request = hydra_admin_api.get_consent_request(challenge)
         user_id = consent_request['subject']
         client_id = consent_request['client']['client_id']
         try:
             user_permissions = get_user_permissions(user_id, client_id)
             user_info = get_user_info(user_id, client_id)
 
-            grant_scope = [
-                requested_scope_id for requested_scope_id in consent_request['requested_scope']
-                if requested_scope_id in user_permissions
-                or requested_scope_id not in ODPScope.__members__.values()
-            ]
-            consent_params = {
-                'grant_scope': grant_scope,
-                'grant_audience': consent_request['requested_access_token_audience'],
-                'access_token_data': user_permissions,
-                'id_token_data': asdict(user_info),
-            }
-            redirect_to = hydra_admin.accept_consent_request(challenge, **consent_params)
+            redirect_to = hydra_admin_api.accept_consent_request(
+                challenge,
+                authorized_scope_ids=[
+                    requested_scope_id
+                    for requested_scope_id in consent_request['requested_scope'].value
+                    if requested_scope_id in user_permissions or
+                       requested_scope_id not in ODPScope.__members__.values()
+                ],
+                authorized_api_uris=consent_request['requested_access_token_audience'].value,
+                access_token_data=user_permissions,
+                id_token_data=asdict(user_info),
+            )
             return redirect(redirect_to)
 
         except x.ODPIdentityError as e:
-            redirect_to = hydra_admin.reject_consent_request(challenge, e.error_code, e.error_description)
+            redirect_to = hydra_admin_api.reject_consent_request(challenge, e.error_code, e.error_description)
             return redirect(redirect_to)
 
     except x.HydraAdminError as e:
@@ -115,8 +115,8 @@ def logout():
     """
     try:
         challenge = request.args.get('logout_challenge')
-        logout_request = hydra_admin.get_logout_request(challenge)
-        redirect_to = hydra_admin.accept_logout_request(challenge)
+        logout_request = hydra_admin_api.get_logout_request(challenge)
+        redirect_to = hydra_admin_api.accept_logout_request(challenge)
         return redirect(redirect_to)
 
     except x.HydraAdminError as e:

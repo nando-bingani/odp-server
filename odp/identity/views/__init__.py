@@ -1,7 +1,7 @@
 from flask import abort, current_app
 from itsdangerous import BadData, URLSafeSerializer
 
-from odp.identity import hydra_admin
+from odp.identity import hydra_admin_api
 
 
 def init_app(app):
@@ -57,7 +57,7 @@ def decode_token(token: str, scope: str) -> tuple:
         params = serializer.loads(token)
         challenge = params.pop('challenge', '')
         brand = params.pop('brand', '')
-        login_request = hydra_admin.get_login_request(challenge)
+        login_request = hydra_admin_api.get_login_request(challenge)
         return login_request, challenge, brand, params
 
     except BadData:

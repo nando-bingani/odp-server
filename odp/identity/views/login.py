@@ -1,7 +1,7 @@
 from flask import Blueprint, redirect, render_template, request, url_for
 
 from odp.config import config
-from odp.identity import hydra_admin
+from odp.identity import hydra_admin_api
 from odp.identity.forms import ForgotPasswordForm, LoginForm
 from odp.identity.lib import get_user_profile_by_email, validate_auto_login, validate_forgot_password, validate_user_login
 from odp.identity.views import decode_token, encode_token, hydra_error_page
@@ -69,9 +69,9 @@ def login():
                     error = e
 
         if user_id:
-            redirect_to = hydra_admin.accept_login_request(challenge, user_id)
+            redirect_to = hydra_admin_api.accept_login_request(challenge, user_id)
         elif error:
-            redirect_to = hydra_admin.reject_login_request(challenge, error.error_code, error.error_description)
+            redirect_to = hydra_admin_api.reject_login_request(challenge, error.error_code, error.error_description)
         else:
             return render_template('login.html', form=form, token=token, brand=brand, enable_google=config.GOOGLE.ENABLE)
 
@@ -131,7 +131,7 @@ def forgot_password():
 
                 except x.ODPIdentityError as e:
                     # any other validation error => reject login
-                    redirect_to = hydra_admin.reject_login_request(challenge, e.error_code, e.error_description)
+                    redirect_to = hydra_admin_api.reject_login_request(challenge, e.error_code, e.error_description)
                     return redirect(redirect_to)
 
         return render_template('forgot_password.html', form=form, token=token, brand=brand, sent=sent)

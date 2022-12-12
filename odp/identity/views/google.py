@@ -1,7 +1,7 @@
 from authlib.integrations.base_client.errors import OAuthError
 from flask import Blueprint, redirect, request, url_for
 
-from odp.identity import google_oauth2, hydra_admin
+from odp.identity import google_oauth2, hydra_admin_api
 from odp.identity.lib import create_user_account, update_user_profile, update_user_verified, validate_google_login
 from odp.identity.views import decode_token, encode_token, hydra_error_page
 from odp.lib import exceptions as x
@@ -64,10 +64,10 @@ def authorized():
 
             update_user_verified(user_id, True)
             update_user_profile(user_id, **userinfo)
-            redirect_to = hydra_admin.accept_login_request(challenge, user_id)
+            redirect_to = hydra_admin_api.accept_login_request(challenge, user_id)
 
         except x.ODPIdentityError as e:
-            redirect_to = hydra_admin.reject_login_request(challenge, e.error_code, e.error_description)
+            redirect_to = hydra_admin_api.reject_login_request(challenge, e.error_code, e.error_description)
 
         return redirect(redirect_to)
 
