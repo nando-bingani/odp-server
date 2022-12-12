@@ -41,10 +41,10 @@ class SAEONCatalog(Catalog):
             schema = Session.get(Schema, (record_model.schema_id, SchemaType.metadata))
             iso19115_schema = schema_catalog.get_schema(URI(schema.uri))
             result = iso19115_schema.evaluate(JSON(record_model.metadata))
-            datacite_metadata = result.output('translation', scheme='saeon/datacite-4', ignore_validity=True)
+            datacite_metadata = result.output('translation', scheme='saeon/datacite4', ignore_validity=True)
             published_metadata += [
                 PublishedMetadataModel(
-                    schema_id=ODPMetadataSchema.SAEON_DATACITE_4,
+                    schema_id=ODPMetadataSchema.SAEON_DATACITE4,
                     metadata=datacite_metadata,
                 )
             ]
@@ -69,7 +69,7 @@ class SAEONCatalog(Catalog):
         datacite_metadata = next((
             published_metadata.metadata
             for published_metadata in published_record.metadata
-            if published_metadata.schema_id == ODPMetadataSchema.SAEON_DATACITE_4
+            if published_metadata.schema_id == ODPMetadataSchema.SAEON_DATACITE4
         ))
 
         for title in datacite_metadata.get('titles', ()):

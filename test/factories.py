@@ -31,7 +31,7 @@ def _sanitize_id(val):
 def schema_uri_from_type(schema):
     if schema.type == 'metadata':
         return choice((
-            'https://odp.saeon.ac.za/schema/metadata/saeon/datacite-4',
+            'https://odp.saeon.ac.za/schema/metadata/saeon/datacite4',
             'https://odp.saeon.ac.za/schema/metadata/saeon/iso19115',
             'https://odp.saeon.ac.za/schema/metadata/datacite/kernel-4.3',
         ))
@@ -199,7 +199,7 @@ class RecordFactory(ODPModelFactory):
     metadata_ = factory.LazyAttributeSequence(lambda r, n: {'doi': r.doi, 'foo': f'test-{n}'} if r.doi else {'foo': f'test-{n}'})
     validity = {}
     collection = factory.SubFactory(CollectionFactory)
-    schema_id = factory.LazyFunction(lambda: choice(('SAEON.DataCite.4', 'SAEON.ISO19115')))
+    schema_id = factory.LazyFunction(lambda: choice(('SAEON.DataCite4', 'SAEON.ISO19115')))
     schema_type = 'metadata'
     schema = factory.LazyAttribute(lambda r: Session.get(Schema, (r.schema_id, 'metadata')) or
                                              SchemaFactory(id=r.schema_id, type='metadata'))

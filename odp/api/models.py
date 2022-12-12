@@ -192,7 +192,7 @@ class RecordModelIn(BaseModel):
 
     @validator('schema_id')
     def validate_schema_id(cls, schema_id):
-        if schema_id not in (ODPMetadataSchema.SAEON_DATACITE_4, ODPMetadataSchema.SAEON_ISO19115):
+        if schema_id not in (ODPMetadataSchema.SAEON_DATACITE4, ODPMetadataSchema.SAEON_ISO19115):
             raise ValueError("SAEON metadata schema required")
 
         return schema_id

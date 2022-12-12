@@ -9,8 +9,8 @@ def test_validity():
     with catalog.session() as session:
         input_schema = catalog.get_schema(URI('https://odp.saeon.ac.za/schema/metadata/saeon/iso19115'), session=session)
         input_json = catalog.load_json(URI('https://odp.saeon.ac.za/schema/metadata/saeon/iso19115-example'))
-        output_schema = catalog.get_schema(URI('https://odp.saeon.ac.za/schema/metadata/saeon/datacite-4'), session=session)
-        output_json = catalog.load_json(URI('https://odp.saeon.ac.za/schema/metadata/saeon/datacite-4-example-translated'))
+        output_schema = catalog.get_schema(URI('https://odp.saeon.ac.za/schema/metadata/saeon/datacite4'), session=session)
+        output_json = catalog.load_json(URI('https://odp.saeon.ac.za/schema/metadata/saeon/datacite4-example-translated'))
 
         assert input_schema.validate().valid
         assert input_schema.evaluate(JSON(input_json)).valid
@@ -22,15 +22,15 @@ def test_translate_iso19115_to_datacite():
     with catalog.session() as session:
         input_schema = catalog.get_schema(URI('https://odp.saeon.ac.za/schema/metadata/saeon/iso19115'), session=session)
         input_json = catalog.load_json(URI('https://odp.saeon.ac.za/schema/metadata/saeon/iso19115-example'))
-        output_json = catalog.load_json(URI('https://odp.saeon.ac.za/schema/metadata/saeon/datacite-4-example-translated'))
+        output_json = catalog.load_json(URI('https://odp.saeon.ac.za/schema/metadata/saeon/datacite4-example-translated'))
 
         result = input_schema.evaluate(JSON(input_json))
-        patch = result.output('translation-patch', scheme='saeon/datacite-4')
-        translation = result.output('translation', scheme='saeon/datacite-4')
+        patch = result.output('translation-patch', scheme='saeon/datacite4')
+        translation = result.output('translation', scheme='saeon/datacite4')
 
         assert JSONPatch(*patch).evaluate(None) == translation
 
-        translation = result.output('translation', scheme='saeon/datacite-4', clear_empties=True)
+        translation = result.output('translation', scheme='saeon/datacite4', clear_empties=True)
 
         assert translation == output_json
 

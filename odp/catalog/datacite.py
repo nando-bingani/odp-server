@@ -47,14 +47,14 @@ class DataCiteCatalog(Catalog):
 
     def create_published_record(self, record_model: RecordModel) -> PublishedRecordModel:
         """Create the published form of a record."""
-        if record_model.schema_id == ODPMetadataSchema.SAEON_DATACITE_4:
+        if record_model.schema_id == ODPMetadataSchema.SAEON_DATACITE4:
             datacite_metadata = record_model.metadata
 
         elif record_model.schema_id == ODPMetadataSchema.SAEON_ISO19115:
             schema = Session.get(Schema, (record_model.schema_id, SchemaType.metadata))
             iso19115_schema = schema_catalog.get_schema(URI(schema.uri))
             result = iso19115_schema.evaluate(JSON(record_model.metadata))
-            datacite_metadata = result.output('translation', scheme='saeon/datacite-4', ignore_validity=True)
+            datacite_metadata = result.output('translation', scheme='saeon/datacite4', ignore_validity=True)
 
         else:
             raise NotImplementedError

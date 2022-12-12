@@ -148,7 +148,7 @@ async def list_records(
         ]
         stmt = stmt.where(or_(
             and_(
-                Record.schema_id == ODPMetadataSchema.SAEON_DATACITE_4,
+                Record.schema_id == ODPMetadataSchema.SAEON_DATACITE4,
                 *datacite_title_exprs,
             ),
             and_(
