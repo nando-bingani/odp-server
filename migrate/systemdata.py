@@ -94,10 +94,10 @@ def init_system_roles():
 
 def init_admin_ui_client(hydra_admin_api):
     """Create or update the ODP Admin UI client."""
-    client_id = os.environ['ODP_UI_ADMIN_CLIENT_ID']
+    client_id = os.environ['ODP_ADMIN_UI_CLIENT_ID']
     client_name = 'ODP Admin UI'
-    client_secret = os.environ['ODP_UI_ADMIN_CLIENT_SECRET']
-    client_url = os.environ['ODP_UI_ADMIN_URL']
+    client_secret = os.environ['ODP_ADMIN_UI_CLIENT_SECRET']
+    client_url = os.environ['ODP_ADMIN_URL']
 
     client = Session.get(Client, client_id) or Client(id=client_id)
     client.scopes = [Session.get(Scope, (s.value, ScopeType.odp)) for s in ODPScope] + \
@@ -271,8 +271,7 @@ def initialize():
         init_catalogs()
 
         init_admin_ui_client(hydra_admin_api)
-        if os.environ['ODP_ENV'] == 'development':  # these clients are still rudimentary / experimental
-            init_public_ui_client(hydra_admin_api)
-            init_dap_ui_client(hydra_admin_api)
+        # init_public_ui_client(hydra_admin_api)
+        # init_dap_ui_client(hydra_admin_api)
 
     logger.info('Done.')

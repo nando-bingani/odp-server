@@ -41,7 +41,7 @@ def create_app():
 
     app = Flask(__name__)
     app.config.update(
-        SECRET_KEY=config.ODP.IDENTITY.FLASK_KEY,
+        SECRET_KEY=config.ODP.IDENTITY.FLASK_SECRET,
         MAIL_SERVER=config.ODP.MAIL.HOST,
         MAIL_PORT=config.ODP.MAIL.PORT,
         MAIL_USE_TLS=config.ODP.MAIL.TLS,

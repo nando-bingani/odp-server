@@ -9,7 +9,7 @@ from sqlalchemy import and_, func, select, text
 from starlette.status import HTTP_404_NOT_FOUND, HTTP_422_UNPROCESSABLE_ENTITY
 
 from odp.api.lib.auth import Authorize
-from odp.api.lib.catalog import get_catalog_ui_url
+from odp.api.lib.catalog import get_catalog_url
 from odp.api.lib.datacite import get_datacite_client
 from odp.api.lib.paging import Page, Paginator
 from odp.api.lib.utils import output_published_record_model
@@ -198,6 +198,6 @@ async def get_external_published_record(
     '/view/{doi:path}',
 )
 async def view_record(
-        redirect_url: str = Depends(get_catalog_ui_url),
+        redirect_url: str = Depends(get_catalog_url),
 ):
     return RedirectResponse(redirect_url)
