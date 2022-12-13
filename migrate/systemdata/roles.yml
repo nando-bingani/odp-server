@@ -1,3 +1,7 @@
+ODP.Admin:
+  scopes:
+    - odp.*
+
 SAEON.Staff:
   scopes:
     - odp.catalog:read

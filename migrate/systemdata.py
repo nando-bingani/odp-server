@@ -100,12 +100,11 @@ def init_system_roles():
 
     for role_id in (role_ids := [r.value for r in ODPSystemRole]):
         role = Session.get(Role, role_id) or Role(id=role_id)
-        if role_id == ODPSystemRole.ODP_ADMIN:
-            role.scopes = [Session.get(Scope, (s.value, ScopeType.odp)) for s in ODPScope]
-        else:
-            role_spec = role_data[role_id]
-            role.scopes = [Session.get(Scope, (scope_id, ScopeType.odp)) for scope_id in role_spec['scopes']]
-
+        role_spec = role_data[role_id]
+        role.scopes = [
+            Session.execute(select(Scope).where(Scope.id == scope_id)).scalar_one()
+            for scope_id in _expand_scopes(role_spec['scopes'])
+        ]
         role.save()
 
     if orphaned_yml_roles := [role_id for role_id in role_data if role_id not in role_ids]:
