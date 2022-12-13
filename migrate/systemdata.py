@@ -12,7 +12,7 @@ from sqlalchemy.exc import ProgrammingError
 
 from odp.const import (ODPCatalog, ODPCollectionTag, ODPMetadataSchema, ODPRecordTag, ODPScope, ODPSystemRole, ODPTagSchema, ODPVocabulary,
                        ODPVocabularySchema)
-from odp.const.hydra import GrantType, HydraScope, ResponseType
+from odp.const.hydra import HydraScope
 from odp.db import Base, Session, engine
 from odp.db.models import Catalog, Client, Role, Schema, SchemaType, Scope, ScopeType, Tag, Vocabulary
 from odp.lib.hydra import HydraAdminAPI
@@ -20,6 +20,26 @@ from odp.lib.schema import schema_md5
 
 datadir = pathlib.Path(__file__).parent / 'systemdata'
 logger = logging.getLogger(__name__)
+
+
+def initialize():
+    logger.info('Initializing static system data...')
+
+    load_dotenv(pathlib.Path(os.getcwd()) / '.env')  # for a local run; in a container there's no .env
+
+    init_database_schema()
+
+    with Session.begin():
+        init_system_scopes()
+        init_standard_scopes()
+        init_system_roles()
+        init_schemas()
+        init_tags()
+        init_vocabularies()
+        init_catalogs()
+        init_clients()
+
+    logger.info('Done.')
 
 
 def init_database_schema():
@@ -90,81 +110,6 @@ def init_system_roles():
 
     if orphaned_yml_roles := [role_id for role_id in role_data if role_id not in role_ids]:
         logger.warning(f'Orphaned role definitions in roles.yml {orphaned_yml_roles}')
-
-
-def init_admin_ui_client(hydra_admin_api):
-    """Create or update the ODP Admin UI client."""
-    client_id = os.environ['ODP_ADMIN_UI_CLIENT_ID']
-    client_name = 'ODP Admin UI'
-    client_secret = os.environ['ODP_ADMIN_UI_CLIENT_SECRET']
-    client_url = os.environ['ODP_ADMIN_URL']
-
-    client = Session.get(Client, client_id) or Client(id=client_id)
-    client.scopes = [Session.get(Scope, (s.value, ScopeType.odp)) for s in ODPScope] + \
-                    [Session.get(Scope, (HydraScope.OPENID, ScopeType.oauth)),
-                     Session.get(Scope, (HydraScope.OFFLINE_ACCESS, ScopeType.oauth))]
-    client.save()
-
-    hydra_admin_api.create_or_update_client(
-        id=client_id,
-        name=client_name,
-        secret=client_secret,
-        scope_ids=[s.value for s in ODPScope] + [HydraScope.OPENID, HydraScope.OFFLINE_ACCESS],
-        grant_types=[GrantType.AUTHORIZATION_CODE, GrantType.REFRESH_TOKEN, GrantType.CLIENT_CREDENTIALS],
-        response_types=[ResponseType.CODE],
-        redirect_uris=[client_url + '/oauth2/logged_in'],
-        post_logout_redirect_uris=[client_url + '/oauth2/logged_out'],
-    )
-
-
-def init_public_ui_client(hydra_admin_api):
-    """Create or update the ODP Public UI client."""
-    client_id = os.environ['ODP_UI_PUBLIC_CLIENT_ID']
-    client_name = 'ODP Public UI'
-    client_secret = os.environ['ODP_UI_PUBLIC_CLIENT_SECRET']
-    client_url = os.environ['ODP_UI_PUBLIC_URL']
-
-    client = Session.get(Client, client_id) or Client(id=client_id)
-    client.scopes = [Session.get(Scope, (ODPScope.CATALOG_READ, ScopeType.odp)),
-                     Session.get(Scope, (ODPScope.TOKEN_READ, ScopeType.odp)),
-                     Session.get(Scope, (HydraScope.OPENID, ScopeType.oauth)),
-                     Session.get(Scope, (HydraScope.OFFLINE_ACCESS, ScopeType.oauth))]
-    client.save()
-
-    hydra_admin_api.create_or_update_client(
-        id=client_id,
-        name=client_name,
-        secret=client_secret,
-        scope_ids=[ODPScope.CATALOG_READ, ODPScope.TOKEN_READ, HydraScope.OPENID, HydraScope.OFFLINE_ACCESS],
-        grant_types=[GrantType.AUTHORIZATION_CODE, GrantType.REFRESH_TOKEN],
-        response_types=[ResponseType.CODE],
-        redirect_uris=[client_url + '/oauth2/logged_in'],
-        post_logout_redirect_uris=[client_url + '/oauth2/logged_out'],
-    )
-
-
-def init_dap_ui_client(hydra_admin_api):
-    """Create or update the Data Access Portal client."""
-    client_id = os.environ['ODP_UI_DAP_CLIENT_ID']
-    client_name = 'ODP Data Access Portal'
-    client_secret = os.environ['ODP_UI_DAP_CLIENT_SECRET']
-    client_url = os.environ['ODP_UI_DAP_URL']
-
-    client = Session.get(Client, client_id) or Client(id=client_id)
-    client.scopes = [Session.get(Scope, (HydraScope.OPENID, ScopeType.oauth)),
-                     Session.get(Scope, (HydraScope.OFFLINE_ACCESS, ScopeType.oauth))]
-    client.save()
-
-    hydra_admin_api.create_or_update_client(
-        id=client_id,
-        name=client_name,
-        secret=client_secret,
-        scope_ids=[HydraScope.OPENID, HydraScope.OFFLINE_ACCESS],
-        grant_types=[GrantType.AUTHORIZATION_CODE, GrantType.REFRESH_TOKEN],
-        response_types=[ResponseType.CODE],
-        redirect_uris=[client_url + '/oauth2/logged_in'],
-        post_logout_redirect_uris=[client_url + '/oauth2/logged_out'],
-    )
 
 
 def init_schemas():
@@ -253,25 +198,49 @@ def init_catalogs():
         logger.warning(f'Orphaned catalog definitions in catalog table {orphaned_db_catalogs}')
 
 
-def initialize():
-    logger.info('Initializing static system data...')
-
-    load_dotenv(pathlib.Path(os.getcwd()) / '.env')  # for a local run; in a container there's no .env
+def init_clients():
+    """Create or update preconfigured clients."""
     hydra_admin_api = HydraAdminAPI(os.environ['HYDRA_ADMIN_URL'])
 
-    init_database_schema()
+    with open(datadir / 'clients.yml') as f:
+        client_data = yaml.safe_load(f)
 
-    with Session.begin():
-        init_system_scopes()
-        init_standard_scopes()
-        init_system_roles()
-        init_schemas()
-        init_tags()
-        init_vocabularies()
-        init_catalogs()
+    for client_id, client_spec in client_data.items():
+        client = Session.get(Client, client_id) or Client(id=client_id)
+        client.scopes = [
+            Session.execute(select(Scope).where(Scope.id == scope_id)).scalar_one()
+            for scope_id in _expand_scopes(client_spec['scopes'])
+        ]
+        if client_spec.get('collections'):
+            client.collection_specific = True
+            # client.collections = ...
+        else:
+            client.collection_specific = False
 
-        init_admin_ui_client(hydra_admin_api)
-        # init_public_ui_client(hydra_admin_api)
-        # init_dap_ui_client(hydra_admin_api)
+        client.save()
 
-    logger.info('Done.')
+        opts = dict(
+            name=client_spec['name'],
+            secret=os.environ[client_spec['secret_env']],
+            scope_ids=_expand_scopes(client_spec['scopes']),
+            grant_types=client_spec['grant_types'],
+        )
+        if url_env := client_spec.get('url_env'):
+            url = os.environ[url_env]
+            opts |= dict(
+                response_types=client_spec['response_types'],
+                redirect_uris=[url + '/oauth2/logged_in'],
+                post_logout_redirect_uris=[url + '/oauth2/logged_out'],
+            )
+
+        hydra_admin_api.create_or_update_client(client_id, **opts)
+
+
+def _expand_scopes(scope_ids):
+    ret = []
+    for scope_id in scope_ids:
+        if scope_id == 'odp.*':
+            ret += [s.value for s in ODPScope]
+        else:
+            ret += [scope_id]
+    return ret

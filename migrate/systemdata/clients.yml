@@ -1,0 +1,69 @@
+ODP.Admin.UI:
+  name: ODP Admin User Interface
+  secret_env: ODP_ADMIN_UI_CLIENT_SECRET
+  url_env: ODP_ADMIN_URL
+  scopes:
+    - odp.*
+    - openid
+    - offline_access
+  grant_types:
+    - authorization_code
+    - refresh_token
+  response_types:
+    - code
+
+ODP.Admin.CI:
+  name: ODP Admin Client Interface
+  secret_env: ODP_ADMIN_CI_CLIENT_SECRET
+  scopes:
+    - odp.*
+  grant_types:
+    - client_credentials
+
+ODP.Migrate:
+  name: ODP v1 to ODP v2 migration
+  secret_env: ODP_MIGRATE_CLIENT_SECRET
+  scopes:
+    - odp.collection:admin
+    - odp.collection:infrastructure
+    - odp.collection:project
+    - odp.collection:read
+    - odp.collection:ready
+    - odp.provider:admin
+    - odp.record:admin
+    - odp.record:migrate
+    - odp.vocabulary:infrastructure
+    - odp.vocabulary:project
+  grant_types:
+    - client_credentials
+
+ODP.Web.UI:
+  name: ODP Web User Interface
+  secret_env: ODP_WEB_UI_CLIENT_SECRET
+  url_env: ODP_WEB_URL
+  scopes:
+    - odp.catalog:read
+    - odp.token:read
+    - openid
+    - offline_access
+  grant_types:
+    - authorization_code
+    - refresh_token
+  response_types:
+    - code
+
+ODP.Web.CI:
+  name: ODP Web Client Interface
+  secret_env: ODP_WEB_CI_CLIENT_SECRET
+  scopes:
+    - odp.catalog:read
+  grant_types:
+    - client_credentials
+
+GEOSS.Portal:
+  name: GEOSS Portal Harvester
+  secret_env: GEOSS_CLIENT_SECRET
+  scopes:
+    - odp.catalog:read
+  grant_types:
+    - client_credentials
