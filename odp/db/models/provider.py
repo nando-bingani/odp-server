@@ -20,6 +20,7 @@ class Provider(Base):
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     key = Column(String, unique=True, nullable=False)
     name = Column(String, nullable=False)
+    timestamp = Column(TIMESTAMP(timezone=True), nullable=False)
 
     # view of associated collections (one-to-many)
     collections = relationship('Collection', viewonly=True)

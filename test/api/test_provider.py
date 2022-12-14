@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime
 from random import randint
 
 import pytest
@@ -39,8 +40,15 @@ def assert_db_state(providers):
     """Verify that the DB provider table contains the given provider batch."""
     Session.expire_all()
     result = Session.execute(select(Provider)).scalars().all()
-    assert set((row.id, row.key, row.name, collection_ids(row)) for row in result) \
-           == set((provider.id, provider.key, provider.name, collection_ids(provider)) for provider in providers)
+    result.sort(key=lambda p: p.id)
+    providers.sort(key=lambda p: p.id)
+    assert len(result) == len(providers)
+    for n, row in enumerate(result):
+        assert row.id == providers[n].id
+        assert row.key == providers[n].key
+        assert row.name == providers[n].name
+        assert_new_timestamp(row.timestamp)
+        assert collection_ids(row) == collection_ids(providers[n])
 
 
 def assert_audit_log(command, provider):
@@ -65,6 +73,7 @@ def assert_json_result(response, json, provider):
     assert json['key'] == provider.key
     assert json['name'] == provider.name
     assert json['collection_keys'] == collection_keys(provider)
+    assert_new_timestamp(datetime.fromisoformat(json['timestamp']))
 
 
 def assert_json_results(response, json, providers):

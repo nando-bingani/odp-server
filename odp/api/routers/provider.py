@@ -25,6 +25,7 @@ def output_provider_model(provider: Provider) -> ProviderModel:
             collection.key: collection.id
             for collection in provider.collections
         },
+        timestamp=provider.timestamp.isoformat(),
     )
 
 
@@ -47,13 +48,14 @@ def output_audit_model(row) -> ProviderAuditModel:
 def create_audit_record(
         auth: Authorized,
         provider: Provider,
+        timestamp: datetime,
         command: AuditCommand,
 ) -> None:
     ProviderAudit(
         client_id=auth.client_id,
         user_id=auth.user_id,
         command=command,
-        timestamp=datetime.now(timezone.utc),
+        timestamp=timestamp,
         _id=provider.id,
         _key=provider.key,
         _name=provider.name,
@@ -105,9 +107,10 @@ async def create_provider(
     provider = Provider(
         key=provider_in.key,
         name=provider_in.name,
+        timestamp=(timestamp := datetime.now(timezone.utc)),
     )
     provider.save()
-    create_audit_record(auth, provider, AuditCommand.insert)
+    create_audit_record(auth, provider, timestamp, AuditCommand.insert)
 
     return output_provider_model(provider)
 
@@ -136,8 +139,9 @@ async def update_provider(
     ):
         provider.key = provider_in.key
         provider.name = provider_in.name
+        provider.timestamp = (timestamp := datetime.now(timezone.utc))
         provider.save()
-        create_audit_record(auth, provider, AuditCommand.update)
+        create_audit_record(auth, provider, timestamp, AuditCommand.update)
 
 
 @router.delete(
@@ -158,7 +162,7 @@ async def delete_provider(
             'A provider with non-empty collections cannot be deleted.',
         ) from e
 
-    create_audit_record(auth, provider, AuditCommand.delete)
+    create_audit_record(auth, provider, datetime.now(timezone.utc), AuditCommand.delete)
 
 
 @router.get(

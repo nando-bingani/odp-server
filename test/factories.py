@@ -107,6 +107,7 @@ class ProviderFactory(ODPModelFactory):
     id = factory.Faker('uuid4')
     key = factory.LazyAttribute(id_from_name)
     name = factory.Sequence(lambda n: f'{fake.company()}.{n}')
+    timestamp = factory.LazyFunction(lambda: datetime.now(timezone.utc))
 
 
 class CollectionFactory(ODPModelFactory):

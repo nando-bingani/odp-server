@@ -149,6 +149,7 @@ class ProviderModel(BaseModel):
     key: str
     name: str
     collection_keys: dict[str, str]
+    timestamp: str
 
 
 class ProviderModelIn(BaseModel):
