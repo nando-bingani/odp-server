@@ -47,7 +47,6 @@ def create_app():
         MAIL_USE_TLS=config.ODP.MAIL.TLS,
         MAIL_USERNAME=config.ODP.MAIL.USERNAME,
         MAIL_PASSWORD=config.ODP.MAIL.PASSWORD,
-        SESSION_COOKIE_NAME='idsession',  # avoid conflict with public UI session cookie on same domain
     )
 
     base.init_app(app, template_dir=Path(__file__).parent / 'templates')
