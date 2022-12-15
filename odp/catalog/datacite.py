@@ -38,13 +38,6 @@ class DataCiteCatalog(Catalog):
 
         return can_publish, reasons
 
-    def evaluate_collection(self, collection_id: str) -> bool:
-        """Evaluate whether a collection can be published.
-
-        Collection info need not be published for the DataCite catalog.
-        """
-        return False
-
     def create_published_record(self, record_model: RecordModel) -> PublishedRecordModel:
         """Create the published form of a record."""
         if record_model.schema_id == ODPMetadataSchema.SAEON_DATACITE4:

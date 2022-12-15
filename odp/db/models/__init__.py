@@ -1,5 +1,4 @@
 from .catalog import Catalog
-from .catalog_collection import CatalogCollection
 from .catalog_record import CatalogRecord
 from .client import Client
 from .client_collection import ClientCollection

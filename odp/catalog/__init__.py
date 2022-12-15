@@ -3,14 +3,14 @@ from datetime import date, datetime
 from enum import Enum
 from typing import final
 
-from sqlalchemy import delete, func, insert, or_, select
+from sqlalchemy import func, or_, select
 
 from odp.api.lib.utils import output_published_record_model
 from odp.api.models import PublishedRecordModel, RecordModel
 from odp.api.routers.record import output_record_model
 from odp.const import ODPCatalog, ODPCollectionTag, ODPMetadataSchema, ODPRecordTag
 from odp.db import Session
-from odp.db.models import CatalogCollection, CatalogRecord, Collection, PublishedDOI, Record, RecordTag
+from odp.db.models import CatalogRecord, Collection, PublishedDOI, Record, RecordTag
 
 logger = logging.getLogger(__name__)
 
@@ -50,8 +50,6 @@ class Catalog:
 
         if total:
             logger.info(f'{self.catalog_id} catalog: {published} records published; {total - published} records hidden')
-
-        self._sync_catalog_collection()
 
         if self.external:
             self._sync_external()
@@ -257,36 +255,6 @@ class Catalog:
         if record_model.doi and not Session.get(PublishedDOI, record_model.doi):
             published_doi = PublishedDOI(doi=record_model.doi)
             published_doi.save()
-
-    def _sync_catalog_collection(self) -> None:
-        """Create catalog_collection entries for all published collections."""
-        Session.execute(
-            delete(CatalogCollection).
-            where(CatalogCollection.catalog_id == self.catalog_id)
-        )
-
-        for collection_id in Session.execute(select(Collection.id)).scalars().all():
-            if self.evaluate_collection(collection_id):
-                Session.execute(
-                    insert(CatalogCollection).
-                    values(catalog_id=self.catalog_id, collection_id=collection_id)
-                )
-
-        Session.commit()
-
-    def evaluate_collection(self, collection_id: str) -> bool:
-        """Evaluate whether a collection can be published.
-
-        The default rules align with the default behaviour of `evaluate_record`.
-        If a derived class publishes records with collection ids, it should ensure
-        that it publishes the associated collections.
-        """
-        collection = Session.get(Collection, collection_id)
-        collection_ready = any(
-            (tag for tag in collection.tags if tag.tag_id == ODPCollectionTag.READY)
-        )
-
-        return collection_ready
 
     def _sync_external(self) -> None:
         """Synchronize with an external catalog."""
