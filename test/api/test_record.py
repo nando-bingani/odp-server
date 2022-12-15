@@ -133,6 +133,10 @@ def assert_json_record_result(response, json, record):
     assert json['sid'] == record.sid
     assert json['collection_id'] == record.collection_id
     assert json['collection_key'] == record.collection.key
+    assert json['collection_name'] == record.collection.name
+    assert json['provider_id'] == record.collection.provider_id
+    assert json['provider_key'] == record.collection.provider.key
+    assert json['provider_name'] == record.collection.provider.name
     assert json['schema_id'] == record.schema_id
     assert json['metadata'] == record.metadata_
     assert_new_timestamp(datetime.fromisoformat(json['timestamp']))

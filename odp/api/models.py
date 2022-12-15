@@ -55,7 +55,10 @@ class PublishedSAEONRecordModel(PublishedRecordModel):
     id: str
     doi: Optional[str]
     sid: Optional[str]
-    collection_id: str
+    collection_key: str
+    collection_name: str
+    provider_key: str
+    provider_name: str
     metadata: list[PublishedMetadataModel]
     tags: list[PublishedTagInstanceModel]
     timestamp: str
@@ -163,6 +166,10 @@ class RecordModel(BaseModel):
     sid: Optional[str]
     collection_id: str
     collection_key: str
+    collection_name: str
+    provider_id: str
+    provider_key: str
+    provider_name: str
     schema_id: str
     metadata: dict[str, Any]
     validity: dict[str, Any]
