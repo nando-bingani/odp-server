@@ -3,6 +3,7 @@ from datetime import datetime
 from jschon import JSON, URI
 
 from odp.api.models import PublishedMetadataModel, PublishedRecordModel, PublishedSAEONRecordModel, PublishedTagInstanceModel, RecordModel
+from odp.cache import Cache
 from odp.catalog import Catalog
 from odp.const import ODPMetadataSchema
 from odp.db import Session
@@ -11,8 +12,8 @@ from odp.lib.schema import schema_catalog
 
 
 class SAEONCatalog(Catalog):
-    def __init__(self, catalog_id: str) -> None:
-        super().__init__(catalog_id)
+    def __init__(self, catalog_id: str, cache: Cache) -> None:
+        super().__init__(catalog_id, cache)
         self.indexed = True
 
     def create_published_record(self, record_model: RecordModel) -> PublishedRecordModel:
@@ -21,7 +22,10 @@ class SAEONCatalog(Catalog):
             id=record_model.id,
             doi=record_model.doi,
             sid=record_model.sid,
-            collection_id=record_model.collection_id,
+            collection_key=record_model.collection_key,
+            collection_name=record_model.collection_name,
+            provider_key=record_model.provider_key,
+            provider_name=record_model.provider_name,
             metadata=self._create_published_metadata(record_model),
             tags=self._create_published_tags(record_model),
             timestamp=record_model.timestamp,

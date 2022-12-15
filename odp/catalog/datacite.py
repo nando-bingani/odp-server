@@ -1,6 +1,7 @@
 from jschon import JSON, URI
 
 from odp.api.models import PublishedDataCiteRecordModel, PublishedRecordModel, RecordModel
+from odp.cache import Cache
 from odp.catalog import Catalog, NotPublishedReason, PublishedReason
 from odp.config import config
 from odp.const import DOI_PREFIX, ODPMetadataSchema
@@ -11,8 +12,8 @@ from odp.lib.schema import schema_catalog
 
 
 class DataCiteCatalog(Catalog):
-    def __init__(self, catalog_id: str) -> None:
-        super().__init__(catalog_id)
+    def __init__(self, catalog_id: str, cache: Cache) -> None:
+        super().__init__(catalog_id, cache)
         self.external = True
         self.datacite = DataciteClient(
             api_url=config.DATACITE.API_URL,

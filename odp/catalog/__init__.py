@@ -8,9 +8,10 @@ from sqlalchemy import func, or_, select
 from odp.api.lib.utils import output_published_record_model
 from odp.api.models import PublishedRecordModel, RecordModel
 from odp.api.routers.record import output_record_model
+from odp.cache import Cache
 from odp.const import ODPCatalog, ODPCollectionTag, ODPMetadataSchema, ODPRecordTag
 from odp.db import Session
-from odp.db.models import CatalogRecord, Collection, PublishedDOI, Record, RecordTag
+from odp.db.models import CatalogRecord, Collection, Provider, PublishedDOI, Record, RecordTag
 
 logger = logging.getLogger(__name__)
 
@@ -33,8 +34,9 @@ class NotPublishedReason(str, Enum):
 
 
 class Catalog:
-    def __init__(self, catalog_id: str) -> None:
+    def __init__(self, catalog_id: str, cache: Cache) -> None:
         self.catalog_id = catalog_id
+        self.cache = cache
         self.indexed = False
         self.external = False
         self.max_attempts = 3
@@ -44,11 +46,14 @@ class Catalog:
         records = self._select_records()
         logger.info(f'{self.catalog_id} catalog: {(total := len(records))} records selected for evaluation')
 
-        published = 0
-        for record_id, timestamp in records:
-            published += self._sync_catalog_record(record_id, timestamp)
-
         if total:
+            self._create_snapshot(records)
+
+            logger.debug(f'{self.catalog_id} catalog: Synchronizing catalog records...')
+            published = 0
+            for record_id, timestamp in records:
+                published += self._sync_catalog_record(record_id, timestamp)
+
             logger.info(f'{self.catalog_id} catalog: {published} records published; {total - published} records hidden')
 
         if self.external:
@@ -65,6 +70,7 @@ class Catalog:
         * catalog_record.timestamp is less than any of:
 
           * collection.timestamp
+          * provider.timestamp
           * record.timestamp
 
         :return: a list of (record_id, timestamp) tuples, where
@@ -75,10 +81,12 @@ class Catalog:
                 Record.id.label('record_id'),
                 func.greatest(
                     Collection.timestamp,
+                    Provider.timestamp,
                     Record.timestamp,
                 ).label('max_timestamp')
             ).
             join(Collection).
+            join(Provider).
             subquery()
         )
 
@@ -109,18 +117,32 @@ class Catalog:
 
         return Session.execute(stmt).all()
 
+    def _create_snapshot(self, records: list[tuple[str, datetime]]) -> None:
+        """Create a snapshot of API record output models for the selected
+        records.
+
+        To ensure consistency of lookup info across all catalog records,
+        the DB engine should be created with a transaction isolation level
+        of 'REPEATABLE READ'.
+        """
+        logger.debug(f'{self.catalog_id} catalog: Creating snapshot...')
+        for record_id, _ in records:
+            record = Session.get(Record, record_id)
+            record_model = output_record_model(record)
+            self.cache.jset(record_id, value=record_model.dict())
+
     def _sync_catalog_record(self, record_id: str, timestamp: datetime) -> bool:
         """Synchronize a catalog_record entry with the current state of the
         corresponding record.
 
         The catalog_record entry is stamped with the `timestamp` of the latest
-        contributing change (from record / collection).
+        contributing change (from record / collection / provider).
         """
         catalog_record = (Session.get(CatalogRecord, (self.catalog_id, record_id)) or
                           CatalogRecord(catalog_id=self.catalog_id, record_id=record_id))
 
-        record = Session.get(Record, record_id)
-        record_model = output_record_model(record)
+        cached_record_dict = self.cache.jget(record_id, expire=True)
+        record_model = RecordModel(**cached_record_dict)
 
         can_publish, reasons = self.evaluate_record(record_model)
         if can_publish:
@@ -345,8 +367,10 @@ def publish_all():
 
     logger.info('PUBLISHING STARTED')
     try:
+        cache = Cache(__name__)
+
         for catalog_id, catalog_cls in catalog_classes.items():
-            catalog_cls(catalog_id).publish()
+            catalog_cls(catalog_id, cache).publish()
 
         logger.info('PUBLISHING FINISHED')
 

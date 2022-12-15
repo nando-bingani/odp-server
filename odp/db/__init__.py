@@ -6,6 +6,7 @@ from odp.config import config
 engine = create_engine(
     config.ODP.DB.URL,
     echo=config.ODP.DB.ECHO,
+    isolation_level=config.ODP.DB.ISOLATION_LEVEL,
     future=True,
 )
 

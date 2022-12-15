@@ -16,6 +16,7 @@ def ensure_coverage():
     files and hence inflating the coverage score. So, we import
     everything we want covered here."""
     # odp-core
+    import odp.cache
     import odp.config
     import odp.const
     import odp.logger
