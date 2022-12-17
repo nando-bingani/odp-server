@@ -34,12 +34,23 @@ class NotPublishedReason(str, Enum):
 
 
 class Catalog:
+    indexed = False
+    """Whether to save indexing data to catalog records.
+    If true, methods create_full_text_search_data, create_keyword_search_data,
+    create_spatial_search_data and create_temporal_search_data must be implemented.
+    """
+
+    external = False
+    """Whether to synchronize catalog records with an external system.
+    If true, method sync_external_record must be implemented.
+    """
+
+    max_attempts = 3
+    """Maximum number of consecutive attempts at externally synchronizing a record."""
+
     def __init__(self, catalog_id: str, cache: Cache) -> None:
         self.catalog_id = catalog_id
         self.cache = cache
-        self.indexed = False
-        self.external = False
-        self.max_attempts = 3
 
     @final
     def publish(self) -> None:
@@ -172,7 +183,7 @@ class Catalog:
     def evaluate_record(self, record_model: RecordModel) -> tuple[bool, list[PublishedReason | NotPublishedReason]]:
         """Evaluate whether a record can be published.
 
-        Universal rules are defined here; derived Publisher classes
+        Universal rules are defined here; derived Catalog classes
         may extend these with catalog-specific rules.
 
         :return: tuple(can_publish: bool, reasons: list)
@@ -309,24 +320,28 @@ class Catalog:
 
     def sync_external_record(self, record_id: str) -> None:
         """Create / update / delete a record on an external catalog."""
-        pass
 
     def _index_catalog_record(self, catalog_record: CatalogRecord) -> None:
-        """Add pre-computed search data to a catalog record."""
+        """Compute and store search data for a catalog record."""
         if catalog_record.published:
             published_record = output_published_record_model(catalog_record)
+
             catalog_record.full_text = select(
                 func.to_tsvector('english', self.create_full_text_search_data(published_record))
             ).scalar_subquery()
+
             catalog_record.keywords = self.create_keyword_search_data(published_record)
+
             if north_east_south_west := self.create_spatial_search_data(published_record):
                 (catalog_record.spatial_north,
                  catalog_record.spatial_east,
                  catalog_record.spatial_south,
                  catalog_record.spatial_west) = north_east_south_west
+
             if start_end := self.create_temporal_search_data(published_record):
                 (catalog_record.temporal_start,
                  catalog_record.temporal_end) = start_end
+
         else:
             catalog_record.full_text = None
             catalog_record.keywords = None
@@ -339,19 +354,15 @@ class Catalog:
 
     def create_full_text_search_data(self, published_record: PublishedRecordModel) -> str:
         """Create a string from metadata field values to be indexed for full text search."""
-        pass
 
     def create_keyword_search_data(self, published_record: PublishedRecordModel) -> list[str]:
         """Create an array of metadata keywords to be indexed for keyword search."""
-        pass
 
     def create_spatial_search_data(self, published_record: PublishedRecordModel) -> tuple[float, float, float, float]:
         """Create a N-E-S-W tuple of the spatial extent to be indexed for spatial search."""
-        pass
 
     def create_temporal_search_data(self, published_record: PublishedRecordModel) -> tuple[datetime, datetime]:
         """Create a start-end tuple of the temporal extent to be indexed for temporal search."""
-        pass
 
 
 def publish_all():

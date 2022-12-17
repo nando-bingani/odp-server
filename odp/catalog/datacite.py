@@ -12,9 +12,10 @@ from odp.lib.schema import schema_catalog
 
 
 class DataCiteCatalog(Catalog):
+    external = True
+
     def __init__(self, catalog_id: str, cache: Cache) -> None:
         super().__init__(catalog_id, cache)
-        self.external = True
         self.datacite = DataciteClient(
             api_url=config.DATACITE.API_URL,
             username=config.DATACITE.USERNAME,
