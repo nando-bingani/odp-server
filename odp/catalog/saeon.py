@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Optional
 
 from jschon import JSON, URI
 
@@ -64,14 +65,10 @@ class SAEONCatalog(Catalog):
             ) for tag_instance in record_model.tags if tag_instance.public
         ]
 
-    def create_full_text_search_data(self, published_record: PublishedSAEONRecordModel) -> str:
+    def create_text_index_data(self, published_record: PublishedSAEONRecordModel) -> str:
         """Create a string from metadata field values to be indexed for full text search."""
+        datacite_metadata = self._get_datacite_metadata(published_record)
         values = []
-        datacite_metadata = next((
-            published_metadata.metadata
-            for published_metadata in published_record.metadata
-            if published_metadata.schema_id == ODPMetadataSchema.SAEON_DATACITE4
-        ))
 
         for title in datacite_metadata.get('titles', ()):
             if title_text := title.get('title'):
@@ -104,14 +101,44 @@ class SAEONCatalog(Catalog):
 
         return ' '.join(values)
 
-    def create_keyword_search_data(self, published_record: PublishedSAEONRecordModel) -> list[str]:
+    def create_keyword_index_data(self, published_record: PublishedSAEONRecordModel) -> list[str]:
         """Create an array of metadata keywords to be indexed for keyword search."""
         pass
 
-    def create_spatial_search_data(self, published_record: PublishedSAEONRecordModel) -> tuple[float, float, float, float]:
+    def create_spatial_index_data(self, published_record: PublishedSAEONRecordModel) -> tuple[float, float, float, float]:
         """Create a N-E-S-W tuple of the spatial extent to be indexed for spatial search."""
         pass
 
-    def create_temporal_search_data(self, published_record: PublishedSAEONRecordModel) -> tuple[datetime, datetime]:
+    def create_temporal_index_data(self, published_record: PublishedSAEONRecordModel) -> tuple[Optional[datetime], Optional[datetime]]:
         """Create a start-end tuple of the temporal extent to be indexed for temporal search."""
-        pass
+
+        def _get_dt(n):
+            try:
+                return datetime.fromisoformat(date_values[n])
+            except (IndexError, ValueError):
+                pass
+
+        datacite_metadata = self._get_datacite_metadata(published_record)
+        start = None
+        end = None
+
+        for date_obj in datacite_metadata.get('dates', ()):
+            if date_obj.get('dateType') == 'Valid':
+                if date_text := date_obj.get('date'):
+                    date_values = date_text.split('/')
+                    if start_dt := _get_dt(0):
+                        if not start or start_dt < start:
+                            start = start_dt
+                    if end_dt := _get_dt(1):
+                        if not end or end_dt > end:
+                            end = end_dt
+
+        return start, end
+
+    @staticmethod
+    def _get_datacite_metadata(published_record: PublishedSAEONRecordModel) -> dict:
+        return next((
+            published_metadata.metadata
+            for published_metadata in published_record.metadata
+            if published_metadata.schema_id == ODPMetadataSchema.SAEON_DATACITE4
+        ))

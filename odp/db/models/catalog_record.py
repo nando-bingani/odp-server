@@ -1,4 +1,4 @@
-from sqlalchemy import ARRAY, Boolean, Column, DateTime, ForeignKey, Integer, Numeric, String, TIMESTAMP
+from sqlalchemy import ARRAY, Boolean, Column, ForeignKey, Integer, Numeric, String, TIMESTAMP
 from sqlalchemy.dialects.postgresql import JSONB, TSVECTOR
 from sqlalchemy.orm import relationship
 
@@ -35,5 +35,5 @@ class CatalogRecord(Base):
     spatial_east = Column(Numeric)
     spatial_south = Column(Numeric)
     spatial_west = Column(Numeric)
-    temporal_start = Column(DateTime)
-    temporal_end = Column(DateTime)
+    temporal_start = Column(TIMESTAMP(timezone=True))
+    temporal_end = Column(TIMESTAMP(timezone=True))
