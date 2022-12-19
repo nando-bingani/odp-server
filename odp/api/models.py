@@ -61,6 +61,13 @@ class PublishedSAEONRecordModel(PublishedRecordModel):
     provider_name: str
     metadata: list[PublishedMetadataModel]
     tags: list[PublishedTagInstanceModel]
+    keywords: Optional[list[str]]
+    spatial_north: Optional[float]
+    spatial_east: Optional[float]
+    spatial_south: Optional[float]
+    spatial_west: Optional[float]
+    temporal_start: Optional[str]
+    temporal_end: Optional[str]
     timestamp: str
 
 

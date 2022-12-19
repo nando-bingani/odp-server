@@ -23,7 +23,15 @@ def output_published_record_model(catalog_record: CatalogRecord) -> Optional[Pub
         return None
 
     if catalog_record.catalog_id in (ODPCatalog.SAEON, ODPCatalog.MIMS):
-        return PublishedSAEONRecordModel(**catalog_record.published_record)
+        return PublishedSAEONRecordModel(**catalog_record.published_record | dict(
+            keywords=catalog_record.keywords,
+            spatial_north=catalog_record.spatial_north,
+            spatial_east=catalog_record.spatial_east,
+            spatial_south=catalog_record.spatial_south,
+            spatial_west=catalog_record.spatial_west,
+            temporal_start=catalog_record.temporal_start.isoformat() if catalog_record.temporal_start else None,
+            temporal_end=catalog_record.temporal_end.isoformat() if catalog_record.temporal_end else None,
+        ))
 
     if catalog_record.catalog_id == ODPCatalog.DATACITE:
         return PublishedDataCiteRecordModel(**catalog_record.published_record)

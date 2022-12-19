@@ -30,10 +30,10 @@ class CatalogRecord(Base):
 
     # internal catalog indexing
     full_text = deferred(Column(TSVECTOR))
-    keywords = deferred(Column(ARRAY(String)))
-    spatial_north = deferred(Column(Numeric))
-    spatial_east = deferred(Column(Numeric))
-    spatial_south = deferred(Column(Numeric))
-    spatial_west = deferred(Column(Numeric))
-    temporal_start = deferred(Column(TIMESTAMP(timezone=True)))
-    temporal_end = deferred(Column(TIMESTAMP(timezone=True)))
+    keywords = Column(ARRAY(String))
+    spatial_north = Column(Numeric)
+    spatial_east = Column(Numeric)
+    spatial_south = Column(Numeric)
+    spatial_west = Column(Numeric)
+    temporal_start = Column(TIMESTAMP(timezone=True))
+    temporal_end = Column(TIMESTAMP(timezone=True))
