@@ -1,4 +1,5 @@
 import re
+from datetime import date
 from functools import partial
 from typing import Any, Optional
 from uuid import UUID
@@ -79,6 +80,8 @@ async def list_published_records(
         catalog_id: str,
         paginator: Paginator = Depends(partial(Paginator, sort='record_id')),
         text_q: str = Query(None, title='Search terms'),
+        start_date: date = Query(None, title='Date range start'),
+        end_date: date = Query(None, title='Date range end'),
 ):
     if not Session.get(Catalog, catalog_id):
         raise HTTPException(HTTP_404_NOT_FOUND)
@@ -93,6 +96,14 @@ async def list_published_records(
         stmt = stmt.where(text(
             "full_text @@ plainto_tsquery('english', :text_q)"
         ).bindparams(text_q=text_q))
+
+    if start_date:
+        # if the record has only a start date, it is taken to be its end date too,
+        # rather than considering the record's date range to be open-ended
+        stmt = stmt.where(func.coalesce(CatalogRecord.temporal_end, CatalogRecord.temporal_start) >= start_date)
+
+    if end_date:
+        stmt = stmt.where(CatalogRecord.temporal_start <= end_date)
 
     return paginator.paginate(
         stmt,
