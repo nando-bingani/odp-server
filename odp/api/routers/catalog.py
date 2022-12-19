@@ -79,7 +79,7 @@ async def get_catalog(
 async def list_published_records(
         catalog_id: str,
         paginator: Paginator = Depends(partial(Paginator, sort='record_id')),
-        text_q: str = Query(None, title='Search terms'),
+        text_query: str = Query(None, title='Search terms'),
         start_date: date = Query(None, title='Date range start'),
         end_date: date = Query(None, title='Date range end'),
 ):
@@ -92,10 +92,10 @@ async def list_published_records(
         where(CatalogRecord.published)
     )
 
-    if text_q and (text_q := text_q.strip()):
+    if text_query and (text_query := text_query.strip()):
         stmt = stmt.where(text(
-            "full_text @@ plainto_tsquery('english', :text_q)"
-        ).bindparams(text_q=text_q))
+            "full_text @@ plainto_tsquery('english', :text_query)"
+        ).bindparams(text_query=text_query))
 
     if start_date:
         # if the record has only a start date, it is taken to be its end date too,
