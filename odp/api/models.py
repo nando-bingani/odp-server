@@ -60,7 +60,7 @@ class PublishedSAEONRecordModel(PublishedRecordModel):
     collection_name: str
     provider_key: str
     provider_name: str
-    metadata: list[PublishedMetadataModel]
+    metadata_records: list[PublishedMetadataModel]
     tags: list[PublishedTagInstanceModel]
     keywords: Optional[list[str]]
     spatial_north: Optional[float]

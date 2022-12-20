@@ -24,7 +24,7 @@ class SAEONCatalog(Catalog):
             collection_name=record_model.collection_name,
             provider_key=record_model.provider_key,
             provider_name=record_model.provider_name,
-            metadata=self._create_published_metadata(record_model),
+            metadata_records=self._create_published_metadata(record_model),
             tags=self._create_published_tags(record_model),
             timestamp=record_model.timestamp,
         )
@@ -189,8 +189,8 @@ class SAEONCatalog(Catalog):
 
     @staticmethod
     def _get_datacite_metadata(published_record: PublishedSAEONRecordModel) -> dict:
-        return next((
-            published_metadata.metadata
-            for published_metadata in published_record.metadata
-            if published_metadata.schema_id == ODPMetadataSchema.SAEON_DATACITE4
-        ))
+        return next(
+            metadata_record.metadata
+            for metadata_record in published_record.metadata_records
+            if metadata_record.schema_id == ODPMetadataSchema.SAEON_DATACITE4
+        )
