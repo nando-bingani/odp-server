@@ -332,15 +332,13 @@ class Catalog:
 
             catalog_record.keywords = self.create_keyword_index_data(published_record)
 
-            if north_east_south_west := self.create_spatial_index_data(published_record):
-                (catalog_record.spatial_north,
-                 catalog_record.spatial_east,
-                 catalog_record.spatial_south,
-                 catalog_record.spatial_west) = north_east_south_west
+            (catalog_record.spatial_north,
+             catalog_record.spatial_east,
+             catalog_record.spatial_south,
+             catalog_record.spatial_west) = self.create_spatial_index_data(published_record)
 
-            if start_end := self.create_temporal_index_data(published_record):
-                (catalog_record.temporal_start,
-                 catalog_record.temporal_end) = start_end
+            (catalog_record.temporal_start,
+             catalog_record.temporal_end) = self.create_temporal_index_data(published_record)
 
         else:
             catalog_record.full_text = None
@@ -352,16 +350,24 @@ class Catalog:
             catalog_record.temporal_start = None
             catalog_record.temporal_end = None
 
-    def create_text_index_data(self, published_record: PublishedRecordModel) -> str:
+    def create_text_index_data(
+            self, published_record: PublishedRecordModel
+    ) -> str:
         """Create a string from metadata field values to be indexed for full text search."""
 
-    def create_keyword_index_data(self, published_record: PublishedRecordModel) -> list[str]:
+    def create_keyword_index_data(
+            self, published_record: PublishedRecordModel
+    ) -> list[str]:
         """Create an array of metadata keywords to be indexed for keyword search."""
 
-    def create_spatial_index_data(self, published_record: PublishedRecordModel) -> tuple[float, float, float, float]:
+    def create_spatial_index_data(
+            self, published_record: PublishedRecordModel
+    ) -> tuple[Optional[float], Optional[float], Optional[float], Optional[float]]:
         """Create a N-E-S-W tuple of the spatial extent to be indexed for spatial search."""
 
-    def create_temporal_index_data(self, published_record: PublishedRecordModel) -> tuple[Optional[datetime], Optional[datetime]]:
+    def create_temporal_index_data(
+            self, published_record: PublishedRecordModel
+    ) -> tuple[Optional[datetime], Optional[datetime]]:
         """Create a start-end tuple of the temporal extent to be indexed for temporal search."""
 
 

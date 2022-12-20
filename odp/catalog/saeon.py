@@ -65,7 +65,9 @@ class SAEONCatalog(Catalog):
             ) for tag_instance in record_model.tags if tag_instance.public
         ]
 
-    def create_text_index_data(self, published_record: PublishedSAEONRecordModel) -> str:
+    def create_text_index_data(
+            self, published_record: PublishedSAEONRecordModel
+    ) -> str:
         """Create a string from metadata field values to be indexed for full text search."""
         datacite_metadata = self._get_datacite_metadata(published_record)
         values = []
@@ -101,15 +103,60 @@ class SAEONCatalog(Catalog):
 
         return ' '.join(values)
 
-    def create_keyword_index_data(self, published_record: PublishedSAEONRecordModel) -> list[str]:
+    def create_keyword_index_data(
+            self, published_record: PublishedSAEONRecordModel
+    ) -> list[str]:
         """Create an array of metadata keywords to be indexed for keyword search."""
-        pass
+        return []
 
-    def create_spatial_index_data(self, published_record: PublishedSAEONRecordModel) -> tuple[float, float, float, float]:
+    def create_spatial_index_data(
+            self, published_record: PublishedSAEONRecordModel
+    ) -> tuple[Optional[float], Optional[float], Optional[float], Optional[float]]:
         """Create a N-E-S-W tuple of the spatial extent to be indexed for spatial search."""
-        pass
 
-    def create_temporal_index_data(self, published_record: PublishedSAEONRecordModel) -> tuple[Optional[datetime], Optional[datetime]]:
+        def _bump_lat(lat):
+            nonlocal north, south
+            if lat is not None:
+                if north is None or lat > north:
+                    north = lat
+                if south is None or lat < south:
+                    south = lat
+
+        def _bump_lon(lon):
+            nonlocal east, west
+            if lon is not None:
+                if east is None or lon > east:
+                    east = lon
+                if west is None or lon < west:
+                    west = lon
+
+        datacite_metadata = self._get_datacite_metadata(published_record)
+        north = None
+        east = None
+        south = None
+        west = None
+
+        for geolocation in datacite_metadata.get('geoLocations', ()):
+            if geobox := geolocation.get('geoLocationBox'):
+                _bump_lat(geobox.get('northBoundLatitude'))
+                _bump_lon(geobox.get('eastBoundLongitude'))
+                _bump_lat(geobox.get('southBoundLatitude'))
+                _bump_lon(geobox.get('westBoundLongitude'))
+
+            for geopolygon in geolocation.get('geoLocationPolygons', ()):
+                for geopoint in geopolygon.get('polygonPoints', ()):
+                    _bump_lon(geopoint.get('pointLongitude'))
+                    _bump_lat(geopoint.get('pointLatitude'))
+
+            if geopoint := geolocation.get('geoLocationPoint'):
+                _bump_lon(geopoint.get('pointLongitude'))
+                _bump_lat(geopoint.get('pointLatitude'))
+
+        return north, east, south, west
+
+    def create_temporal_index_data(
+            self, published_record: PublishedSAEONRecordModel
+    ) -> tuple[Optional[datetime], Optional[datetime]]:
         """Create a start-end tuple of the temporal extent to be indexed for temporal search."""
 
         def _get_dt(n):
