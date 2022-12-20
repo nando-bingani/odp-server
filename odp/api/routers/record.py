@@ -35,6 +35,7 @@ def output_record_model(record: Record) -> RecordModel:
         provider_key=record.collection.provider.key,
         provider_name=record.collection.provider.name,
         schema_id=record.schema_id,
+        schema_uri=record.schema.uri,
         metadata=record.metadata_,
         validity=record.validity,
         timestamp=record.timestamp.isoformat(),

@@ -37,6 +37,7 @@ class CatalogModel(BaseModel):
 
 class PublishedMetadataModel(BaseModel):
     schema_id: str
+    schema_uri: str
     metadata: dict[str, Any]
 
 
@@ -170,6 +171,7 @@ class RecordModel(BaseModel):
     provider_key: str
     provider_name: str
     schema_id: str
+    schema_uri: str
     metadata: dict[str, Any]
     validity: dict[str, Any]
     timestamp: str

@@ -35,18 +35,23 @@ class SAEONCatalog(Catalog):
         published_metadata = [
             PublishedMetadataModel(
                 schema_id=record_model.schema_id,
+                schema_uri=record_model.schema_uri,
                 metadata=record_model.metadata,
             )
         ]
 
         if record_model.schema_id == ODPMetadataSchema.SAEON_ISO19115:
-            schema = Session.get(Schema, (record_model.schema_id, SchemaType.metadata))
-            iso19115_schema = schema_catalog.get_schema(URI(schema.uri))
-            result = iso19115_schema.evaluate(JSON(record_model.metadata))
+            iso19115_schemaobj = Session.get(Schema, (ODPMetadataSchema.SAEON_ISO19115, SchemaType.metadata))
+            datacite_schemaobj = Session.get(Schema, (ODPMetadataSchema.SAEON_DATACITE4, SchemaType.metadata))
+
+            iso19115_jsonschema = schema_catalog.get_schema(URI(iso19115_schemaobj.uri))
+            result = iso19115_jsonschema.evaluate(JSON(record_model.metadata))
             datacite_metadata = result.output('translation', scheme='saeon/datacite4', ignore_validity=True)
+
             published_metadata += [
                 PublishedMetadataModel(
-                    schema_id=ODPMetadataSchema.SAEON_DATACITE4,
+                    schema_id=datacite_schemaobj.id,
+                    schema_uri=datacite_schemaobj.uri,
                     metadata=datacite_metadata,
                 )
             ]
