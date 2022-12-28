@@ -1,4 +1,5 @@
 {% extends 'layout.html' %}
+{% from 'libraries.html' import bootswatch_spacelab_css %}
 
 {% block web_title %}
     {% if brand == 'nccrd' %}
@@ -63,4 +64,9 @@
             </div>
         </div>
     </main>
+{% endblock %}
+
+{% block styles %}
+    {{ super() }}
+    {{ bootswatch_spacelab_css() }}
 {% endblock %}
