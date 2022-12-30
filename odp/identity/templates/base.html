@@ -1,5 +1,5 @@
 {% extends 'layout.html' %}
-{% from 'libraries.html' import bootswatch_spacelab_css %}
+{% from 'lib.j2' import bootswatch_spacelab_css %}
 
 {% block web_title %}
     {% if brand == 'nccrd' %}
@@ -17,7 +17,7 @@
     {% endif %}
 {% endblock %}
 
-{% block navbar %}
+{% block header %}
     {% if brand == 'nccrd' %}
         <nav class="navbar">
             <div class="container-fluid flex-nowrap">
