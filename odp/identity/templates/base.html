@@ -1,51 +1,51 @@
 {% extends 'layout.html' %}
-{% from 'lib.j2' import bootswatch_spacelab_css %}
+{% from 'lib.j2' import bootswatch_spacelab_css, bootswatch_lumen_css %}
+{% from 'nav.j2' import nav_logo, nav_title, nav_menu %}
 
 {% block web_title %}
-    {% if brand == 'nccrd' %}
+    {% if brand == 'saeon' %}
+        SAEON ODP
+    {% elif brand == 'nccrd' %}
         NCCRD
-    {% else %}
-        SAEON | Open Data Platform
     {% endif %}
 {% endblock %}
 
 {% block favicon_url %}
-    {% if brand == 'nccrd' %}
-        {{ url_for('static', filename='sa-favicon.ico') }}
-    {% else %}
+    {% if brand == 'saeon' %}
         {{ super() }}
+    {% elif brand == 'nccrd' %}
+        {{ url_for('static', filename='sa-favicon.ico') }}
     {% endif %}
 {% endblock %}
 
 {% block header %}
-    {% if brand == 'nccrd' %}
-        <nav class="navbar">
-            <div class="container-fluid flex-nowrap">
-                <div style="flex-basis:0; flex-grow:1">
-                    <a class="navbar-brand text-reset" href="https://www.dffe.gov.za/" target="_blank">
-                        <img src="{{ url_for('static', filename='dffe-logo.png') }}">
-                    </a>
+    {% if brand == 'saeon' %}
+        <nav class="navbar navbar-expand-lg bg-primary navbar-dark p-2">
+            <div class="container-fluid">
+                <div class="navbar-nav justify-content-start" style="flex-basis:0; flex-grow:1">
+                    {{ nav_logo() }}
                 </div>
-                <span style="flex-basis:0; flex-grow:1" class="navbar-text text-center h3">
-                    National Climate Change Response Database
-                </span>
-                <div style="flex-basis:0; flex-grow:1">
-                    <a class="navbar-brand text-reset" style="display:block" href="https://www.dffe.gov.za/" target="_blank">
-                        <img src="{{ url_for('static', filename='sa-flag.jpg') }}" height="65" class="ml-auto" style="display:block">
-                    </a>
+                <div class="navbar-nav justify-content-center">
+                    {{ nav_title(endpoint=None) }}
+                </div>
+                <div class="navbar-nav justify-content-end" style="flex-basis:0; flex-grow:1">
+                    {{ nav_menu() }}
                 </div>
             </div>
         </nav>
-        <hr class="mt-0" />
-    {% else %}
-        <nav class="navbar navbar-dark bg-primary">
-            <div class="container">
-                <span class="navbar-text lead">
-                    SAEON | Open Data Platform
-                </span>
-                <a class="navbar-brand text-reset mb-2" href="https://www.saeon.ac.za/" target="_blank">
-                    <img src="{{ url_for('static', filename='saeon-logo.png') }}" height="55">
-                </a>
+
+    {% elif brand == 'nccrd' %}
+        <nav class="navbar navbar-expand-lg bg-white p-3">
+            <div class="container-fluid">
+                <div class="navbar-nav justify-content-start" style="flex-basis:0; flex-grow:1">
+                    {{ nav_logo(file='dffe-logo.png', url='https://www.dffe.gov.za/') }}
+                </div>
+                <div class="navbar-nav justify-content-center">
+                    {{ nav_title(title='National Climate Change Response Database', endpoint=None) }}
+                </div>
+                <div class="navbar-nav justify-content-end" style="flex-basis:0; flex-grow:1">
+                    {{ nav_logo(file='sa-flag.jpg', url=None, right=True) }}
+                </div>
             </div>
         </nav>
     {% endif %}
@@ -54,7 +54,7 @@
 {% block main %}
     <main class="flex-grow-1 mx-4">
         <div class="container p-4" style="width: 410px">
-            <p class="h1">
+            <p class="h3">
                 {% block heading %}
                 {% endblock %}
             </p>
@@ -68,5 +68,9 @@
 
 {% block styles %}
     {{ super() }}
-    {{ bootswatch_spacelab_css() }}
+    {% if brand == 'saeon' %}
+        {{ bootswatch_spacelab_css() }}
+    {% elif brand == 'nccrd' %}
+        {{ bootswatch_lumen_css() }}
+    {% endif %}
 {% endblock %}
