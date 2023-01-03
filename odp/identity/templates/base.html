@@ -10,11 +10,11 @@
     {% endif %}
 {% endblock %}
 
-{% block favicon_url %}
+{% block favicon %}
     {% if brand == 'saeon' %}
         {{ super() }}
     {% elif brand == 'nccrd' %}
-        {{ url_for('static', filename='sa-favicon.ico') }}
+        <link rel="icon" href="{{ url_for('static', filename='sa-favicon.ico') }}">
     {% endif %}
 {% endblock %}
 
