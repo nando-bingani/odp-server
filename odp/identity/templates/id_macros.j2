@@ -1,4 +1,4 @@
-{% from 'macros.html' import render_field %}
+{% from 'content.j2' import render_field %}
 
 {% macro render_form(form, token, submit_target, submit_label) %}
     <form action="{{ url_for(submit_target, token=token) }}" method="post">
