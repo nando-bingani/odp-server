@@ -1,6 +1,7 @@
 {% extends 'layout.html' %}
-{% from 'lib.j2' import bootswatch_spacelab_css, bootswatch_lumen_css %}
+{% from 'lib.j2' import bootswatch_flatly_css %}
 {% from 'nav.j2' import nav_logo, nav_title, nav_menu %}
+{% from 'foot.j2' import footer %}
 
 {% block web_title %}
     {% if brand == 'saeon' %}
@@ -20,7 +21,7 @@
 
 {% block header %}
     {% if brand == 'saeon' %}
-        <nav class="navbar navbar-expand-lg bg-primary navbar-dark p-2">
+        <nav class="navbar navbar-expand-lg bg-primary navbar-dark p-3">
             <div class="container-fluid">
                 <div class="navbar-nav justify-content-start" style="flex-basis:0; flex-grow:1">
                     {{ nav_logo() }}
@@ -35,7 +36,7 @@
         </nav>
 
     {% elif brand == 'nccrd' %}
-        <nav class="navbar navbar-expand-lg bg-white p-3">
+        <nav class="navbar navbar-expand-lg bg-white p-4">
             <div class="container-fluid">
                 <div class="navbar-nav justify-content-start" style="flex-basis:0; flex-grow:1">
                     {{ nav_logo(file='dffe-logo.png', url='https://www.dffe.gov.za/') }}
@@ -48,6 +49,7 @@
                 </div>
             </div>
         </nav>
+        <hr class="m-0"/>
     {% endif %}
 {% endblock %}
 
@@ -66,11 +68,15 @@
     </main>
 {% endblock %}
 
+{% block footer %}
+    {% if brand == 'saeon' %}
+        {{ footer(color='light', hr=False) }}
+    {% elif brand == 'nccrd' %}
+        {{ footer() }}
+    {% endif %}
+{% endblock %}
+
 {% block styles %}
     {{ super() }}
-    {% if brand == 'saeon' %}
-        {{ bootswatch_spacelab_css() }}
-    {% elif brand == 'nccrd' %}
-        {{ bootswatch_lumen_css() }}
-    {% endif %}
+    {{ bootswatch_flatly_css() }}
 {% endblock %}
