@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Iterable, Optional
+from typing import Iterable
 
+import requests
 from ory_hydra_client import ApiClient, Configuration
 from ory_hydra_client.api.admin_api import AcceptConsentRequest, AcceptLoginRequest, AdminApi, OAuth2Client, RejectRequest
 from ory_hydra_client.exceptions import ApiException
@@ -51,6 +52,7 @@ class HydraAdminAPI:
 
     def __init__(self, hydra_admin_url: str) -> None:
         self._api = AdminApi(ApiClient(Configuration(hydra_admin_url)))
+        self._hydra_admin_url = hydra_admin_url
 
     def introspect_token(
             self,
@@ -81,7 +83,7 @@ class HydraAdminAPI:
             id: str,
             *,
             name: str,
-            secret: Optional[str],
+            secret: str | None,
             scope_ids: Iterable[str],
             grant_types: Iterable[GrantType],
             response_types: Iterable[ResponseType] = (),
@@ -89,6 +91,7 @@ class HydraAdminAPI:
             post_logout_redirect_uris: Iterable[str] = (),
             token_endpoint_auth_method: TokenEndpointAuthMethod = TokenEndpointAuthMethod.CLIENT_SECRET_BASIC,
             allowed_cors_origins: Iterable[str] = (),
+            client_credentials_grant_access_token_lifespan: str = None,
     ) -> None:
         """Create or update an OAuth2 client configuration on Hydra.
 
@@ -117,6 +120,12 @@ class HydraAdminAPI:
                 self._api.update_o_auth2_client(id, oauth2_client)
             else:
                 raise  # todo: raise our own exception class here
+
+        # todo: this should be part of the OAuth2Client kwargs in the Hydra v2 SDK
+        if client_credentials_grant_access_token_lifespan and GrantType.CLIENT_CREDENTIALS in grant_types:
+            requests.put(f'{self._hydra_admin_url}/clients/{id}/lifespans', json=dict(
+                client_credentials_grant_access_token_lifespan=client_credentials_grant_access_token_lifespan
+            ))
 
     def delete_client(self, id: str) -> None:
         """Delete an OAuth2 client configuration from Hydra."""

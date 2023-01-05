@@ -231,6 +231,10 @@ def init_clients():
                 redirect_uris=[url + '/oauth2/logged_in'],
                 post_logout_redirect_uris=[url + '/oauth2/logged_out'],
             )
+        if token_lifespan := client_spec.get('token_lifespan'):
+            opts |= dict(
+                client_credentials_grant_access_token_lifespan=token_lifespan,
+            )
 
         hydra_admin_api.create_or_update_client(client_id, **opts)
 

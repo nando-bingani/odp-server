@@ -67,6 +67,7 @@ GEOSS.Portal:
     - odp.catalog:read
   grant_types:
     - client_credentials
+  token_lifespan: 6h
 
 MIMS.Catalog.UI:
   name: MIMS Catalog User Interface
