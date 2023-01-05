@@ -18,7 +18,7 @@ wtforms
 email-validator
 werkzeug
 itsdangerous
-ory-hydra-client==1.11.7
+ory-hydra-client==1.11.8
 requests
 
 # build
@@ -29,3 +29,4 @@ coverage
 factory-boy
 faker
 sqlalchemy-utils
+httpx
