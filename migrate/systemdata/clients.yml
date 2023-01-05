@@ -83,6 +83,9 @@ MIMS.Catalog.UI:
     - refresh_token
   response_types:
     - code
+  collections:
+    - MIMS
+    - SADCO
 
 MIMS.Catalog.CI:
   name: MIMS Catalog Client Interface
@@ -91,3 +94,6 @@ MIMS.Catalog.CI:
     - odp.catalog:read
   grant_types:
     - client_credentials
+  collections:
+    - MIMS
+    - SADCO
