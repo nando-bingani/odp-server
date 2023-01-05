@@ -12,7 +12,7 @@ from sqlalchemy.exc import ProgrammingError
 
 from odp.const import (ODPCatalog, ODPCollectionTag, ODPMetadataSchema, ODPRecordTag, ODPScope, ODPSystemRole, ODPTagSchema, ODPVocabulary,
                        ODPVocabularySchema)
-from odp.const.hydra import HydraScope
+from odp.const.hydra import GrantType, HydraScope
 from odp.db import Base, Session, engine
 from odp.db.models import Catalog, Client, Role, Schema, SchemaType, Scope, ScopeType, Tag, Vocabulary
 from odp.lib.hydra import HydraAdminAPI
@@ -231,7 +231,8 @@ def init_clients():
                 redirect_uris=[url + '/oauth2/logged_in'],
                 post_logout_redirect_uris=[url + '/oauth2/logged_out'],
             )
-        if token_lifespan := client_spec.get('token_lifespan'):
+        if (token_lifespan := client_spec.get('token_lifespan')) and \
+                GrantType.CLIENT_CREDENTIALS in client_spec['grant_types']:
             opts |= dict(
                 client_credentials_grant_access_token_lifespan=token_lifespan,
             )

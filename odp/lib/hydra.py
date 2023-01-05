@@ -3,7 +3,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Iterable
 
-import requests
 from ory_hydra_client import ApiClient, Configuration
 from ory_hydra_client.api.admin_api import AcceptConsentRequest, AcceptLoginRequest, AdminApi, OAuth2Client, RejectRequest
 from ory_hydra_client.exceptions import ApiException
@@ -107,6 +106,7 @@ class HydraAdminAPI:
             post_logout_redirect_uris=StringArray(list(post_logout_redirect_uris)),
             token_endpoint_auth_method=token_endpoint_auth_method,
             allowed_cors_origins=StringArray(list(allowed_cors_origins)),
+            client_credentials_grant_access_token_lifespan=client_credentials_grant_access_token_lifespan,
             contacts=StringArray([]),
         )
         if secret is not None:
@@ -120,12 +120,6 @@ class HydraAdminAPI:
                 self._api.update_o_auth2_client(id, oauth2_client)
             else:
                 raise  # todo: raise our own exception class here
-
-        # todo: this should be part of the OAuth2Client kwargs in the Hydra v2 SDK
-        if client_credentials_grant_access_token_lifespan and GrantType.CLIENT_CREDENTIALS in grant_types:
-            requests.put(f'{self._hydra_admin_url}/clients/{id}/lifespans', json=dict(
-                client_credentials_grant_access_token_lifespan=client_credentials_grant_access_token_lifespan
-            ))
 
     def delete_client(self, id: str) -> None:
         """Delete an OAuth2 client configuration from Hydra."""
