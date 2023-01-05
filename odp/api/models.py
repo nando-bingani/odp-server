@@ -99,6 +99,7 @@ class ClientModel(BaseModel):
     post_logout_redirect_uris: list[AnyHttpUrl]
     token_endpoint_auth_method: TokenEndpointAuthMethod
     allowed_cors_origins: list[AnyHttpUrl]
+    client_credentials_grant_access_token_lifespan: Optional[str]
 
 
 class ClientModelIn(BaseModel):
@@ -114,6 +115,7 @@ class ClientModelIn(BaseModel):
     post_logout_redirect_uris: list[AnyHttpUrl]
     token_endpoint_auth_method: TokenEndpointAuthMethod
     allowed_cors_origins: list[AnyHttpUrl]
+    client_credentials_grant_access_token_lifespan: Optional[str] = Field(None, regex='^\d+(s|m|h)$')
 
     @validator('collection_ids')
     def validate_collection_ids(cls, collection_ids, values):

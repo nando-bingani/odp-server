@@ -24,6 +24,7 @@ class HydraClient:
     post_logout_redirect_uris: list[str]
     token_endpoint_auth_method: TokenEndpointAuthMethod
     allowed_cors_origins: list[str]
+    client_credentials_grant_access_token_lifespan: str | None
 
     @classmethod
     def from_oauth2_client(cls, oauth2_client: OAuth2Client) -> HydraClient:
@@ -43,6 +44,7 @@ class HydraClient:
             post_logout_redirect_uris=post_logout_redirect_uris,
             token_endpoint_auth_method=oauth2_client.token_endpoint_auth_method,
             allowed_cors_origins=oauth2_client.allowed_cors_origins.value,
+            client_credentials_grant_access_token_lifespan=oauth2_client.client_credentials_grant_access_token_lifespan,
         )
 
 

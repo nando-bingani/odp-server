@@ -27,6 +27,7 @@ def output_client_model(client: Client) -> ClientModel:
         post_logout_redirect_uris=hydra_client.post_logout_redirect_uris,
         token_endpoint_auth_method=hydra_client.token_endpoint_auth_method,
         allowed_cors_origins=hydra_client.allowed_cors_origins,
+        client_credentials_grant_access_token_lifespan=hydra_client.client_credentials_grant_access_token_lifespan,
     )
 
 
@@ -42,6 +43,7 @@ def create_or_update_hydra_client(client_in: ClientModelIn) -> None:
         post_logout_redirect_uris=client_in.post_logout_redirect_uris,
         token_endpoint_auth_method=client_in.token_endpoint_auth_method,
         allowed_cors_origins=client_in.allowed_cors_origins,
+        client_credentials_grant_access_token_lifespan=client_in.client_credentials_grant_access_token_lifespan,
     )
 
 
