@@ -6,7 +6,7 @@ from .client_scope import ClientScope
 from .collection import Collection, CollectionAudit
 from .collection_tag import CollectionTag, CollectionTagAudit
 from .provider import Provider, ProviderAudit
-from .published_doi import PublishedDOI
+from .published_record import PublishedRecord
 from .record import Record, RecordAudit
 from .record_tag import RecordTag, RecordTagAudit
 from .role import Role

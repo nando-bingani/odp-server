@@ -11,7 +11,7 @@ from odp.api.routers.record import output_record_model
 from odp.cache import Cache
 from odp.const import ODPCatalog, ODPCollectionTag, ODPMetadataSchema, ODPRecordTag
 from odp.db import Session
-from odp.db.models import CatalogRecord, Collection, Provider, PublishedDOI, Record, RecordTag
+from odp.db.models import CatalogRecord, Collection, Provider, PublishedRecord, Record, RecordTag
 
 logger = logging.getLogger(__name__)
 
@@ -157,8 +157,8 @@ class Catalog:
 
         can_publish, reasons = self.evaluate_record(record_model)
         if can_publish:
+            self._save_published_record(record_model)
             self._process_embargoes(record_model)
-            self._save_published_doi(record_model)
             catalog_record.published = True
             catalog_record.published_record = self.create_published_record(record_model).dict()
         else:
@@ -244,6 +244,18 @@ class Catalog:
         raise NotImplementedError
 
     @staticmethod
+    def _save_published_record(record_model: RecordModel) -> None:
+        """Permanently save the record id and DOI when first published."""
+        if not (published_record := Session.get(PublishedRecord, record_model.id)):
+            published_record = PublishedRecord(id=record_model.id, doi=record_model.doi)
+        elif record_model.doi and not published_record.doi:
+            published_record.doi = record_model.doi
+        else:
+            return
+
+        published_record.save()
+
+    @staticmethod
     def _process_embargoes(record_model: RecordModel) -> None:
         """Check if a record is currently subject to an embargo and, if so, update
         the given `record_model`, stripping out download links / embedded datasets
@@ -281,13 +293,6 @@ class Catalog:
                         item['linkage'] = None
                 except KeyError:
                     pass
-
-    @staticmethod
-    def _save_published_doi(record_model: RecordModel) -> None:
-        """Permanently save a DOI when it is first published."""
-        if record_model.doi and not Session.get(PublishedDOI, record_model.doi):
-            published_doi = PublishedDOI(doi=record_model.doi)
-            published_doi.save()
 
     def _sync_external(self) -> None:
         """Synchronize with an external catalog."""
