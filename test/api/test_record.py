@@ -7,7 +7,7 @@ from sqlalchemy import select
 
 from odp.const import ODPCollectionTag, ODPScope
 from odp.db import Session
-from odp.db.models import CollectionTag, PublishedDOI, Record, RecordAudit, RecordTag, RecordTagAudit, Scope, ScopeType
+from odp.db.models import CollectionTag, PublishedRecord, Record, RecordAudit, RecordTag, RecordTagAudit, Scope, ScopeType
 from test.api import (CollectionAuth, all_scopes, all_scopes_excluding, assert_conflict, assert_empty_result, assert_forbidden, assert_new_timestamp,
                       assert_not_found, assert_unprocessable)
 from test.factories import CollectionFactory, CollectionTagFactory, RecordFactory, RecordTagFactory, SchemaFactory, TagFactory
@@ -551,12 +551,12 @@ def doi_change(request):
     return request.param
 
 
-@pytest.fixture(params=[True, False])
-def published_doi(request):
+@pytest.fixture(params=[None, 'id', 'doi'])
+def published_record(request):
     return request.param
 
 
-def test_update_record_doi_change(api, record_batch_with_ids, admin, collection_auth, doi_change, published_doi):
+def test_update_record_doi_change(api, record_batch_with_ids, admin, collection_auth, doi_change, published_record):
     route = '/record/admin/' if admin else '/record/'
     scopes = [ODPScope.RECORD_ADMIN] if admin else [ODPScope.RECORD_WRITE]
     authorized = collection_auth in (CollectionAuth.NONE, CollectionAuth.MATCH)
@@ -573,8 +573,11 @@ def test_update_record_doi_change(api, record_batch_with_ids, admin, collection_
     else:
         modified_record_collection = None  # new collection
 
-    if published_doi:
-        PublishedDOI(doi=record_batch_with_ids[2].doi).save()
+    if published_record:
+        PublishedRecord(
+            id=record_batch_with_ids[2].id,
+            doi=record_batch_with_ids[2].doi if published_record == 'doi' else None,
+        ).save()
 
     modified_record_batch = record_batch_with_ids.copy()
     if doi_change == 'change':
@@ -599,7 +602,7 @@ def test_update_record_doi_change(api, record_batch_with_ids, admin, collection_
     ))
 
     if authorized:
-        if published_doi:
+        if published_record == 'doi':
             assert_unprocessable(r, 'The DOI has been published and cannot be modified.')
             assert_db_state(record_batch_with_ids)
             assert_no_audit_log()
@@ -627,7 +630,7 @@ def test_update_record_doi_change(api, record_batch_with_ids, admin, collection_
     (True, all_scopes, []),
     (True, all_scopes_excluding(ODPScope.RECORD_ADMIN), []),
 ])
-def test_delete_record(api, record_batch_with_ids, admin_route, scopes, collection_tags, collection_auth, published_doi):
+def test_delete_record(api, record_batch_with_ids, admin_route, scopes, collection_tags, collection_auth, published_record):
     route = '/record/admin/' if admin_route else '/record/'
 
     authorized = admin_route and ODPScope.RECORD_ADMIN in scopes or \
@@ -647,8 +650,11 @@ def test_delete_record(api, record_batch_with_ids, admin_route, scopes, collecti
             tag=TagFactory(id=ct, type='collection'),
         )
 
-    if published_doi:
-        PublishedDOI(doi=record_batch_with_ids[2].doi).save()
+    if published_record:
+        PublishedRecord(
+            id=record_batch_with_ids[2].id,
+            doi=record_batch_with_ids[2].doi if published_record == 'doi' else None,
+        ).save()
 
     modified_record_batch = record_batch_with_ids.copy()
     deleted_record = modified_record_batch[2]
@@ -661,8 +667,8 @@ def test_delete_record(api, record_batch_with_ids, admin_route, scopes, collecti
             assert_unprocessable(r, 'Cannot delete a record belonging to a ready or frozen collection')
             assert_db_state(record_batch_with_ids)
             assert_no_audit_log()
-        elif published_doi:
-            assert_unprocessable(r, 'The DOI has been published and cannot be deleted.')
+        elif published_record:
+            assert_unprocessable(r, 'The record has been published and cannot be deleted. Please retract the record instead.')
             assert_db_state(record_batch_with_ids)
             assert_no_audit_log()
         else:

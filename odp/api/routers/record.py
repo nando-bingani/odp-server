@@ -17,7 +17,7 @@ from odp.api.models import (AuditModel, CatalogRecordModel, RecordAuditModel, Re
                             TagInstanceModelIn)
 from odp.const import ODPCollectionTag, ODPMetadataSchema, ODPScope
 from odp.db import Session
-from odp.db.models import (AuditCommand, CatalogRecord, Collection, CollectionTag, PublishedDOI, Record, RecordAudit, RecordTag, RecordTagAudit,
+from odp.db.models import (AuditCommand, CatalogRecord, Collection, CollectionTag, PublishedRecord, Record, RecordAudit, RecordTag, RecordTagAudit,
                            SchemaType, Tag, TagCardinality, TagType, User)
 
 router = APIRouter()
@@ -333,8 +333,10 @@ def _set_record(
     ).first() is not None:
         raise HTTPException(HTTP_409_CONFLICT, 'SID is already in use')
 
-    if (record.doi is not None and record.doi != record_in.doi and
-            Session.get(PublishedDOI, record.doi)):
+    if record.doi is not None and record.doi != record_in.doi and Session.execute(
+        select(PublishedRecord).
+        where(PublishedRecord.doi == record.doi)
+    ).first() is not None:
         raise HTTPException(HTTP_422_UNPROCESSABLE_ENTITY, 'The DOI has been published and cannot be modified.')
 
     if (
@@ -401,8 +403,11 @@ def _delete_record(
             'Cannot delete a record belonging to a ready or frozen collection',
         )
 
-    if record.doi is not None and Session.get(PublishedDOI, record.doi):
-        raise HTTPException(HTTP_422_UNPROCESSABLE_ENTITY, 'The DOI has been published and cannot be deleted.')
+    if Session.get(PublishedRecord, record_id):
+        raise HTTPException(
+            HTTP_422_UNPROCESSABLE_ENTITY,
+            'The record has been published and cannot be deleted. Please retract the record instead.',
+        )
 
     create_audit_record(auth, record, datetime.now(timezone.utc), AuditCommand.delete)
 
