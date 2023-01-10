@@ -70,12 +70,18 @@ class PublishedSAEONRecordModel(PublishedRecordModel):
     temporal_start: Optional[str]
     temporal_end: Optional[str]
     timestamp: str
+    published: bool = Field(True, const=True)
 
 
 class PublishedDataCiteRecordModel(PublishedRecordModel):
     doi: str
     url: Optional[AnyHttpUrl]
     metadata: dict[str, Any]
+
+
+class RetractedRecordModel(BaseModel):
+    id: str
+    published: bool = Field(False, const=False)
 
 
 class CatalogRecordModel(BaseModel):

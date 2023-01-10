@@ -14,10 +14,10 @@ from odp.api.lib.catalog import get_catalog_url
 from odp.api.lib.datacite import get_datacite_client
 from odp.api.lib.paging import Page, Paginator
 from odp.api.lib.utils import output_published_record_model
-from odp.api.models import CatalogModel, PublishedDataCiteRecordModel, PublishedSAEONRecordModel
+from odp.api.models import CatalogModel, PublishedDataCiteRecordModel, PublishedSAEONRecordModel, RetractedRecordModel
 from odp.const import DOI_REGEX, ODPCatalog, ODPScope
 from odp.db import Session
-from odp.db.models import Catalog, CatalogRecord
+from odp.db.models import Catalog, CatalogRecord, PublishedRecord
 from odp.lib.datacite import DataciteClient
 from odp.lib.exceptions import DataciteError
 
@@ -73,10 +73,39 @@ async def get_catalog(
 
 @router.get(
     '/{catalog_id}/records',
-    response_model=Page[PublishedSAEONRecordModel | PublishedDataCiteRecordModel],
+    response_model=Page[PublishedSAEONRecordModel | PublishedDataCiteRecordModel | RetractedRecordModel],
     dependencies=[Depends(Authorize(ODPScope.CATALOG_READ))],
 )
-async def list_published_records(
+async def list_records(
+        catalog_id: str,
+        include_retracted: bool = False,
+        paginator: Paginator = Depends(partial(Paginator, sort='record_id')),
+):
+    if not Session.get(Catalog, catalog_id):
+        raise HTTPException(HTTP_404_NOT_FOUND)
+
+    stmt = (
+        select(CatalogRecord).
+        where(CatalogRecord.catalog_id == catalog_id)
+    )
+    if include_retracted:
+        stmt = stmt.join(PublishedRecord, CatalogRecord.record_id == PublishedRecord.id)
+    else:
+        stmt = stmt.where(CatalogRecord.published)
+
+    return paginator.paginate(
+        stmt,
+        lambda row: output_published_record_model(row.CatalogRecord) if row.CatalogRecord.published
+        else RetractedRecordModel(id=row.CatalogRecord.record_id),
+    )
+
+
+@router.get(
+    '/{catalog_id}/search',
+    response_model=Page[PublishedSAEONRecordModel],
+    dependencies=[Depends(Authorize(ODPScope.CATALOG_READ))],
+)
+async def search_records(
         catalog_id: str,
         paginator: Paginator = Depends(partial(Paginator, sort='record_id')),
         text_query: str = Query(None, title='Search terms'),
