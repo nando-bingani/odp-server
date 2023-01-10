@@ -22,13 +22,13 @@
     {% if brand == 'saeon' %}
         <nav class="navbar navbar-expand-lg bg-primary navbar-dark p-3">
             <div class="container-fluid">
-                <div class="navbar-nav justify-content-start" style="flex-basis:0; flex-grow:1">
+                <div class="navbar-nav justify-content-start flex-grow-evenly">
                     {{ nav_logo() }}
                 </div>
                 <div class="navbar-nav justify-content-center">
                     {{ nav_title(endpoint=None) }}
                 </div>
-                <div class="navbar-nav justify-content-end" style="flex-basis:0; flex-grow:1">
+                <div class="navbar-nav justify-content-end flex-grow-evenly">
                     {{ nav_menu() }}
                 </div>
             </div>
@@ -37,13 +37,13 @@
     {% elif brand == 'nccrd' %}
         <nav class="navbar navbar-expand-lg bg-white p-4">
             <div class="container-fluid">
-                <div class="navbar-nav justify-content-start" style="flex-basis:0; flex-grow:1">
+                <div class="navbar-nav justify-content-start flex-grow-evenly">
                     {{ nav_logo(file='dffe-logo.png', url='https://www.dffe.gov.za/') }}
                 </div>
                 <div class="navbar-nav justify-content-center">
                     {{ nav_title(title='National Climate Change Response Database', endpoint=None) }}
                 </div>
-                <div class="navbar-nav justify-content-end" style="flex-basis:0; flex-grow:1">
+                <div class="navbar-nav justify-content-end flex-grow-evenly">
                     {{ nav_logo(file='sa-flag.jpg', url=None, right=True) }}
                 </div>
             </div>
