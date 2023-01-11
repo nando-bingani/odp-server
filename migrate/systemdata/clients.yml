@@ -20,23 +20,6 @@ ODP.Admin.CI:
   grant_types:
     - client_credentials
 
-ODP.Migrate:
-  name: ODP v1 to ODP v2 migration
-  secret_env: ODP_MIGRATE_CLIENT_SECRET
-  scopes:
-    - odp.collection:admin
-    - odp.collection:infrastructure
-    - odp.collection:project
-    - odp.collection:read
-    - odp.collection:ready
-    - odp.provider:admin
-    - odp.record:admin
-    - odp.record:migrate
-    - odp.vocabulary:infrastructure
-    - odp.vocabulary:project
-  grant_types:
-    - client_credentials
-
 ODP.Web.UI:
   name: ODP Web User Interface
   secret_env: ODP_WEB_UI_CLIENT_SECRET
@@ -60,40 +43,19 @@ ODP.Web.CI:
   grant_types:
     - client_credentials
 
-GEOSS.Portal:
-  name: GEOSS Portal Harvester
-  secret_env: GEOSS_CLIENT_SECRET
+ODP.Migrate:
+  name: ODP v1 to v2 migration
+  secret_env: ODP_MIGRATE_CLIENT_SECRET
   scopes:
-    - odp.catalog:read
+    - odp.collection:admin
+    - odp.collection:infrastructure
+    - odp.collection:project
+    - odp.collection:read
+    - odp.collection:ready
+    - odp.provider:admin
+    - odp.record:admin
+    - odp.record:migrate
+    - odp.vocabulary:infrastructure
+    - odp.vocabulary:project
   grant_types:
     - client_credentials
-  token_lifespan: 6h
-
-MIMS.Catalog.UI:
-  name: MIMS Catalog User Interface
-  secret_env: MIMS_CATALOG_UI_CLIENT_SECRET
-  url_env: MIMS_CATALOG_URL
-  scopes:
-    - odp.catalog:read
-    - odp.token:read
-    - openid
-    - offline_access
-  grant_types:
-    - authorization_code
-    - refresh_token
-  response_types:
-    - code
-  collections:
-    - MIMS
-    - SADCO
-
-MIMS.Catalog.CI:
-  name: MIMS Catalog Client Interface
-  secret_env: MIMS_CATALOG_CI_CLIENT_SECRET
-  scopes:
-    - odp.catalog:read
-  grant_types:
-    - client_credentials
-  collections:
-    - MIMS
-    - SADCO
