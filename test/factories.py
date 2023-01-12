@@ -98,6 +98,7 @@ class CatalogFactory(ODPModelFactory):
         model = Catalog
 
     id = factory.Sequence(lambda n: f'{fake.slug()}.{n}')
+    url = factory.Faker('url')
 
 
 class ProviderFactory(ODPModelFactory):

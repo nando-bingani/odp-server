@@ -10,5 +10,6 @@ class Catalog(Base):
     __tablename__ = 'catalog'
 
     id = Column(String, primary_key=True)
+    url = Column(String)
 
-    _repr_ = 'id',
+    _repr_ = 'id', 'url'
