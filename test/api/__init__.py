@@ -59,3 +59,8 @@ def assert_unprocessable(response, message=None, **kwargs):
 def assert_new_timestamp(timestamp):
     # 10 minutes is quite lenient, but handy for debugging
     assert datetime.now(timezone.utc) - timedelta(seconds=600) < timestamp < datetime.now(timezone.utc)
+
+
+def assert_redirect(response, url):
+    assert response.is_redirect
+    assert response.next_request.url == url

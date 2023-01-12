@@ -6,8 +6,8 @@ from sqlalchemy import select
 from odp.const import ODPScope
 from odp.db import Session
 from odp.db.models import Catalog
-from test.api import all_scopes, all_scopes_excluding, assert_forbidden, assert_not_found
-from test.factories import CatalogFactory
+from test.api import all_scopes, all_scopes_excluding, assert_forbidden, assert_not_found, assert_redirect, assert_unprocessable
+from test.factories import CatalogFactory, fake
 
 
 @pytest.fixture
@@ -78,3 +78,38 @@ def test_get_catalog_not_found(api, catalog_batch):
     r = api(scopes).get('/catalog/foo')
     assert_not_found(r)
     assert_db_state(catalog_batch)
+
+
+@pytest.fixture(params=[True, False])
+def catalog_exists(request):
+    return request.param
+
+
+@pytest.fixture(params=['uuid', 'doi', 'invalid'])
+def record_id_format(request):
+    return request.param
+
+
+def test_redirect_to(api, catalog_batch, catalog_exists, record_id_format):
+    if catalog_exists:
+        catalog = catalog_batch[2]
+        catalog_id = catalog.id
+    else:
+        catalog_id = 'foo'
+
+    if record_id_format == 'uuid':
+        record_id = fake.uuid4()
+    elif record_id_format == 'doi':
+        record_id = '10.12345/' + fake.word()
+    else:
+        record_id = fake.word()
+
+    r = api([]).get(f'/catalog/{catalog_id}/go/{record_id}', follow_redirects=False)
+
+    if record_id_format in ('uuid', 'doi'):
+        if catalog_exists:
+            assert_redirect(r, f'{catalog.url}/{record_id}')
+        else:
+            assert_not_found(r)
+    else:
+        assert_unprocessable(r)
