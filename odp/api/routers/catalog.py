@@ -42,6 +42,7 @@ async def list_catalogs(
         stmt,
         lambda row: CatalogModel(
             id=row.Catalog.id,
+            url=row.Catalog.url,
             record_count=row.count,
         )
     )
@@ -67,6 +68,7 @@ async def get_catalog(
 
     return CatalogModel(
         id=result.Catalog.id,
+        url=result.Catalog.url,
         record_count=result.count,
     )
 

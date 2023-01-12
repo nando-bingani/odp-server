@@ -20,13 +20,15 @@ def assert_db_state(catalogs):
     """Verify that the DB catalog table contains the given catalog batch."""
     Session.expire_all()
     result = Session.execute(select(Catalog)).scalars().all()
-    assert set(row.id for row in result) == set(catalog.id for catalog in catalogs)
+    assert set((row.id, row.url) for row in result) \
+           == set((catalog.id, catalog.url) for catalog in catalogs)
 
 
 def assert_json_result(response, json, catalog):
     """Verify that the API result matches the given catalog object."""
     assert response.status_code == 200
     assert json['id'] == catalog.id
+    assert json['url'] == catalog.url
 
 
 def assert_json_results(response, json, catalogs):

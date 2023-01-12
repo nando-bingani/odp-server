@@ -32,6 +32,7 @@ class TagInstanceModelIn(BaseModel):
 
 class CatalogModel(BaseModel):
     id: str
+    url: str
     record_count: int
 
 
