@@ -4,7 +4,7 @@ from odp.api.models import PublishedDataCiteRecordModel, PublishedRecordModel, R
 from odp.cache import Cache
 from odp.catalog import Catalog, NotPublishedReason, PublishedReason
 from odp.config import config
-from odp.const import DOI_PREFIX, ODPMetadataSchema
+from odp.const import DOI_PREFIX, ODPCatalog, ODPMetadataSchema
 from odp.db import Session
 from odp.db.models import CatalogRecord, Schema, SchemaType
 from odp.lib.datacite import DataciteClient, DataciteRecordIn
@@ -22,7 +22,7 @@ class DataCiteCatalog(Catalog):
             password=config.DATACITE.PASSWORD,
             doi_prefix=DOI_PREFIX,
         )
-        self.doi_return_url = config.DATACITE.DOI_RETURN_URL
+        self.doi_return_url = config.ODP.API_URL + f'/catalog/{ODPCatalog.SAEON}/go'
 
     def evaluate_record(self, record_model: RecordModel) -> tuple[bool, list[PublishedReason | NotPublishedReason]]:
         """Evaluate whether a record can be published.

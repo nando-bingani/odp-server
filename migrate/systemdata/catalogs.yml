@@ -1,0 +1,8 @@
+SAEON:
+  url_env: SAEON_CATALOG_URL
+
+MIMS:
+  url_env: MIMS_CATALOG_URL
+
+DataCite:
+  url_env: DATACITE_CATALOG_URL

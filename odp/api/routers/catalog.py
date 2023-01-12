@@ -6,11 +6,11 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from fastapi.responses import RedirectResponse
+from pydantic import UUID4, constr
 from sqlalchemy import and_, func, select, text
 from starlette.status import HTTP_404_NOT_FOUND, HTTP_422_UNPROCESSABLE_ENTITY
 
 from odp.api.lib.auth import Authorize
-from odp.api.lib.catalog import get_catalog_url
 from odp.api.lib.datacite import get_datacite_client
 from odp.api.lib.paging import Page, Paginator
 from odp.api.lib.utils import output_published_record_model
@@ -206,9 +206,14 @@ async def get_external_published_record(
 
 
 @router.get(
-    '/view/{doi:path}',
+    '/{catalog_id}/go/{record_id_or_doi:path}',
+    description='Redirect to the web page for a catalog record.',
 )
-async def view_record(
-        redirect_url: str = Depends(get_catalog_url),
+async def redirect_to(
+        catalog_id: str,
+        record_id_or_doi: UUID4 | constr(regex=DOI_REGEX),
 ):
-    return RedirectResponse(redirect_url)
+    if not (catalog := Session.get(Catalog, catalog_id)):
+        raise HTTPException(HTTP_404_NOT_FOUND)
+
+    return RedirectResponse(f'{catalog.url}/{record_id_or_doi}')

@@ -189,9 +189,17 @@ def init_vocabularies():
 
 def init_catalogs():
     """Create or update catalog definitions."""
+    with open(datadir / 'catalogs.yml') as f:
+        catalog_data = yaml.safe_load(f)
+
     for catalog_id in (catalog_ids := [c.value for c in ODPCatalog]):
+        catalog_spec = catalog_data[catalog_id]
         catalog = Session.get(Catalog, catalog_id) or Catalog(id=catalog_id)
+        catalog.url = os.environ[catalog_spec['url_env']]
         catalog.save()
+
+    if orphaned_yml_catalogs := [catalog_id for catalog_id in catalog_data if catalog_id not in catalog_ids]:
+        logger.warning(f'Orphaned catalog definitions in catalogs.yml {orphaned_yml_catalogs}')
 
     if orphaned_db_catalogs := Session.execute(select(Catalog.id).where(Catalog.id.not_in(catalog_ids))).scalars().all():
         logger.warning(f'Orphaned catalog definitions in catalog table {orphaned_db_catalogs}')
