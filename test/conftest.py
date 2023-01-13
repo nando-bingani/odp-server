@@ -19,7 +19,7 @@ def ensure_coverage():
     # odp-core
     import odp.config
     import odp.const
-    import odp.logger
+    import odp.logfile
     import odp.schema
     import odp.version
     import odp.lib.cache

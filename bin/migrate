@@ -7,8 +7,8 @@ rootdir = pathlib.Path(__file__).parent.parent
 sys.path.append(str(rootdir))
 
 import migrate.systemdata
-import odp.logger
+import odp.logfile
 
 if __name__ == '__main__':
-    odp.logger.initialize()
+    odp.logfile.initialize()
     migrate.systemdata.initialize()
