@@ -24,6 +24,7 @@ def ensure_coverage():
     import odp.version
     import odp.lib.cache
     import odp.lib.datacite
+    import odp.lib.hydra
 
     # odp-server
     import odp.api
@@ -32,7 +33,6 @@ def ensure_coverage():
     import odp.identity
     import odp.lib.auth
     import odp.lib.exceptions
-    import odp.lib.hydra
     import odp.lib.schema
 
 
