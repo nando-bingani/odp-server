@@ -79,11 +79,3 @@ class HydraAdminError(ODPException):
         self.endpoint = kwargs.pop('endpoint')
         self.status_code = kwargs.pop('status_code')
         self.error_detail = kwargs.pop('error_detail', str(args))
-
-
-class DataciteError(ODPException):
-    """ Exception raised when a request to the DataCite API fails """
-
-    def __init__(self, status_code, error_detail=None):
-        self.status_code = status_code
-        self.error_detail = error_detail

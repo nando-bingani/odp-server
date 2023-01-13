@@ -18,8 +18,7 @@ from odp.api.models import CatalogModel, PublishedDataCiteRecordModel, Published
 from odp.const import DOI_REGEX, ODPCatalog, ODPScope
 from odp.db import Session
 from odp.db.models import Catalog, CatalogRecord, PublishedRecord
-from odp.lib.datacite import DataciteClient
-from odp.lib.exceptions import DataciteError
+from odp.lib.datacite import DataciteClient, DataciteError
 
 router = APIRouter()
 
