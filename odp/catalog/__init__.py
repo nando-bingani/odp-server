@@ -8,10 +8,10 @@ from sqlalchemy import func, or_, select
 from odp.api.lib.utils import output_published_record_model
 from odp.api.models import PublishedRecordModel, RecordModel
 from odp.api.routers.record import output_record_model
-from odp.cache import Cache
 from odp.const import ODPCatalog, ODPCollectionTag, ODPMetadataSchema, ODPRecordTag
 from odp.db import Session
 from odp.db.models import CatalogRecord, Collection, Provider, PublishedRecord, Record, RecordTag
+from odp.lib.cache import Cache
 
 logger = logging.getLogger(__name__)
 

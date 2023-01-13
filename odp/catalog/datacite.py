@@ -1,12 +1,12 @@
 from jschon import JSON, URI
 
 from odp.api.models import PublishedDataCiteRecordModel, PublishedRecordModel, RecordModel
-from odp.cache import Cache
 from odp.catalog import Catalog, NotPublishedReason, PublishedReason
 from odp.config import config
 from odp.const import DOI_PREFIX, ODPCatalog, ODPMetadataSchema
 from odp.db import Session
 from odp.db.models import CatalogRecord, Schema, SchemaType
+from odp.lib.cache import Cache
 from odp.lib.datacite import DataciteClient, DataciteRecordIn
 from odp.lib.schema import schema_catalog
 

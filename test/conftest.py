@@ -17,13 +17,13 @@ def ensure_coverage():
     want covered must be explicitly imported here.
     """
     # odp-core
-    import odp.cache
     import odp.config
     import odp.const
-    import odp.lib.datacite
     import odp.logger
     import odp.schema
     import odp.version
+    import odp.lib.cache
+    import odp.lib.datacite
 
     # odp-server
     import odp.api
