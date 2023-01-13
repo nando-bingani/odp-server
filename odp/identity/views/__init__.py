@@ -47,10 +47,9 @@ def decode_token(token: str, scope: str) -> tuple:
     :param token: the token to decode
     :param scope: the scope for which the token is valid
     :return: tuple(login_request: dict, challenge: str, brand: str, params: dict)
-    :raises HydraAdminError: if the encoded login challenge is invalid
     """
     if not token:
-        abort(403)  # HTTP 403 Forbidden
+        abort(403)
 
     try:
         serializer = URLSafeSerializer(current_app.secret_key, salt=scope)
@@ -61,18 +60,4 @@ def decode_token(token: str, scope: str) -> tuple:
         return login_request, challenge, brand, params
 
     except BadData:
-        abort(403)  # HTTP 403 Forbidden
-
-
-def hydra_error_page(e):
-    """
-    Requests to the Hydra admin API are critical to the login, consent and logout flows.
-    If anything is wrong with a response from Hydra, we abort.
-
-    :param e: the HydraAdminError exception
-    """
-    current_app.logger.critical(
-        "Hydra %d error for %s %s: %s",
-        e.status_code, e.method, e.endpoint, e.error_detail
-    )
-    abort(500)
+        abort(403)

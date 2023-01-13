@@ -1,10 +1,9 @@
 from authlib.integrations.base_client.errors import OAuthError
 from flask import Blueprint, redirect, request, url_for
 
-from odp.identity import google_oauth2, hydra_admin_api
+from odp.identity import exceptions as x, google_oauth2, hydra_admin_api
 from odp.identity.lib import create_user_account, update_user_profile, update_user_verified, validate_google_login
-from odp.identity.views import decode_token, encode_token, hydra_error_page
-from odp.lib import exceptions as x
+from odp.identity.views import decode_token, encode_token
 
 bp = Blueprint('google', __name__)
 
@@ -20,14 +19,10 @@ def authorize():
     of the Hydra login workflow.
     """
     token = request.args.get('token')
-    try:
-        login_request, challenge, brand, params = decode_token(token, 'login')
-        authorized_token = encode_token('google.authorized', challenge, brand)
-        redirect_uri = url_for('.authorized', _external=True)
-        return google_oauth2.google.authorize_redirect(redirect_uri, state=authorized_token)
-
-    except x.HydraAdminError as e:
-        return hydra_error_page(e)
+    login_request, challenge, brand, params = decode_token(token, 'login')
+    authorized_token = encode_token('google.authorized', challenge, brand)
+    redirect_uri = url_for('.authorized', _external=True)
+    return google_oauth2.google.authorize_redirect(redirect_uri, state=authorized_token)
 
 
 @bp.route('/authorized')
@@ -42,34 +37,30 @@ def authorized():
     our Google authorize view.
     """
     token = request.args.get('state')
+    login_request, challenge, brand, params = decode_token(token, 'google.authorized')
     try:
-        login_request, challenge, brand, params = decode_token(token, 'google.authorized')
         try:
-            try:
-                google_token = google_oauth2.google.authorize_access_token()
-                userinfo = google_token.pop('userinfo')
-                email = userinfo['email']
-                email_verified = userinfo.get('email_verified')
+            google_token = google_oauth2.google.authorize_access_token()
+            userinfo = google_token.pop('userinfo')
+            email = userinfo['email']
+            email_verified = userinfo.get('email_verified')
 
-                if not email_verified:
-                    raise x.ODPEmailNotVerified
+            if not email_verified:
+                raise x.ODPEmailNotVerified
 
-            except (OAuthError, KeyError):
-                raise x.ODPGoogleAuthError
+        except (OAuthError, KeyError):
+            raise x.ODPGoogleAuthError
 
-            try:
-                user_id = validate_google_login(email)
-            except x.ODPUserNotFound:
-                user_id = create_user_account(email)
+        try:
+            user_id = validate_google_login(email)
+        except x.ODPUserNotFound:
+            user_id = create_user_account(email)
 
-            update_user_verified(user_id, True)
-            update_user_profile(user_id, **userinfo)
-            redirect_to = hydra_admin_api.accept_login_request(challenge, user_id)
+        update_user_verified(user_id, True)
+        update_user_profile(user_id, **userinfo)
+        redirect_to = hydra_admin_api.accept_login_request(challenge, user_id)
 
-        except x.ODPIdentityError as e:
-            redirect_to = hydra_admin_api.reject_login_request(challenge, e.error_code, e.error_description)
+    except x.ODPIdentityError as e:
+        redirect_to = hydra_admin_api.reject_login_request(challenge, e.error_code, e.error_description)
 
-        return redirect(redirect_to)
-
-    except x.HydraAdminError as e:
-        return hydra_error_page(e)
+    return redirect(redirect_to)

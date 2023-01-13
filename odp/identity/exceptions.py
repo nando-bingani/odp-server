@@ -1,16 +1,4 @@
-class ODPException(Exception):
-    def __repr__(self):
-        """Return `repr(self)`."""
-        params = ', '.join([
-            f'{attr}={value!r}'
-            for attr, value in self.__dict__.items()
-        ])
-        return f'{self.__class__.__name__}({params})'
-
-
-class ODPIdentityError(ODPException):
-    """ Base exception class for identity service errors """
-
+class ODPIdentityError(Exception):
     # code and description are sent to Hydra when rejecting a login request
     error_code = 'unknown_error'
     error_description = "An unknown error occurred."
@@ -69,13 +57,3 @@ class ODPSignupAuthenticatedUser(ODPIdentityError):
 class ODPGoogleAuthError(ODPIdentityError):
     error_code = 'google_auth_error'
     error_description = "A Google authentication error occurred."
-
-
-class HydraAdminError(ODPException):
-    """ Exception raised when a call to the Hydra admin API fails """
-
-    def __init__(self, *args, **kwargs):
-        self.method = kwargs.pop('method')
-        self.endpoint = kwargs.pop('endpoint')
-        self.status_code = kwargs.pop('status_code')
-        self.error_detail = kwargs.pop('error_detail', str(args))
