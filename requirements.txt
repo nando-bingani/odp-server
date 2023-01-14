@@ -110,7 +110,7 @@ markupsafe==2.1.1
     #   werkzeug
     #   wtforms
 ory-hydra-client==1.11.8
-    # via -r requirements.in
+    # via odp
 packaging==22.0
     # via pytest
 pluggy==1.0.0

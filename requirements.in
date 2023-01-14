@@ -9,7 +9,7 @@ fastapi
 pydantic
 starlette
 jschon
-jschon_translation
+jschon-translation
 redis
 authlib
 flask
@@ -18,12 +18,13 @@ wtforms
 email-validator
 werkzeug
 itsdangerous
-ory-hydra-client==1.11.8
 requests
 
-# build
+# deployment
 uvicorn
 gunicorn
+
+# testing
 pytest
 coverage
 factory-boy
