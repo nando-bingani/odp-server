@@ -199,7 +199,7 @@ def create_user_account(email, password=None, name=None):
         password=ph.hash(password) if password else None,
         active=True,
         verified=False,
-        name=name,
+        name=name or '',
     )
     user.save()
 
