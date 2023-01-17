@@ -8,7 +8,7 @@ from sqlalchemy import select
 from odp.const import ODPSystemRole, SAEON_EMAIL_DOMAINS
 from odp.db import Session
 from odp.db.models import User, UserRole
-from odp.identity import exceptions as x
+from odp.lib import exceptions as x
 
 ph = argon2.PasswordHasher()
 

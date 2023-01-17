@@ -6,8 +6,9 @@ from flask import Blueprint, redirect, request, url_for
 
 from odp.config import config
 from odp.const import ODPScope
-from odp.identity import exceptions as x, hydra_admin_api
+from odp.identity import hydra_admin_api
 from odp.identity.views import encode_token
+from odp.lib import exceptions as x
 from odp.lib.auth import get_user_info, get_user_permissions
 
 bp = Blueprint('hydra', __name__)

@@ -1,9 +1,10 @@
 from authlib.integrations.base_client.errors import OAuthError
 from flask import Blueprint, redirect, request, url_for
 
-from odp.identity import exceptions as x, google_oauth2, hydra_admin_api
+from odp.identity import google_oauth2, hydra_admin_api
 from odp.identity.lib import create_user_account, update_user_profile, update_user_verified, validate_google_login
 from odp.identity.views import decode_token, encode_token
+from odp.lib import exceptions as x
 
 bp = Blueprint('google', __name__)
 

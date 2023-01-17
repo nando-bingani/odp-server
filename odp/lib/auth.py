@@ -3,7 +3,7 @@ from typing import Dict, List, Literal, Optional
 
 from odp.db import Session
 from odp.db.models import Client, User
-from odp.identity import exceptions as x
+from odp.lib import exceptions as x
 
 Permissions = Dict[str, Literal['*'] | List[str]]
 """The effective set of permissions for a user or a client. A dictionary of

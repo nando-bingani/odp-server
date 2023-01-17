@@ -32,6 +32,7 @@ def ensure_coverage():
     import odp.db
     import odp.identity
     import odp.lib.auth
+    import odp.lib.exceptions
     import odp.lib.schema
 
 

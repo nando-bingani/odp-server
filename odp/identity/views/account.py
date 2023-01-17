@@ -1,11 +1,12 @@
 from flask import Blueprint, current_app, flash, redirect, render_template, request, url_for
 from flask_mail import Message
 
-from odp.identity import exceptions as x, hydra_admin_api, mail
+from odp.identity import hydra_admin_api, mail
 from odp.identity.forms import ProfileForm, ResetPasswordForm
 from odp.identity.lib import (get_user_profile, password_complexity_description, update_user_password, update_user_profile, update_user_verified,
                               validate_auto_login, validate_email_verification, validate_password_reset)
 from odp.identity.views import decode_token, encode_token
+from odp.lib import exceptions as x
 
 bp = Blueprint('account', __name__)
 
