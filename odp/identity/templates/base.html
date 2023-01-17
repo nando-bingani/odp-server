@@ -14,7 +14,7 @@
     {% if brand == 'saeon' %}
         {{ super() }}
     {% elif brand == 'nccrd' %}
-        <link rel="icon" href="{{ url_for('static', filename='sa-favicon.ico') }}">
+        <link rel="icon" href="{{ url_for('static', filename='images/sa-favicon.ico') }}">
     {% endif %}
 {% endblock %}
 
@@ -38,13 +38,13 @@
         <nav class="navbar navbar-expand-lg bg-white p-4">
             <div class="container-fluid">
                 <div class="navbar-nav justify-content-start flex-grow-evenly">
-                    {{ nav_logo(file='dffe-logo.png', url='https://www.dffe.gov.za/') }}
+                    {{ nav_logo(image='dffe-logo.png', url='https://www.dffe.gov.za/') }}
                 </div>
                 <div class="navbar-nav justify-content-center">
                     {{ nav_title(title='National Climate Change Response Database', title_view=none) }}
                 </div>
                 <div class="navbar-nav justify-content-end flex-grow-evenly">
-                    {{ nav_logo(file='sa-flag.jpg', url=none, right=true) }}
+                    {{ nav_logo(image='sa-flag.jpg', url=none, right=true) }}
                 </div>
             </div>
         </nav>
