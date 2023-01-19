@@ -3,15 +3,21 @@ source =
     # odp-core
     odp.config
     odp.const
-    odp.logger
+    odp.logfile
     odp.schema
     odp.version
+    odp.lib.cache
+    odp.lib.datacite
+    odp.lib.hydra
+
     # odp-server
     odp.api
     odp.catalog
     odp.db
     odp.identity
-    odp.lib
+    odp.lib.auth
+    odp.lib.exceptions
+    odp.lib.schema
 
 branch = True
 

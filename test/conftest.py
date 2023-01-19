@@ -1,3 +1,6 @@
+from configparser import ConfigParser
+from importlib import import_module
+
 import pytest
 from sqlalchemy import text
 from sqlalchemy_utils import create_database, drop_database
@@ -7,33 +10,22 @@ import odp.db
 from odp.config import config
 
 
-# noinspection PyUnresolvedReferences
 @pytest.fixture(scope='session', autouse=True)
 def ensure_coverage():
     """Coverage cannot automatically discover modules within namespace
     packages, which prevents reporting on unexecuted files and leads to
-    an inflated coverage score. So, any subpackages and modules within
-    namespace packages (viz. `odp`, `odp.lib` and `odp.ui`) that we
-    want covered must be explicitly imported here.
-    """
-    # odp-core
-    import odp.config
-    import odp.const
-    import odp.logfile
-    import odp.schema
-    import odp.version
-    import odp.lib.cache
-    import odp.lib.datacite
-    import odp.lib.hydra
+    an inflated coverage score.
 
-    # odp-server
-    import odp.api
-    import odp.catalog
-    import odp.db
-    import odp.identity
-    import odp.lib.auth
-    import odp.lib.exceptions
-    import odp.lib.schema
+    Any modules and subpackages within namespace packages (viz. `odp`,
+    `odp.lib` and `odp.ui`) that we do want covered must be declared
+    in .coveragerc and also imported here.
+
+    TODO: create issue/PR on coverage to better support namespace packages
+    """
+    coveragerc = ConfigParser()
+    coveragerc.read('.coveragerc')
+    for module in coveragerc['run']['source'].split():
+        import_module(module)
 
 
 @pytest.fixture(scope='session', autouse=True)
