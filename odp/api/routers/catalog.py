@@ -110,6 +110,10 @@ async def search_records(
         catalog_id: str,
         paginator: Paginator = Depends(partial(Paginator, sort='record_id')),
         text_query: str = Query(None, title='Search terms'),
+        north_bound: float = Query(None, title='North bound latitude', ge=-90, le=90),
+        south_bound: float = Query(None, title='South bound latitude', ge=-90, le=90),
+        east_bound: float = Query(None, title='East bound longitude', ge=-180, le=180),
+        west_bound: float = Query(None, title='West bound longitude', ge=-180, le=180),
         start_date: date = Query(None, title='Date range start'),
         end_date: date = Query(None, title='Date range end'),
 ):
@@ -126,6 +130,18 @@ async def search_records(
         stmt = stmt.where(text(
             "full_text @@ plainto_tsquery('english', :text_query)"
         ).bindparams(text_query=text_query))
+
+    if north_bound is not None:
+        stmt = stmt.where(CatalogRecord.spatial_south <= north_bound)
+
+    if south_bound is not None:
+        stmt = stmt.where(CatalogRecord.spatial_north >= south_bound)
+
+    if east_bound is not None:
+        stmt = stmt.where(CatalogRecord.spatial_west <= east_bound)
+
+    if west_bound is not None:
+        stmt = stmt.where(CatalogRecord.spatial_east >= west_bound)
 
     if start_date:
         # if the record has only a start date, it is taken to be its end date too,
