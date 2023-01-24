@@ -116,6 +116,8 @@ async def search_records(
         west_bound: float = Query(None, title='West bound longitude', ge=-180, le=180),
         start_date: date = Query(None, title='Date range start'),
         end_date: date = Query(None, title='Date range end'),
+        exclusive_region: bool = Query(False, title='Exclude partial spatial matches'),
+        exclusive_interval: bool = Query(False, title='Exclude partial temporal matches'),
 ):
     if not Session.get(Catalog, catalog_id):
         raise HTTPException(HTTP_404_NOT_FOUND)
@@ -131,25 +133,49 @@ async def search_records(
             "full_text @@ plainto_tsquery('english', :text_query)"
         ).bindparams(text_query=text_query))
 
-    if north_bound is not None:
-        stmt = stmt.where(CatalogRecord.spatial_south <= north_bound)
+    if exclusive_region:
+        if north_bound is not None:
+            stmt = stmt.where(CatalogRecord.spatial_north <= north_bound)
 
-    if south_bound is not None:
-        stmt = stmt.where(CatalogRecord.spatial_north >= south_bound)
+        if south_bound is not None:
+            stmt = stmt.where(CatalogRecord.spatial_south >= south_bound)
 
-    if east_bound is not None:
-        stmt = stmt.where(CatalogRecord.spatial_west <= east_bound)
+        if east_bound is not None:
+            stmt = stmt.where(CatalogRecord.spatial_east <= east_bound)
 
-    if west_bound is not None:
-        stmt = stmt.where(CatalogRecord.spatial_east >= west_bound)
+        if west_bound is not None:
+            stmt = stmt.where(CatalogRecord.spatial_west >= west_bound)
 
-    if start_date:
-        # if the record has only a start date, it is taken to be its end date too,
-        # rather than considering the record's date range to be open-ended
-        stmt = stmt.where(func.coalesce(CatalogRecord.temporal_end, CatalogRecord.temporal_start) >= start_date)
+    else:
+        if north_bound is not None:
+            stmt = stmt.where(CatalogRecord.spatial_south <= north_bound)
 
-    if end_date:
-        stmt = stmt.where(CatalogRecord.temporal_start <= end_date)
+        if south_bound is not None:
+            stmt = stmt.where(CatalogRecord.spatial_north >= south_bound)
+
+        if east_bound is not None:
+            stmt = stmt.where(CatalogRecord.spatial_west <= east_bound)
+
+        if west_bound is not None:
+            stmt = stmt.where(CatalogRecord.spatial_east >= west_bound)
+
+    if exclusive_interval:
+        if start_date:
+            stmt = stmt.where(CatalogRecord.temporal_start >= start_date)
+
+        if end_date:
+            # if the record has only a start date, it is taken to be its end date too
+            stmt = stmt.where(func.coalesce(CatalogRecord.temporal_end,
+                                            CatalogRecord.temporal_start) <= end_date)
+
+    else:
+        if start_date:
+            # if the record has only a start date, it is taken to be its end date too
+            stmt = stmt.where(func.coalesce(CatalogRecord.temporal_end,
+                                            CatalogRecord.temporal_start) >= start_date)
+
+        if end_date:
+            stmt = stmt.where(CatalogRecord.temporal_start <= end_date)
 
     return paginator.paginate(
         stmt,
