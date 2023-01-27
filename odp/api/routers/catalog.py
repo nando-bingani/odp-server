@@ -123,9 +123,10 @@ async def search_records(
         raise HTTPException(HTTP_404_NOT_FOUND)
 
     stmt = (
-        select(CatalogRecord).
-        where(CatalogRecord.catalog_id == catalog_id).
-        where(CatalogRecord.published)
+        select(CatalogRecord)
+        .where(CatalogRecord.catalog_id == catalog_id)
+        .where(CatalogRecord.published)
+        .where(CatalogRecord.searchable)
     )
 
     if text_query and (text_query := text_query.strip()):
