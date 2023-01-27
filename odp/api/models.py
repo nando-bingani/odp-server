@@ -93,6 +93,18 @@ class CatalogRecordModel(BaseModel):
     published_record: Optional[PublishedSAEONRecordModel | PublishedDataCiteRecordModel]
     reason: str
     timestamp: str
+    external_synced: Optional[bool]
+    external_error: Optional[str]
+    external_error_count: Optional[int]
+    index_full_text: Optional[str]
+    index_keywords: Optional[list[str]]
+    index_spatial_north: Optional[float]
+    index_spatial_east: Optional[float]
+    index_spatial_south: Optional[float]
+    index_spatial_west: Optional[float]
+    index_temporal_start: Optional[str]
+    index_temporal_end: Optional[str]
+    index_searchable: Optional[bool]
 
 
 class ClientModel(BaseModel):

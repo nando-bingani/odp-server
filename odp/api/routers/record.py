@@ -62,6 +62,18 @@ def output_catalog_record_model(catalog_record: CatalogRecord) -> CatalogRecordM
         published_record=output_published_record_model(catalog_record),
         reason=catalog_record.reason,
         timestamp=catalog_record.timestamp.isoformat(),
+        external_synced=catalog_record.synced,
+        external_error=catalog_record.error,
+        external_error_count=catalog_record.error_count,
+        index_full_text=catalog_record.full_text,
+        index_keywords=catalog_record.keywords,
+        index_spatial_north=catalog_record.spatial_north,
+        index_spatial_east=catalog_record.spatial_east,
+        index_spatial_south=catalog_record.spatial_south,
+        index_spatial_west=catalog_record.spatial_west,
+        index_temporal_start=catalog_record.temporal_start.isoformat() if catalog_record.temporal_start else None,
+        index_temporal_end=catalog_record.temporal_end.isoformat() if catalog_record.temporal_end else None,
+        index_searchable=catalog_record.searchable,
     )
 
 
