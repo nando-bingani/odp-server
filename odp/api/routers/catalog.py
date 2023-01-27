@@ -7,7 +7,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from fastapi.responses import RedirectResponse
 from pydantic import UUID4, constr
-from sqlalchemy import and_, func, select, text
+from sqlalchemy import and_, func, or_, select, text
 from starlette.status import HTTP_404_NOT_FOUND, HTTP_422_UNPROCESSABLE_ENTITY
 
 from odp.api.lib.auth import Authorize
@@ -79,6 +79,7 @@ async def get_catalog(
 )
 async def list_records(
         catalog_id: str,
+        include_nonsearchable: bool = False,
         include_retracted: bool = False,
         paginator: Paginator = Depends(partial(Paginator, sort='record_id')),
 ):
@@ -86,9 +87,13 @@ async def list_records(
         raise HTTPException(HTTP_404_NOT_FOUND)
 
     stmt = (
-        select(CatalogRecord).
-        where(CatalogRecord.catalog_id == catalog_id)
+        select(CatalogRecord)
+        .where(CatalogRecord.catalog_id == catalog_id)
     )
+
+    if not include_nonsearchable:
+        stmt = stmt.where(or_(CatalogRecord.searchable == None, CatalogRecord.searchable))
+
     if include_retracted:
         stmt = stmt.join(PublishedRecord, CatalogRecord.record_id == PublishedRecord.id)
     else:
@@ -118,6 +123,7 @@ async def search_records(
         end_date: date = Query(None, title='Date range end'),
         exclusive_region: bool = Query(False, title='Exclude partial spatial matches'),
         exclusive_interval: bool = Query(False, title='Exclude partial temporal matches'),
+        include_nonsearchable: bool = False,
 ):
     if not Session.get(Catalog, catalog_id):
         raise HTTPException(HTTP_404_NOT_FOUND)
@@ -126,7 +132,6 @@ async def search_records(
         select(CatalogRecord)
         .where(CatalogRecord.catalog_id == catalog_id)
         .where(CatalogRecord.published)
-        .where(CatalogRecord.searchable)
     )
 
     if text_query and (text_query := text_query.strip()):
@@ -177,6 +182,9 @@ async def search_records(
 
         if end_date:
             stmt = stmt.where(CatalogRecord.temporal_start <= end_date)
+
+    if not include_nonsearchable:
+        stmt = stmt.where(CatalogRecord.searchable)
 
     return paginator.paginate(
         stmt,
