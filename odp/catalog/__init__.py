@@ -165,17 +165,20 @@ class Catalog:
             catalog_record.published = False
             catalog_record.published_record = None
 
+        catalog_record.reason = ' | '.join(reasons)
+        catalog_record.timestamp = timestamp
+        catalog_record.save()
+
         if self.indexed:
             self._index_catalog_record(catalog_record)
+            catalog_record.save()
 
         if self.external:
             catalog_record.synced = False
             catalog_record.error = None
             catalog_record.error_count = 0
+            catalog_record.save()
 
-        catalog_record.reason = ' | '.join(reasons)
-        catalog_record.timestamp = timestamp
-        catalog_record.save()
         Session.commit()
 
         return catalog_record.published
@@ -345,6 +348,14 @@ class Catalog:
             (catalog_record.temporal_start,
              catalog_record.temporal_end) = self.create_temporal_index_data(published_record)
 
+            # strictly speaking, reading tag instances directly from the DB bypasses the
+            # record snapshot, but this avoids having to publish the not-searchable tags
+            catalog_record.searchable = not any(
+                tag for tag in catalog_record.record.tags if tag.tag_id == ODPRecordTag.NOTSEARCHABLE
+            ) and not any(
+                tag for tag in catalog_record.record.collection.tags if tag.tag_id == ODPCollectionTag.NOTSEARCHABLE
+            )
+
         else:
             catalog_record.full_text = None
             catalog_record.keywords = None
@@ -354,6 +365,7 @@ class Catalog:
             catalog_record.spatial_west = None
             catalog_record.temporal_start = None
             catalog_record.temporal_end = None
+            catalog_record.searchable = None
 
     def create_text_index_data(
             self, published_record: PublishedRecordModel
@@ -398,3 +410,4 @@ def publish_all():
 
     except Exception as e:
         logger.critical(f'PUBLISHING ABORTED: {str(e)}')
+        raise

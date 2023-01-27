@@ -72,6 +72,7 @@ class PublishedSAEONRecordModel(PublishedRecordModel):
     temporal_end: Optional[str]
     timestamp: str
     published: bool = Field(True, const=True)
+    searchable: Optional[bool]
 
 
 class PublishedDataCiteRecordModel(PublishedRecordModel):

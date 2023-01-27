@@ -29,7 +29,7 @@ Collection.Project:
 Collection.NotSearchable:
   type: collection
   cardinality: one
-  public: True
+  public: False
   scope_id: odp.collection:nosearch
   schema_id: Tag.Generic
 
@@ -57,7 +57,7 @@ Record.Embargo:
 Record.NotSearchable:
   type: record
   cardinality: one
-  public: True
+  public: False
   scope_id: odp.record:nosearch
   schema_id: Tag.Generic
 

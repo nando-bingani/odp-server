@@ -31,6 +31,7 @@ def output_published_record_model(catalog_record: CatalogRecord) -> Optional[Pub
             spatial_west=catalog_record.spatial_west,
             temporal_start=catalog_record.temporal_start.isoformat() if catalog_record.temporal_start else None,
             temporal_end=catalog_record.temporal_end.isoformat() if catalog_record.temporal_end else None,
+            searchable=catalog_record.searchable,
         ))
 
     if catalog_record.catalog_id == ODPCatalog.DATACITE:

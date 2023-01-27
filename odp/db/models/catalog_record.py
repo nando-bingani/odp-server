@@ -37,3 +37,4 @@ class CatalogRecord(Base):
     spatial_west = Column(Numeric)
     temporal_start = Column(TIMESTAMP(timezone=True))
     temporal_end = Column(TIMESTAMP(timezone=True))
+    searchable = Column(Boolean)
