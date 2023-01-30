@@ -33,6 +33,13 @@ Collection.NotSearchable:
   scope_id: odp.collection:nosearch
   schema_id: Tag.Generic
 
+Collection.Harvested:
+  type: collection
+  cardinality: one
+  public: False
+  scope_id: odp.collection:harvested
+  schema_id: Tag.Generic
+
 Record.Migrated:
   type: record
   cardinality: one
