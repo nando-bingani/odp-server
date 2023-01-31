@@ -1,6 +1,5 @@
 import logging
 from datetime import date, datetime
-from enum import Enum
 from typing import Optional, final
 
 from sqlalchemy import func, or_, select
@@ -14,23 +13,6 @@ from odp.db.models import CatalogRecord, Collection, Provider, PublishedRecord, 
 from odp.lib.cache import Cache
 
 logger = logging.getLogger(__name__)
-
-
-class PublishedReason(str, Enum):
-    QC_PASSED = 'QC passed'
-    COLLECTION_READY = 'collection ready'
-    MIGRATED_PUBLISHED = 'migrated as published'
-    MIMS_COLLECTION = 'MIMS collection'
-
-
-class NotPublishedReason(str, Enum):
-    QC_FAILED = 'QC failed'
-    COLLECTION_NOT_READY = 'collection not ready'
-    METADATA_INVALID = 'metadata invalid'
-    RECORD_RETRACTED = 'record retracted'
-    MIGRATED_NOT_PUBLISHED = 'migrated as not published'
-    NO_DOI = 'no DOI'
-    NOT_MIMS_COLLECTION = 'not a MIMS collection'
 
 
 class Catalog:
@@ -155,17 +137,21 @@ class Catalog:
         cached_record_dict = self.cache.jget(record_id, expire=True)
         record_model = RecordModel(**cached_record_dict)
 
-        can_publish, reasons = self.evaluate_record(record_model)
-        if can_publish:
+        can_publish_reasons = []
+        cannot_publish_reasons = []
+        self.evaluate_record(record_model, can_publish_reasons, cannot_publish_reasons)
+
+        if not cannot_publish_reasons:
             self._save_published_record(record_model)
             self._process_embargoes(record_model)
             catalog_record.published = True
             catalog_record.published_record = self.create_published_record(record_model).dict()
+            catalog_record.reason = ' | '.join(can_publish_reasons)
         else:
             catalog_record.published = False
             catalog_record.published_record = None
+            catalog_record.reason = ' | '.join(cannot_publish_reasons)
 
-        catalog_record.reason = ' | '.join(reasons)
         catalog_record.timestamp = timestamp
         catalog_record.save()
 
@@ -183,13 +169,21 @@ class Catalog:
 
         return catalog_record.published
 
-    def evaluate_record(self, record_model: RecordModel) -> tuple[bool, list[PublishedReason | NotPublishedReason]]:
+    def evaluate_record(
+            self,
+            record_model: RecordModel,
+            can_publish_reasons: list[str],
+            cannot_publish_reasons: list[str],
+    ) -> None:
         """Evaluate whether a record can be published.
 
         Universal rules are defined here; derived Catalog classes
         may extend these with catalog-specific rules.
 
-        :return: tuple(can_publish: bool, reasons: list)
+        Reasons for publishing MAY be added to can_publish_reasons.
+
+        Reasons for not publishing MUST be added to cannot_publish_reasons:
+        the caller uses this to decide whether or not to publish the record.
         """
         # tag for a record migrated without any subsequent changes
         migrated_tag = next(
@@ -210,37 +204,29 @@ class Catalog:
         )
         metadata_valid = record_model.validity['valid']
 
-        published_reasons = []
-        not_published_reasons = []
-
         # collection readiness applies to both migrated and non-migrated records
         if collection_ready:
-            published_reasons += [PublishedReason.COLLECTION_READY]
+            can_publish_reasons += ['collection ready']
         else:
-            not_published_reasons += [NotPublishedReason.COLLECTION_NOT_READY]
+            cannot_publish_reasons += ['collection not ready']
 
         if migrated_tag:
             if migrated_tag.data['published']:
-                published_reasons += [PublishedReason.MIGRATED_PUBLISHED]
+                can_publish_reasons += ['migrated as published']
             else:
-                not_published_reasons += [NotPublishedReason.MIGRATED_NOT_PUBLISHED]
+                cannot_publish_reasons += ['migrated as not published']
 
         else:
             if qc_passed:
-                published_reasons += [PublishedReason.QC_PASSED]
+                can_publish_reasons += ['QC passed']
             else:
-                not_published_reasons += [NotPublishedReason.QC_FAILED]
+                cannot_publish_reasons += ['QC failed']
 
             if retracted:
-                not_published_reasons += [NotPublishedReason.RECORD_RETRACTED]
+                cannot_publish_reasons += ['record retracted']
 
             if not metadata_valid:
-                not_published_reasons += [NotPublishedReason.METADATA_INVALID]
-
-        if not_published_reasons:
-            return False, not_published_reasons
-
-        return True, published_reasons
+                cannot_publish_reasons += ['metadata invalid']
 
     def create_published_record(self, record_model: RecordModel) -> PublishedRecordModel:
         """Create the published form of a record."""

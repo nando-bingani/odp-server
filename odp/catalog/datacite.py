@@ -1,7 +1,7 @@
 from jschon import JSON, URI
 
 from odp.api.models import PublishedDataCiteRecordModel, PublishedRecordModel, RecordModel
-from odp.catalog import Catalog, NotPublishedReason, PublishedReason
+from odp.catalog import Catalog
 from odp.config import config
 from odp.const import DOI_PREFIX, ODPCatalog, ODPMetadataSchema
 from odp.db import Session
@@ -24,21 +24,22 @@ class DataCiteCatalog(Catalog):
         )
         self.doi_return_url = config.ODP.API_URL + f'/catalog/{ODPCatalog.SAEON}/go'
 
-    def evaluate_record(self, record_model: RecordModel) -> tuple[bool, list[PublishedReason | NotPublishedReason]]:
+    def evaluate_record(
+            self,
+            record_model: RecordModel,
+            can_publish_reasons: list[str],
+            cannot_publish_reasons: list[str],
+    ) -> None:
         """Evaluate whether a record can be published.
 
         Only records with DOIs can be published to DataCite.
-
-        :return: tuple(can_publish: bool, reasons: list)
         """
-        can_publish, reasons = super().evaluate_record(record_model)
+        super().evaluate_record(record_model, can_publish_reasons, cannot_publish_reasons)
 
-        if not record_model.doi:
-            if can_publish:
-                return False, [NotPublishedReason.NO_DOI]
-            return False, reasons + [NotPublishedReason.NO_DOI]
-
-        return can_publish, reasons
+        if record_model.doi:
+            can_publish_reasons += ['has DOI']
+        else:
+            cannot_publish_reasons += ['no DOI']
 
     def create_published_record(self, record_model: RecordModel) -> PublishedRecordModel:
         """Create the published form of a record."""
