@@ -194,6 +194,9 @@ class Catalog:
         collection_ready = any(
             (tag for tag in record_model.tags if tag.tag_id == ODPCollectionTag.READY)
         )
+        collection_harvested = any(
+            (tag for tag in record_model.tags if tag.tag_id == ODPCollectionTag.HARVESTED)
+        )
         qc_passed = any(
             (tag for tag in record_model.tags if tag.tag_id == ODPRecordTag.QC and tag.data['pass_'])
         ) and not any(
@@ -217,7 +220,10 @@ class Catalog:
                 cannot_publish_reasons += ['migrated as not published']
 
         else:
-            if qc_passed:
+            # if a collection is tagged as harvested, QC is ignored
+            if collection_harvested:
+                can_publish_reasons += ['collection harvested']
+            elif qc_passed:
                 can_publish_reasons += ['QC passed']
             else:
                 cannot_publish_reasons += ['QC failed']
