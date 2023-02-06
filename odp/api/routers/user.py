@@ -5,14 +5,31 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from starlette.status import HTTP_404_NOT_FOUND, HTTP_422_UNPROCESSABLE_ENTITY
 
-from odp.api.lib.auth import Authorize
+from odp.api.lib.auth import Authorize, Authorized
 from odp.api.lib.paging import Page, Paginator
 from odp.api.models import UserModel, UserModelIn
 from odp.const import ODPScope
 from odp.db import Session
-from odp.db.models import Role, User
+from odp.db.models import IdentityAudit, IdentityCommand, Role, User
 
 router = APIRouter()
+
+
+def create_audit_record(
+        auth: Authorized,
+        user: User,
+        command: IdentityCommand,
+) -> None:
+    IdentityAudit(
+        client_id=auth.client_id,
+        user_id=auth.user_id,
+        command=command,
+        completed=True,
+        _id=user.id,
+        _email=user.email,
+        _active=user.active,
+        _roles=[role.id for role in user.roles],
+    ).save()
 
 
 @router.get(
@@ -61,10 +78,10 @@ async def get_user(
 
 @router.put(
     '/',
-    dependencies=[Depends(Authorize(ODPScope.USER_ADMIN))],
 )
 async def update_user(
         user_in: UserModelIn,
+        auth: Authorized = Depends(Authorize(ODPScope.USER_ADMIN)),
 ):
     if not (user := Session.get(User, user_in.id)):
         raise HTTPException(HTTP_404_NOT_FOUND)
@@ -75,20 +92,23 @@ async def update_user(
         for role_id in user_in.role_ids
     ]
     user.save()
+    create_audit_record(auth, user, IdentityCommand.edit)
 
 
 @router.delete(
     '/{user_id}',
-    dependencies=[Depends(Authorize(ODPScope.USER_ADMIN))],
 )
 async def delete_user(
         user_id: str,
+        auth: Authorized = Depends(Authorize(ODPScope.USER_ADMIN)),
 ):
     if not (user := Session.get(User, user_id)):
         raise HTTPException(HTTP_404_NOT_FOUND)
 
     try:
+        create_audit_record(auth, user, IdentityCommand.delete)
         user.delete()
+
     except IntegrityError as e:
         raise HTTPException(
             HTTP_422_UNPROCESSABLE_ENTITY,
