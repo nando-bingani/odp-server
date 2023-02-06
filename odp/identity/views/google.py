@@ -55,7 +55,7 @@ def authorized():
             raise x.ODPGoogleAuthError
 
         try:
-            user_id = validate_google_login(email)
+            user_id = validate_google_login(client_id, email)
         except x.ODPUserNotFound:
             user_id = create_user_account(client_id, email)
 

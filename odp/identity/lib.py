@@ -363,29 +363,42 @@ def password_complexity_description():
            "from your email address."
 
 
-def validate_google_login(email):
+def validate_google_login(
+        client_id: str,
+        email: str,
+) -> str:
     """
     Validate a login completed via Google, returning the user id on success.
     An ``ODPIdentityError`` is raised if the login cannot be permitted for any reason.
 
+    :param client_id: the app from which login was initiated
     :param email: the Google email address
+    :return: the user id
 
     :raises ODPUserNotFound: if there is no user account for the given email address
     :raises ODPAccountLocked: if the user account has been temporarily locked
     :raises ODPAccountDisabled: if the user account has been deactivated
     :raises ODPEmailNotVerified: if the email address has not been verified
     """
-    user = get_user_by_email(email)
-    if not user:
-        raise x.ODPUserNotFound
+    try:
+        if not Session.get(Client, client_id):
+            raise x.ODPClientNotFound
 
-    if is_account_locked(user.id):
-        raise x.ODPAccountLocked
+        if not (user := get_user_by_email(email)):
+            raise x.ODPUserNotFound
 
-    if not user.active:
-        raise x.ODPAccountDisabled
+        if is_account_locked(user.id):
+            raise x.ODPAccountLocked
 
-    return user.id
+        if not user.active:
+            raise x.ODPAccountDisabled
+
+        _create_audit_record(client_id, IdentityCommand.login, True, user_id=user.id)
+        return user.id
+
+    except x.ODPIdentityError as e:
+        _create_audit_record(client_id, IdentityCommand.login, False, e, email=email)
+        raise
 
 
 def update_user_profile(user_id, **userinfo):
