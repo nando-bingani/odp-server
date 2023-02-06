@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 from sqlalchemy import ARRAY, Boolean, Column, Enum, Identity, Integer, String, TIMESTAMP
 
 from odp.db import Base
@@ -11,11 +13,11 @@ class IdentityAudit(Base):
 
     id = Column(Integer, Identity(), primary_key=True)
     client_id = Column(String, nullable=False)
-    user_id = Column(String)
+    user_id = Column(String)  # admin user id, for user edit/delete
     command = Column(Enum(IdentityCommand), nullable=False)
     completed = Column(Boolean, nullable=False)
     error = Column(String)
-    timestamp = Column(TIMESTAMP(timezone=True), nullable=False)
+    timestamp = Column(TIMESTAMP(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
 
     _id = Column(String)
     _email = Column(String)

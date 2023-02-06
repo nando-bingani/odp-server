@@ -7,7 +7,7 @@ from sqlalchemy import select
 
 from odp.const import ODPSystemRole, SAEON_EMAIL_DOMAINS
 from odp.db import Session
-from odp.db.models import User, UserRole
+from odp.db.models import Client, IdentityAudit, IdentityCommand, User, UserRole
 from odp.lib import exceptions as x
 
 ph = argon2.PasswordHasher()
@@ -19,11 +19,16 @@ def get_user_by_email(email: str) -> Optional[User]:
     ).scalar_one_or_none()
 
 
-def validate_user_login(email, password):
+def validate_user_login(
+        client_id: str,
+        email: str,
+        password: str,
+) -> str:
     """
     Validate the credentials supplied by a user via the login form, returning the user id
     on success. An ``ODPIdentityError`` is raised if the login cannot be permitted for any reason.
 
+    :param client_id: the app from which login was initiated
     :param email: the input email address
     :param password: the input plain-text password
     :return: the user id
@@ -34,41 +39,49 @@ def validate_user_login(email, password):
     :raises ODPAccountDisabled: if the user account has been deactivated
     :raises ODPEmailNotVerified: if the email address has not yet been verified
     """
-    user = get_user_by_email(email)
-    if not user:
-        raise x.ODPUserNotFound
-
-    # no password => either it's a non-human user (e.g. harvester),
-    # or the user must be externally authenticated (e.g. via Google)
-    if not user.password:
-        raise x.ODPNoPassword
-
-    # first check whether the account is currently locked and should still be locked, unlocking it if necessary
-    if is_account_locked(user.id):
-        raise x.ODPAccountLocked
-
-    # check the password before checking further account properties, to minimize the amount of knowledge
-    # a potential attacker can gain about an account
     try:
-        ph.verify(user.password, password)
+        if not Session.get(Client, client_id):
+            raise x.ODPClientNotFound
 
-        # if argon2_cffi's password hashing defaults have changed, we rehash the user's password
-        if ph.check_needs_rehash(user.password):
-            user.password = ph.hash(password)
-            user.save()
+        if not (user := get_user_by_email(email)):
+            raise x.ODPUserNotFound
 
-    except VerifyMismatchError:
-        if lock_account(user.id):
+        # no password => either it's a non-human user (e.g. harvester),
+        # or the user must be externally authenticated (e.g. via Google)
+        if not user.password:
+            raise x.ODPNoPassword
+
+        # first check whether the account is currently locked and should still be locked, unlocking it if necessary
+        if is_account_locked(user.id):
             raise x.ODPAccountLocked
-        raise x.ODPIncorrectPassword
 
-    if not user.active:
-        raise x.ODPAccountDisabled
+        # check the password before checking further account properties, to minimize the amount of knowledge
+        # a potential attacker can gain about an account
+        try:
+            ph.verify(user.password, password)
 
-    if not user.verified:
-        raise x.ODPEmailNotVerified
+            # if argon2_cffi's password hashing defaults have changed, we rehash the user's password
+            if ph.check_needs_rehash(user.password):
+                user.password = ph.hash(password)
+                user.save()
 
-    return user.id
+        except VerifyMismatchError:
+            if lock_account(user.id):
+                raise x.ODPAccountLocked
+            raise x.ODPIncorrectPassword
+
+        if not user.active:
+            raise x.ODPAccountDisabled
+
+        if not user.verified:
+            raise x.ODPEmailNotVerified
+
+        _create_audit_record(client_id, IdentityCommand.login, True, user_id=user.id)
+        return user.id
+
+    except x.ODPIdentityError as e:
+        _create_audit_record(client_id, IdentityCommand.login, False, e, email=email)
+        raise
 
 
 def validate_auto_login(user_id):
@@ -348,3 +361,33 @@ def get_user_profile_by_email(email):
         raise x.ODPUserNotFound
 
     return get_user_profile(user.id)
+
+
+def _create_audit_record(
+        client_id: str,
+        command: IdentityCommand,
+        completed: bool,
+        exc: x.ODPIdentityError = None,
+        *,
+        user_id: str = None,
+        email: str = None,
+):
+    if user_id:
+        user = Session.get(User, user_id)
+        email = user.email if user else None
+    elif email:
+        user = get_user_by_email(email)
+        user_id = user.id if user else None
+    else:
+        assert False
+
+    IdentityAudit(
+        client_id=client_id,
+        command=command,
+        completed=completed,
+        error=exc.error_code if exc else None,
+        _id=user_id,
+        _email=email,
+        _active=user.active if user else None,
+        _roles=[role.id for role in user.roles] if user else None,
+    ).save()

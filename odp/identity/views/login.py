@@ -21,6 +21,7 @@ def login():
     token = request.args.get('token')
     login_request, challenge, brand, params = decode_token(token, 'login')
 
+    client_id = login_request['client']['client_id']
     user_id = None
     error = None
     form = LoginForm(request.form)
@@ -45,7 +46,7 @@ def login():
             email = form.email.data
             password = form.password.data
             try:
-                user_id = validate_user_login(email, password)
+                user_id = validate_user_login(client_id, email, password)
 
             except x.ODPUserNotFound:
                 form.email.errors.append("The email address is not associated with any user account.")
