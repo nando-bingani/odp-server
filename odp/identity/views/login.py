@@ -33,7 +33,7 @@ def login():
         if authenticated:
             user_id = login_request['subject']
             try:
-                validate_auto_login(user_id)
+                validate_auto_login(client_id, user_id)
             except x.ODPIdentityError as e:
                 # any validation error => reject login
                 user_id = None

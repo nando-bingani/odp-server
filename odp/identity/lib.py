@@ -84,12 +84,16 @@ def validate_user_login(
         raise
 
 
-def validate_auto_login(user_id):
+def validate_auto_login(
+        client_id: str,
+        user_id: str,
+) -> None:
     """
     Validate a login request for which Hydra has indicated that the user is already authenticated,
     returning the user object on success. An ``ODPIdentityError`` is raised if the login cannot be
     permitted for any reason.
 
+    :param client_id: the app from which login was initiated
     :param user_id: the user id
 
     :raises ODPUserNotFound: if the user account associated with this id has been deleted
@@ -98,18 +102,27 @@ def validate_auto_login(user_id):
     :raises ODPEmailNotVerified: if the user changed their email address since their last login,
         but have not yet verified it
     """
-    user = Session.get(User, user_id)
-    if not user:
-        raise x.ODPUserNotFound
+    try:
+        if not Session.get(Client, client_id):
+            raise x.ODPClientNotFound
 
-    if is_account_locked(user_id):
-        raise x.ODPAccountLocked
+        if not (user := Session.get(User, user_id)):
+            raise x.ODPUserNotFound
 
-    if not user.active:
-        raise x.ODPAccountDisabled
+        if is_account_locked(user_id):
+            raise x.ODPAccountLocked
 
-    if not user.verified:
-        raise x.ODPEmailNotVerified
+        if not user.active:
+            raise x.ODPAccountDisabled
+
+        if not user.verified:
+            raise x.ODPEmailNotVerified
+
+        _create_audit_record(client_id, IdentityCommand.auto_login, True, user_id=user_id)
+
+    except x.ODPIdentityError as e:
+        _create_audit_record(client_id, IdentityCommand.auto_login, False, e, user_id=user_id)
+        raise
 
 
 def is_account_locked(user_id):

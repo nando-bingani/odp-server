@@ -45,11 +45,12 @@ def verify_email_complete():
     token = request.args.get('token')
     login_request, challenge, brand, params = decode_token(token, 'account.verify_email_complete')
 
+    client_id = login_request['client']['client_id']
     user_id = params.get('user_id')
 
     if request.method == 'POST':
         try:
-            validate_auto_login(user_id)
+            validate_auto_login(client_id, user_id)
             redirect_to = hydra_admin_api.accept_login_request(challenge, user_id)
 
         except x.ODPIdentityError as e:
@@ -68,13 +69,14 @@ def profile():
     token = request.args.get('token')
     login_request, challenge, brand, params = decode_token(token, 'account.profile')
 
+    client_id = login_request['client']['client_id']
     user_id = params.get('user_id')
     user_info = get_user_profile(user_id)
     form = ProfileForm(**user_info)
 
     if request.method == 'POST':
         try:
-            validate_auto_login(user_id)
+            validate_auto_login(client_id, user_id)
             update_user_profile(user_id, **form.data)
             redirect_to = hydra_admin_api.accept_login_request(challenge, user_id)
 
@@ -134,11 +136,12 @@ def reset_password_complete():
     token = request.args.get('token')
     login_request, challenge, brand, params = decode_token(token, 'account.reset_password_complete')
 
+    client_id = login_request['client']['client_id']
     user_id = params.get('user_id')
 
     if request.method == 'POST':
         try:
-            validate_auto_login(user_id)
+            validate_auto_login(client_id, user_id)
             redirect_to = hydra_admin_api.accept_login_request(challenge, user_id)
 
         except x.ODPIdentityError as e:
