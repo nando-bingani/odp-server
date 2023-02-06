@@ -135,10 +135,14 @@ def lock_account(user_id):
     return False
 
 
-def validate_forgot_password(email):
+def validate_forgot_password(
+        client_id: str,
+        email: str,
+) -> str:
     """
     Validate that a forgotten password request is for a valid email address.
 
+    :param client_id: the app from which login was initiated
     :param email: the input email address
     :return: the user id
 
@@ -146,23 +150,36 @@ def validate_forgot_password(email):
     :raises ODPAccountLocked: if the user account has been temporarily locked
     :raises ODPAccountDisabled: if the user account has been deactivated
     """
-    user = get_user_by_email(email)
-    if not user:
-        raise x.ODPUserNotFound
+    try:
+        if not Session.get(Client, client_id):
+            raise x.ODPClientNotFound
 
-    if is_account_locked(user.id):
-        raise x.ODPAccountLocked
+        if not (user := get_user_by_email(email)):
+            raise x.ODPUserNotFound
 
-    if not user.active:
-        raise x.ODPAccountDisabled
+        if is_account_locked(user.id):
+            raise x.ODPAccountLocked
 
-    return user.id
+        if not user.active:
+            raise x.ODPAccountDisabled
+
+        # we'll create the completion audit record in validate_password_reset
+        return user.id
+
+    except x.ODPIdentityError as e:
+        _create_audit_record(client_id, IdentityCommand.change_password, False, e, email=email)
+        raise
 
 
-def validate_password_reset(email, password):
+def validate_password_reset(
+        client_id: str,
+        email: str,
+        password: str,
+) -> str:
     """
     Validate a new password set by the user.
 
+    :param client_id: the app from which login was initiated
     :param email: the user's email address
     :param password: the new password
     :return: the user id
@@ -170,14 +187,22 @@ def validate_password_reset(email, password):
     :raises ODPUserNotFound: if the email address is not associated with any user account
     :raises ODPPasswordComplexityError: if the password does not meet the minimum complexity requirements
     """
-    user = get_user_by_email(email)
-    if not user:
-        raise x.ODPUserNotFound
+    try:
+        if not Session.get(Client, client_id):
+            raise x.ODPClientNotFound
 
-    if not check_password_complexity(email, password):
-        raise x.ODPPasswordComplexityError
+        if not (user := get_user_by_email(email)):
+            raise x.ODPUserNotFound
 
-    return user.id
+        if not check_password_complexity(email, password):
+            raise x.ODPPasswordComplexityError
+
+        _create_audit_record(client_id, IdentityCommand.change_password, True, email=email)
+        return user.id
+
+    except x.ODPIdentityError as e:
+        _create_audit_record(client_id, IdentityCommand.change_password, False, e, email=email)
+        raise
 
 
 def validate_email_verification(email):

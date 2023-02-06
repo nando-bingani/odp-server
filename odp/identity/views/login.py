@@ -106,6 +106,7 @@ def forgot_password():
     token = request.args.get('token')
     login_request, challenge, brand, params = decode_token(token, 'login')
 
+    client_id = login_request['client']['client_id']
     form = ForgotPasswordForm(request.form)
     sent = False
 
@@ -113,7 +114,7 @@ def forgot_password():
         if form.validate():
             email = form.email.data
             try:
-                user_id = validate_forgot_password(email)
+                user_id = validate_forgot_password(client_id, email)
                 name = get_user_profile_by_email(email)['name']
                 send_password_reset_email(email, name, challenge, brand)
                 sent = True

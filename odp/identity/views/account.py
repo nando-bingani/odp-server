@@ -98,6 +98,7 @@ def reset_password():
     token = request.args.get('token')
     login_request, challenge, brand, params = decode_token(token, 'account.reset_password')
 
+    client_id = login_request['client']['client_id']
     form = ResetPasswordForm(request.form)
     email = params.get('email')
 
@@ -106,7 +107,7 @@ def reset_password():
             password = form.password.data
             redirect_to = None
             try:
-                user_id = validate_password_reset(email, password)
+                user_id = validate_password_reset(client_id, email, password)
                 update_user_password(user_id, password)
                 flash("Your password has been changed.")
 
