@@ -205,20 +205,32 @@ def validate_password_reset(
         raise
 
 
-def validate_email_verification(email):
+def validate_email_verification(
+        client_id: str,
+        email: str,
+) -> str:
     """
     Validate an email verification.
 
+    :param client_id: the app from which login was initiated
     :param email: the user's email address
     :return: the user id
 
     :raises ODPUserNotFound: if the email address is not associated with any user account
     """
-    user = get_user_by_email(email)
-    if not user:
-        raise x.ODPUserNotFound
+    try:
+        if not Session.get(Client, client_id):
+            raise x.ODPClientNotFound
 
-    return user.id
+        if not (user := get_user_by_email(email)):
+            raise x.ODPUserNotFound
+
+        _create_audit_record(client_id, IdentityCommand.verify_email, True, email=email)
+        return user.id
+
+    except x.ODPIdentityError as e:
+        _create_audit_record(client_id, IdentityCommand.verify_email, False, e, email=email)
+        raise
 
 
 def create_user_account(email, password=None, name=None):

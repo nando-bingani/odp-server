@@ -20,9 +20,10 @@ def verify_email():
     token = request.args.get('token')
     login_request, challenge, brand, params = decode_token(token, 'account.verify_email')
 
+    client_id = login_request['client']['client_id']
     email = params.get('email')
     try:
-        user_id = validate_email_verification(email)
+        user_id = validate_email_verification(client_id, email)
         update_user_verified(user_id, True)
         flash("Your email address has been verified.")
 
