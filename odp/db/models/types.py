@@ -1,45 +1,35 @@
 from enum import Enum
 
 
-class SchemaType(str, Enum):
+class DBEnum(str, Enum):
+    def __repr__(self):
+        return repr(self.value)
+
+
+class SchemaType(DBEnum):
     metadata = 'metadata'
     tag = 'tag'
     vocabulary = 'vocabulary'
 
-    def __repr__(self):
-        return repr(self.value)
 
-
-class ScopeType(str, Enum):
+class ScopeType(DBEnum):
     odp = 'odp'
     oauth = 'oauth'
     client = 'client'
 
-    def __repr__(self):
-        return repr(self.value)
 
-
-class TagType(str, Enum):
+class TagType(DBEnum):
     collection = 'collection'
     record = 'record'
 
-    def __repr__(self):
-        return repr(self.value)
 
-
-class TagCardinality(str, Enum):
+class TagCardinality(DBEnum):
     one = 'one'  # one tag instance per object
     user = 'user'  # one tag instance per user per object
     multi = 'multi'  # multiple tag instances per user per object
 
-    def __repr__(self):
-        return repr(self.value)
 
-
-class AuditCommand(str, Enum):
+class AuditCommand(DBEnum):
     insert = 'insert'
     update = 'update'
     delete = 'delete'
-
-    def __repr__(self):
-        return repr(self.value)
