@@ -38,6 +38,7 @@ class AuditCommand(DBEnum):
 class IdentityCommand(DBEnum):
     signup = 'signup'
     login = 'login'
+    auto_login = 'auto_login'
     verify_email = 'verify_email'
     change_password = 'change_password'
     migrate = 'migrate'
