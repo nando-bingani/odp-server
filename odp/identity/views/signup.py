@@ -23,6 +23,7 @@ def signup():
     # switch between login and signup using the same token
     login_request, challenge, brand, params = decode_token(token, 'login')
 
+    client_id = login_request['client']['client_id']
     form = SignupForm(request.form)
     try:
         if request.method == 'GET':
@@ -39,7 +40,7 @@ def signup():
                 password = form.password.data
                 name = form.name.data
                 try:
-                    create_user_account(email, password, name)
+                    create_user_account(client_id, email, password, name)
 
                     # the signup (and login) is completed via email verification
                     send_verification_email(email, name, challenge, brand)

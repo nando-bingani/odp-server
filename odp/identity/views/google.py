@@ -39,6 +39,8 @@ def authorized():
     """
     token = request.args.get('state')
     login_request, challenge, brand, params = decode_token(token, 'google.authorized')
+
+    client_id = login_request['client']['client_id']
     try:
         try:
             google_token = google_oauth2.google.authorize_access_token()
@@ -55,7 +57,7 @@ def authorized():
         try:
             user_id = validate_google_login(email)
         except x.ODPUserNotFound:
-            user_id = create_user_account(email)
+            user_id = create_user_account(client_id, email)
 
         update_user_verified(user_id, True)
         update_user_profile(user_id, **userinfo)

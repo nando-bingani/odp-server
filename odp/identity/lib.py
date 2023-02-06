@@ -1,5 +1,4 @@
 import re
-from typing import Optional
 
 import argon2
 from argon2.exceptions import VerifyMismatchError
@@ -13,7 +12,7 @@ from odp.lib import exceptions as x
 ph = argon2.PasswordHasher()
 
 
-def get_user_by_email(email: str) -> Optional[User]:
+def get_user_by_email(email: str) -> User | None:
     return Session.execute(
         select(User).where(User.email == email)
     ).scalar_one_or_none()
@@ -233,7 +232,12 @@ def validate_email_verification(
         raise
 
 
-def create_user_account(email, password=None, name=None):
+def create_user_account(
+        client_id: str,
+        email: str,
+        password: str = None,
+        name: str = None,
+) -> str:
     """
     Create a new user account with the specified credentials and
     assign a default role. Password may be omitted if the user is
@@ -242,6 +246,7 @@ def create_user_account(email, password=None, name=None):
 
     The password, if supplied, is hashed using the Argon2id algorithm.
 
+    :param client_id: the app from which signup was initiated
     :param email: the input email address
     :param password: (optional) the input plain-text password
     :param name: (optional) the user's personal name
@@ -250,25 +255,33 @@ def create_user_account(email, password=None, name=None):
     :raises ODPEmailInUse: if the email address is already associated with a user account
     :raises ODPPasswordComplexityError: if the password does not meet the minimum complexity requirements
     """
-    user = get_user_by_email(email)
-    if user:
-        raise x.ODPEmailInUse
+    try:
+        if not Session.get(Client, client_id):
+            raise x.ODPClientNotFound
 
-    if password is not None and not check_password_complexity(email, password):
-        raise x.ODPPasswordComplexityError
+        if get_user_by_email(email):
+            raise x.ODPEmailInUse
 
-    user = User(
-        email=email,
-        password=ph.hash(password) if password else None,
-        active=True,
-        verified=False,
-        name=name or '',
-    )
-    user.save()
+        if password is not None and not check_password_complexity(email, password):
+            raise x.ODPPasswordComplexityError
 
-    assign_default_role(user.id)
+        user = User(
+            email=email,
+            password=ph.hash(password) if password else None,
+            active=True,
+            verified=False,
+            name=name or '',
+        )
+        user.save()
 
-    return user.id
+        assign_default_role(user.id)
+
+        _create_audit_record(client_id, IdentityCommand.signup, True, email=email)
+        return user.id
+
+    except x.ODPIdentityError as e:
+        _create_audit_record(client_id, IdentityCommand.signup, False, e, email=email)
+        raise
 
 
 def assign_default_role(user_id):
