@@ -33,3 +33,13 @@ class AuditCommand(DBEnum):
     insert = 'insert'
     update = 'update'
     delete = 'delete'
+
+
+class IdentityCommand(DBEnum):
+    signup = 'signup'
+    login = 'login'
+    verify_email = 'verify_email'
+    change_password = 'change_password'
+    migrate = 'migrate'
+    edit = 'edit'
+    delete = 'delete'
