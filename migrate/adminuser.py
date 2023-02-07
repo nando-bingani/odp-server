@@ -4,7 +4,7 @@ import argon2
 
 from odp.const import ODPSystemRole
 from odp.db import Session
-from odp.db.models import User, UserRole
+from odp.db.models import IdentityAudit, IdentityCommand, User, UserRole
 
 
 def create_admin_user():
@@ -25,8 +25,17 @@ def create_admin_user():
         )
         user.save()
 
-        user_role = UserRole(
+        UserRole(
             user_id=user.id,
             role_id=ODPSystemRole.ODP_ADMIN,
-        )
-        user_role.save()
+        ).save()
+
+        IdentityAudit(
+            client_id='None',
+            command=IdentityCommand.create,
+            completed=True,
+            _id=user.id,
+            _email=user.email,
+            _active=user.active,
+            _roles=[role.id for role in user.roles],
+        ).save()
