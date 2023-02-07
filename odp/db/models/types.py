@@ -36,11 +36,12 @@ class AuditCommand(DBEnum):
 
 
 class IdentityCommand(DBEnum):
+    # operations performed by the user
     signup = 'signup'
     login = 'login'
-    auto_login = 'auto_login'
     verify_email = 'verify_email'
     change_password = 'change_password'
-    migrate = 'migrate'
+    # operations performed by an admin/system
+    create = 'create'
     edit = 'edit'
     delete = 'delete'

@@ -117,10 +117,10 @@ def validate_auto_login(
         if not user.verified:
             raise x.ODPEmailNotVerified
 
-        _create_audit_record(client_id, IdentityCommand.auto_login, True, user_id=user_id)
+        _create_audit_record(client_id, IdentityCommand.login, True, user_id=user_id)
 
     except x.ODPIdentityError as e:
-        _create_audit_record(client_id, IdentityCommand.auto_login, False, e, user_id=user_id)
+        _create_audit_record(client_id, IdentityCommand.login, False, e, user_id=user_id)
         raise
 
 
