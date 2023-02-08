@@ -21,5 +21,5 @@ class IdentityAudit(Base):
 
     _id = Column(String)
     _email = Column(String)
-    _active = Column(String)
+    _active = Column(Boolean)
     _roles = Column(ARRAY(String))
