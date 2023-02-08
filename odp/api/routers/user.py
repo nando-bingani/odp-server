@@ -7,7 +7,7 @@ from starlette.status import HTTP_404_NOT_FOUND, HTTP_422_UNPROCESSABLE_ENTITY
 
 from odp.api.lib.auth import Authorize, Authorized
 from odp.api.lib.paging import Page, Paginator
-from odp.api.models import UserModel, UserModelIn
+from odp.api.models import IdentityAuditModel, UserModel, UserModelIn
 from odp.const import ODPScope
 from odp.db import Session
 from odp.db.models import IdentityAudit, IdentityCommand, Role, User
@@ -30,6 +30,23 @@ def create_audit_record(
         _active=user.active,
         _roles=[role.id for role in user.roles],
     ).save()
+
+
+def output_audit_model(row) -> IdentityAuditModel:
+    return IdentityAuditModel(
+        audit_id=row.IdentityAudit.id,
+        client_id=row.IdentityAudit.client_id,
+        client_user_id=row.IdentityAudit.user_id,
+        client_user_name=row.user_name,
+        command=row.IdentityAudit.command,
+        completed=row.IdentityAudit.completed,
+        error=row.IdentityAudit.error,
+        timestamp=row.IdentityAudit.timestamp.isoformat(),
+        user_id=row.IdentityAudit._id,
+        user_email=row.IdentityAudit._email,
+        user_active=row.IdentityAudit._active,
+        user_roles=row.IdentityAudit._roles,
+    )
 
 
 @router.get(
@@ -114,3 +131,44 @@ async def delete_user(
             HTTP_422_UNPROCESSABLE_ENTITY,
             'The user cannot be deleted due to associated tag instance data.',
         ) from e
+
+
+@router.get(
+    '/{user_id}/audit',
+    response_model=Page[IdentityAuditModel],
+    dependencies=[Depends(Authorize(ODPScope.USER_READ))],
+)
+async def get_user_audit_log(
+        user_id: str,
+        paginator: Paginator = Depends(partial(Paginator, sort='timestamp')),
+):
+    stmt = (
+        select(IdentityAudit, User.name.label('user_name')).
+        outerjoin(User, IdentityAudit.user_id == User.id).
+        where(IdentityAudit._id == user_id)
+    )
+
+    return paginator.paginate(
+        stmt,
+        lambda row: output_audit_model(row),
+    )
+
+
+@router.get(
+    '/{user_id}/audit/{audit_id}',
+    response_model=IdentityAuditModel,
+    dependencies=[Depends(Authorize(ODPScope.USER_READ))],
+)
+async def get_user_audit_detail(
+        user_id: str,
+        audit_id: int,
+):
+    if not (row := Session.execute(
+            select(IdentityAudit, User.name.label('user_name')).
+            outerjoin(User, IdentityAudit.user_id == User.id).
+            where(IdentityAudit._id == user_id).
+            where(IdentityAudit.id == audit_id)
+    ).one_or_none()):
+        raise HTTPException(HTTP_404_NOT_FOUND)
+
+    return output_audit_model(row)

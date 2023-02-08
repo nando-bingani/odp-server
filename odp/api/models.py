@@ -5,7 +5,7 @@ from pydantic import AnyHttpUrl, BaseModel, Field, root_validator, validator
 
 from odp.const import DOI_REGEX, ID_REGEX, ODPMetadataSchema, SID_REGEX
 from odp.const.hydra import GrantType, ResponseType, TokenEndpointAuthMethod
-from odp.db.models import AuditCommand, TagCardinality
+from odp.db.models import AuditCommand, IdentityCommand, TagCardinality
 
 
 class AccessTokenModel(BaseModel):
@@ -377,3 +377,18 @@ class VocabularyTermAuditModel(AuditModel):
     vocabulary_id: str
     term_id: str
     data: dict[str, Any]
+
+
+class IdentityAuditModel(BaseModel):
+    audit_id: int
+    client_id: str
+    client_user_id: str | None
+    client_user_name: str | None
+    command: IdentityCommand
+    completed: bool
+    error: str | None
+    timestamp: str
+    user_id: str
+    user_email: str
+    user_active: bool
+    user_roles: list[str]
