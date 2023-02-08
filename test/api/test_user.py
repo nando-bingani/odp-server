@@ -5,9 +5,9 @@ from sqlalchemy import select
 
 from odp.const import ODPScope
 from odp.db import Session
-from odp.db.models import User
-from test.api import (all_scopes, all_scopes_excluding, assert_empty_result, assert_forbidden, assert_method_not_allowed, assert_not_found,
-                      assert_unprocessable)
+from odp.db.models import IdentityAudit, User
+from test.api import (all_scopes, all_scopes_excluding, assert_empty_result, assert_forbidden, assert_method_not_allowed, assert_new_timestamp,
+                      assert_not_found, assert_unprocessable)
 from test.factories import CollectionTagFactory, RecordTagFactory, RoleFactory, UserFactory
 
 
@@ -30,6 +30,26 @@ def assert_db_state(users):
     result = Session.execute(select(User)).scalars().all()
     assert set((row.id, row.name, row.email, row.active, row.verified, role_ids(row)) for row in result) \
            == set((user.id, user.name, user.email, user.active, user.verified, role_ids(user)) for user in users)
+
+
+def assert_audit_log(command, user, user_role_ids):
+    """Verify that the identity audit table contains the given entry."""
+    result = Session.execute(select(IdentityAudit)).scalar_one()
+    assert result.client_id == 'odp.test'
+    assert result.user_id is None
+    assert result.command == command
+    assert result.completed is True
+    assert result.error is None
+    assert_new_timestamp(result.timestamp)
+    assert result._id == user.id
+    assert result._email == user.email
+    assert result._active == user.active
+    assert tuple(sorted(result._roles)) == user_role_ids
+
+
+def assert_no_audit_log():
+    """Verify that no audit log entries have been created."""
+    assert Session.execute(select(IdentityAudit)).first() is None
 
 
 def assert_json_result(response, json, user):
@@ -67,6 +87,7 @@ def test_list_users(api, user_batch, scopes):
     else:
         assert_forbidden(r)
     assert_db_state(user_batch)
+    assert_no_audit_log()
 
 
 @pytest.mark.parametrize('scopes', [
@@ -83,6 +104,7 @@ def test_get_user(api, user_batch, scopes):
     else:
         assert_forbidden(r)
     assert_db_state(user_batch)
+    assert_no_audit_log()
 
 
 def test_get_user_not_found(api, user_batch):
@@ -90,11 +112,13 @@ def test_get_user_not_found(api, user_batch):
     r = api(scopes).get('/user/foo')
     assert_not_found(r)
     assert_db_state(user_batch)
+    assert_no_audit_log()
 
 
 def test_create_user(api):
     r = api(all_scopes).post('/user/')
     assert_method_not_allowed(r)
+    assert_no_audit_log()
 
 
 @pytest.mark.parametrize('scopes', [
@@ -121,9 +145,11 @@ def test_update_user(api, user_batch, scopes):
     if authorized:
         assert_empty_result(r)
         assert_db_state(modified_user_batch)
+        assert_audit_log('edit', user, role_ids(user))
     else:
         assert_forbidden(r)
         assert_db_state(user_batch)
+        assert_no_audit_log()
 
 
 def test_update_user_not_found(api, user_batch):
@@ -142,6 +168,7 @@ def test_update_user_not_found(api, user_batch):
     ))
     assert_not_found(r)
     assert_db_state(user_batch)
+    assert_no_audit_log()
 
 
 @pytest.fixture(params=['none', 'collection', 'record', 'both'])
@@ -158,6 +185,8 @@ def has_tag_instance(request):
 def test_delete_user(api, user_batch, scopes, has_tag_instance):
     authorized = ODPScope.USER_ADMIN in scopes
     modified_user_batch = user_batch.copy()
+    deleted_user = modified_user_batch[2]
+    deleted_user_role_ids = role_ids(deleted_user)
     del modified_user_batch[2]
 
     if has_tag_instance in ('collection', 'both'):
@@ -171,12 +200,16 @@ def test_delete_user(api, user_batch, scopes, has_tag_instance):
         if has_tag_instance in ('collection', 'record', 'both'):
             assert_unprocessable(r, 'The user cannot be deleted due to associated tag instance data.')
             assert_db_state(user_batch)
+            assert_no_audit_log()
         else:
             assert_empty_result(r)
+            # check audit log first because assert_db_state expires the deleted item
+            assert_audit_log('delete', deleted_user, deleted_user_role_ids)
             assert_db_state(modified_user_batch)
     else:
         assert_forbidden(r)
         assert_db_state(user_batch)
+        assert_no_audit_log()
 
 
 def test_delete_user_not_found(api, user_batch):
@@ -184,3 +217,4 @@ def test_delete_user_not_found(api, user_batch):
     r = api(scopes).delete('/user/foo')
     assert_not_found(r)
     assert_db_state(user_batch)
+    assert_no_audit_log()
