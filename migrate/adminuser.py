@@ -31,7 +31,7 @@ def create_admin_user():
         ).save()
 
         IdentityAudit(
-            client_id='None',
+            client_id='',
             command=IdentityCommand.create,
             completed=True,
             _id=user.id,
