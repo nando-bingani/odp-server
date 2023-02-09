@@ -3,7 +3,7 @@ from jschon import JSON, URI
 from odp.api.models import PublishedDataCiteRecordModel, PublishedRecordModel, RecordModel
 from odp.catalog import Catalog
 from odp.config import config
-from odp.const import DOI_PREFIX, ODPCatalog, ODPMetadataSchema
+from odp.const import DOI_PREFIX, ODPMetadataSchema
 from odp.db import Session
 from odp.db.models import CatalogRecord, Schema, SchemaType
 from odp.lib.cache import Cache
@@ -22,7 +22,7 @@ class DataCiteCatalog(Catalog):
             password=config.DATACITE.PASSWORD,
             doi_prefix=DOI_PREFIX,
         )
-        self.doi_return_url = config.ODP.API_URL + f'/catalog/{ODPCatalog.SAEON}/go'
+        self.doi_return_url = config.DATACITE.REDIRECT_URL
 
     def evaluate_record(
             self,
