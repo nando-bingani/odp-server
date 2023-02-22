@@ -74,7 +74,7 @@ class SAEONCatalog(Catalog):
             self, published_record: PublishedSAEONRecordModel
     ) -> str:
         """Create a string from metadata field values to be indexed for full text search."""
-        datacite_metadata = self._get_datacite_metadata(published_record)
+        datacite_metadata = self._get_metadata_dict(published_record, ODPMetadataSchema.SAEON_DATACITE4)
         values = []
 
         for title in datacite_metadata.get('titles', ()):
@@ -112,7 +112,27 @@ class SAEONCatalog(Catalog):
             self, published_record: PublishedSAEONRecordModel
     ) -> list[str]:
         """Create an array of metadata keywords to be indexed for keyword search."""
-        return []
+
+        def _add_keyword(kw: str):
+            nonlocal keyword_list, keyword_set
+            if (kw := kw.strip()) and (kw_lower := kw.lower()) not in keyword_set:
+                keyword_set |= {kw_lower}
+                keyword_list += [kw]
+
+        keyword_list = []
+        keyword_set = set()
+
+        if iso19115_metadata := self._get_metadata_dict(published_record, ODPMetadataSchema.SAEON_ISO19115):
+            for keyword_obj in iso19115_metadata.get('descriptiveKeywords', ()):
+                if keyword_obj.get('keywordType') in ('general', 'place', 'stratum', 'theme'):
+                    _add_keyword(keyword_obj.get('keyword', ''))
+
+        else:
+            datacite_metadata = self._get_metadata_dict(published_record, ODPMetadataSchema.SAEON_DATACITE4)
+            for subject_obj in datacite_metadata.get('subjects', ()):
+                _add_keyword(subject_obj.get('subject', ''))
+
+        return sorted(keyword_list)
 
     def create_spatial_index_data(
             self, published_record: PublishedSAEONRecordModel
@@ -135,7 +155,7 @@ class SAEONCatalog(Catalog):
                 if west is None or lon < west:
                     west = lon
 
-        datacite_metadata = self._get_datacite_metadata(published_record)
+        datacite_metadata = self._get_metadata_dict(published_record, ODPMetadataSchema.SAEON_DATACITE4)
         north = None
         east = None
         south = None
@@ -170,7 +190,7 @@ class SAEONCatalog(Catalog):
             except (IndexError, ValueError):
                 pass
 
-        datacite_metadata = self._get_datacite_metadata(published_record)
+        datacite_metadata = self._get_metadata_dict(published_record, ODPMetadataSchema.SAEON_DATACITE4)
         start = None
         end = None
 
@@ -188,9 +208,12 @@ class SAEONCatalog(Catalog):
         return start, end
 
     @staticmethod
-    def _get_datacite_metadata(published_record: PublishedSAEONRecordModel) -> dict:
-        return next(
+    def _get_metadata_dict(
+            published_record: PublishedSAEONRecordModel,
+            schema_id: ODPMetadataSchema,
+    ) -> Optional[dict]:
+        return next((
             metadata_record.metadata
             for metadata_record in published_record.metadata_records
-            if metadata_record.schema_id == ODPMetadataSchema.SAEON_DATACITE4
-        )
+            if metadata_record.schema_id == schema_id
+        ), None)
