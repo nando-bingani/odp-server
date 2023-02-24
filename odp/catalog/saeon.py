@@ -124,7 +124,7 @@ class SAEONCatalog(Catalog):
 
         if iso19115_metadata := self._get_metadata_dict(published_record, ODPMetadataSchema.SAEON_ISO19115):
             for keyword_obj in iso19115_metadata.get('descriptiveKeywords', ()):
-                if keyword_obj.get('keywordType') in ('general', 'place', 'stratum', 'theme'):
+                if keyword_obj.get('keywordType') in ('general', 'place', 'stratum'):
                     _add_keyword(keyword_obj.get('keyword', ''))
 
         else:
