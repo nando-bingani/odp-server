@@ -67,6 +67,8 @@ def output_catalog_record_model(catalog_record: CatalogRecord) -> CatalogRecordM
         external_error_count=catalog_record.error_count,
         index_full_text=catalog_record.full_text,
         index_keywords=catalog_record.keywords,
+        index_facets=[{'facet': facet.facet, 'value': facet.value}
+                      for facet in catalog_record.facets],
         index_spatial_north=catalog_record.spatial_north,
         index_spatial_east=catalog_record.spatial_east,
         index_spatial_south=catalog_record.spatial_south,

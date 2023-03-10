@@ -1,6 +1,7 @@
 import re
 from datetime import date
 from functools import partial
+from math import ceil
 from typing import Any, Optional
 from uuid import UUID
 
@@ -14,10 +15,10 @@ from odp.api.lib.auth import Authorize
 from odp.api.lib.datacite import get_datacite_client
 from odp.api.lib.paging import Page, Paginator
 from odp.api.lib.utils import output_published_record_model
-from odp.api.models import CatalogModel, PublishedDataCiteRecordModel, PublishedSAEONRecordModel, RetractedRecordModel
+from odp.api.models import CatalogModel, PublishedDataCiteRecordModel, PublishedSAEONRecordModel, RetractedRecordModel, SearchResult
 from odp.const import DOI_REGEX, ODPCatalog, ODPScope
 from odp.db import Session
-from odp.db.models import Catalog, CatalogRecord, PublishedRecord
+from odp.db.models import Catalog, CatalogRecord, CatalogRecordFacet, PublishedRecord
 from odp.lib.datacite import DataciteClient, DataciteError
 
 router = APIRouter()
@@ -108,12 +109,11 @@ async def list_records(
 
 @router.get(
     '/{catalog_id}/search',
-    response_model=Page[PublishedSAEONRecordModel],
+    response_model=SearchResult,
     dependencies=[Depends(Authorize(ODPScope.CATALOG_READ))],
 )
 async def search_records(
         catalog_id: str,
-        paginator: Paginator = Depends(partial(Paginator, sort='record_id')),
         text_query: str = Query(None, title='Search terms'),
         north_bound: float = Query(None, title='North bound latitude', ge=-90, le=90),
         south_bound: float = Query(None, title='South bound latitude', ge=-90, le=90),
@@ -124,6 +124,8 @@ async def search_records(
         exclusive_region: bool = Query(False, title='Exclude partial spatial matches'),
         exclusive_interval: bool = Query(False, title='Exclude partial temporal matches'),
         include_nonsearchable: bool = False,
+        page: int = Query(1, ge=1, description='Page number'),
+        size: int = Query(50, ge=0, description='Page size (0 = unlimited)'),
 ):
     if not Session.get(Catalog, catalog_id):
         raise HTTPException(HTTP_404_NOT_FOUND)
@@ -186,9 +188,47 @@ async def search_records(
     if not include_nonsearchable:
         stmt = stmt.where(CatalogRecord.searchable)
 
-    return paginator.paginate(
-        stmt,
-        lambda row: output_published_record_model(row.CatalogRecord),
+    total = Session.execute(
+        select(func.count())
+        .select_from(stmt.subquery())
+    ).scalar_one()
+
+    limit = size or total
+    items = [
+        output_published_record_model(row.CatalogRecord) for row in Session.execute(
+            stmt.
+            order_by('record_id').
+            offset(limit * (page - 1)).
+            limit(limit)
+        )
+    ]
+
+    facets = {}
+    facet_subquery = select(CatalogRecordFacet).subquery()
+    for row in Session.execute(
+        select(
+            facet_subquery.c.facet,
+            facet_subquery.c.value,
+            func.count(),
+        )
+        .join_from(
+            stmt.subquery(),
+            facet_subquery,
+        )
+        .group_by(
+            facet_subquery.c.facet,
+            facet_subquery.c.value,
+        )
+    ):
+        facets.setdefault(row.facet, [])
+        facets[row.facet] += [(row.value, row.count)]
+
+    return SearchResult(
+        facets=facets,
+        items=items,
+        total=total,
+        page=page,
+        pages=ceil(total / limit) if limit else 0,
     )
 
 

@@ -9,7 +9,7 @@ from odp.api.models import PublishedRecordModel, RecordModel
 from odp.api.routers.record import output_record_model
 from odp.const import ODPCatalog, ODPCollectionTag, ODPMetadataSchema, ODPRecordTag
 from odp.db import Session
-from odp.db.models import CatalogRecord, Collection, Provider, PublishedRecord, Record, RecordTag
+from odp.db.models import CatalogRecord, CatalogRecordFacet, Collection, Provider, PublishedRecord, Record, RecordTag
 from odp.lib.cache import Cache
 
 logger = logging.getLogger(__name__)
@@ -18,8 +18,13 @@ logger = logging.getLogger(__name__)
 class Catalog:
     indexed = False
     """Whether to save indexing data to catalog records.
-    If true, methods create_text_index_data, create_keyword_index_data,
-    create_spatial_index_data and create_temporal_index_data must be implemented.
+    If true, the following methods must be implemented:
+
+    * create_text_index_data
+    * create_keyword_index_data
+    * create_facet_index_data
+    * create_spatial_index_data
+    * create_temporal_index_data
     """
 
     external = False
@@ -332,6 +337,16 @@ class Catalog:
 
             catalog_record.keywords = self.create_keyword_index_data(published_record)
 
+            catalog_record.facets = []
+            for facet_name, facet_values in self.create_facet_index_data(published_record).items():
+                for facet_value in facet_values:
+                    catalog_record.facets += [CatalogRecordFacet(
+                        catalog_id=catalog_record.catalog_id,
+                        record_id=catalog_record.record_id,
+                        facet=facet_name,
+                        value=facet_value,
+                    )]
+
             (catalog_record.spatial_north,
              catalog_record.spatial_east,
              catalog_record.spatial_south,
@@ -351,6 +366,7 @@ class Catalog:
         else:
             catalog_record.full_text = None
             catalog_record.keywords = None
+            catalog_record.facets = []
             catalog_record.spatial_north = None
             catalog_record.spatial_east = None
             catalog_record.spatial_south = None
@@ -368,6 +384,11 @@ class Catalog:
             self, published_record: PublishedRecordModel
     ) -> list[str]:
         """Create an array of metadata keywords to be indexed for keyword search."""
+
+    def create_facet_index_data(
+            self, published_record: PublishedRecordModel
+    ) -> dict[str, list[str]]:
+        """Create a mapping of facet names to values to be indexed for faceted search."""
 
     def create_spatial_index_data(
             self, published_record: PublishedRecordModel

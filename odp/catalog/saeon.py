@@ -134,6 +134,12 @@ class SAEONCatalog(Catalog):
 
         return sorted(keyword_list)
 
+    def create_facet_index_data(
+            self, published_record: PublishedSAEONRecordModel
+    ) -> dict[str, list[str]]:
+        """Create a mapping of facet names to values to be indexed for faceted search."""
+        return {}
+
     def create_spatial_index_data(
             self, published_record: PublishedSAEONRecordModel
     ) -> tuple[Optional[float], Optional[float], Optional[float], Optional[float]]:

@@ -1,6 +1,6 @@
-from odp.api.models import RecordModel
+from odp.api.models import PublishedSAEONRecordModel, RecordModel
 from odp.catalog.saeon import SAEONCatalog
-from odp.const import ODPCollectionTag
+from odp.const import ODPCollectionTag, ODPMetadataSchema
 
 
 class MIMSCatalog(SAEONCatalog):
@@ -27,3 +27,29 @@ class MIMSCatalog(SAEONCatalog):
             can_publish_reasons += ['MIMS collection']
         else:
             cannot_publish_reasons += ['not a MIMS collection']
+
+    def create_facet_index_data(
+            self, published_record: PublishedSAEONRecordModel
+    ) -> dict[str, list[str]]:
+        """Create a mapping of facet names to values to be indexed for faceted search."""
+        facets = {
+            'Project': [],
+            'Location': [],
+            'Instrument': [],
+            'License': [],
+        }
+        iso19115_facets = {
+            'theme': 'Project',
+            'place': 'Location',
+            'stratum': 'Instrument',
+        }
+        if iso19115_metadata := self._get_metadata_dict(published_record, ODPMetadataSchema.SAEON_ISO19115):
+            for keyword_obj in iso19115_metadata.get('descriptiveKeywords', ()):
+                if (keyword_type := keyword_obj.get('keywordType')) in ('theme', 'place', 'stratum'):
+                    facets[iso19115_facets[keyword_type]] += [keyword_obj.get('keyword', '')]
+
+        datacite_metadata = self._get_metadata_dict(published_record, ODPMetadataSchema.SAEON_DATACITE4)
+        for rights_obj in datacite_metadata.get('rightsList', ()):
+            facets['License'] += [rights_obj.get('rights', '')]
+
+        return facets

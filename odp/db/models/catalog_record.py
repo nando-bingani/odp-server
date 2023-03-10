@@ -1,4 +1,4 @@
-from sqlalchemy import ARRAY, Boolean, Column, ForeignKey, Integer, Numeric, String, TIMESTAMP
+from sqlalchemy import ARRAY, Boolean, Column, ForeignKey, ForeignKeyConstraint, Identity, Integer, Numeric, String, TIMESTAMP
 from sqlalchemy.dialects.postgresql import JSONB, TSVECTOR
 from sqlalchemy.orm import deferred, relationship
 
@@ -31,6 +31,7 @@ class CatalogRecord(Base):
     # internal catalog indexing
     full_text = deferred(Column(TSVECTOR))
     keywords = Column(ARRAY(String))
+    facets = relationship('CatalogRecordFacet')
     spatial_north = Column(Numeric)
     spatial_east = Column(Numeric)
     spatial_south = Column(Numeric)
@@ -38,3 +39,19 @@ class CatalogRecord(Base):
     temporal_start = Column(TIMESTAMP(timezone=True))
     temporal_end = Column(TIMESTAMP(timezone=True))
     searchable = Column(Boolean)
+
+
+class CatalogRecordFacet(Base):
+    __tablename__ = 'catalog_record_facet'
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ('catalog_id', 'record_id'),
+            ('catalog_record.catalog_id', 'catalog_record.record_id'),
+            name='catalog_record_facet_catalog_record_fkey', ondelete='CASCADE',
+        ),
+    )
+    id = Column(Integer, Identity(), primary_key=True)
+    catalog_id = Column(String, nullable=False)
+    record_id = Column(String, nullable=False)
+    facet = Column(String, nullable=False)
+    value = Column(String, nullable=False)

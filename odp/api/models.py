@@ -86,6 +86,14 @@ class RetractedRecordModel(BaseModel):
     published: bool = Field(False, const=False)
 
 
+class SearchResult(BaseModel):
+    facets: dict[str, list[tuple[str, int]]]  # facet: [(value, count)]
+    items: list[PublishedSAEONRecordModel]
+    total: int
+    page: int
+    pages: int
+
+
 class CatalogRecordModel(BaseModel):
     catalog_id: str
     record_id: str
@@ -98,6 +106,7 @@ class CatalogRecordModel(BaseModel):
     external_error_count: Optional[int]
     index_full_text: Optional[str]
     index_keywords: Optional[list[str]]
+    index_facets: Optional[list[dict[str, str]]]
     index_spatial_north: Optional[float]
     index_spatial_east: Optional[float]
     index_spatial_south: Optional[float]
