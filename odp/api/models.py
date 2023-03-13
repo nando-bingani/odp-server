@@ -211,8 +211,8 @@ class RecordModel(BaseModel):
 
 
 class RecordModelIn(BaseModel):
-    doi: str = Field(None, regex=DOI_REGEX, description="Digital Object Identifier")
-    sid: str = Field(None, regex=SID_REGEX, description="Secondary Identifier")
+    doi: str = Field(None, regex=DOI_REGEX, title="Digital Object Identifier")
+    sid: str = Field(None, regex=SID_REGEX, title="Secondary Identifier")
     collection_id: str
     schema_id: str
     metadata: dict[str, Any]

@@ -25,9 +25,9 @@ class Page(GenericModel, Generic[ModelT]):
 class Paginator:
     def __init__(
             self,
-            page: int = Query(1, ge=1, description='Page number'),
-            size: int = Query(50, ge=0, description='Page size (0 = unlimited)'),
-            sort: str = Query('id', description='Sort column'),
+            page: int = Query(1, ge=1, title='Page number'),
+            size: int = Query(50, ge=0, title='Page size; 0=unlimited'),
+            sort: str = Query('id', title='Sort column'),
     ):
         self.page = page
         self.size = size

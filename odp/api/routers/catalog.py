@@ -123,9 +123,9 @@ async def search_records(
         end_date: date = Query(None, title='Date range end'),
         exclusive_region: bool = Query(False, title='Exclude partial spatial matches'),
         exclusive_interval: bool = Query(False, title='Exclude partial temporal matches'),
-        include_nonsearchable: bool = False,
-        page: int = Query(1, ge=1, description='Page number'),
-        size: int = Query(50, ge=0, description='Page size (0 = unlimited)'),
+        include_nonsearchable: bool = Query(False, title='Include records tagged as not searchable'),
+        page: int = Query(1, ge=1, title='Page number'),
+        size: int = Query(50, ge=0, title='Page size; 0=unlimited'),
 ):
     if not Session.get(Catalog, catalog_id):
         raise HTTPException(HTTP_404_NOT_FOUND)
