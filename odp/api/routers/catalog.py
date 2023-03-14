@@ -117,7 +117,7 @@ async def list_records(
 async def search_records(
         catalog_id: str,
         text_query: str = Query(None, title='Search terms'),
-        facets: Json = Query(None, title='Search facets', description='JSON object of facet:value pairs'),
+        facet_query: Json = Query(None, title='Search facets', description='JSON object of facet:value pairs'),
         north_bound: float = Query(None, title='North bound latitude', ge=-90, le=90),
         south_bound: float = Query(None, title='South bound latitude', ge=-90, le=90),
         east_bound: float = Query(None, title='East bound longitude', ge=-180, le=180),
@@ -144,11 +144,11 @@ async def search_records(
             "full_text @@ plainto_tsquery('english', :text_query)"
         ).bindparams(text_query=text_query))
 
-    if facets is not None:
-        if not isinstance(facets, dict):
-            raise HTTPException(HTTP_422_UNPROCESSABLE_ENTITY, 'facets must be a JSON object')
+    if facet_query is not None:
+        if not isinstance(facet_query, dict):
+            raise HTTPException(HTTP_422_UNPROCESSABLE_ENTITY, 'facet_query must be a JSON object')
 
-        for facet_title, facet_value in facets.items():
+        for facet_title, facet_value in facet_query.items():
             if not isinstance(facet_value, str):
                 raise HTTPException(HTTP_422_UNPROCESSABLE_ENTITY, 'facet value must be a string')
 
