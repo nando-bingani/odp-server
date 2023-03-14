@@ -7,8 +7,9 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from fastapi.responses import RedirectResponse
-from pydantic import UUID4, constr
+from pydantic import Json, UUID4, constr
 from sqlalchemy import and_, func, or_, select, text
+from sqlalchemy.orm import aliased
 from starlette.status import HTTP_404_NOT_FOUND, HTTP_422_UNPROCESSABLE_ENTITY
 
 from odp.api.lib.auth import Authorize
@@ -111,10 +112,12 @@ async def list_records(
     '/{catalog_id}/search',
     response_model=SearchResult,
     dependencies=[Depends(Authorize(ODPScope.CATALOG_READ))],
+    description="Search a catalog's published records.",
 )
 async def search_records(
         catalog_id: str,
         text_query: str = Query(None, title='Search terms'),
+        facets: Json = Query(None, title='Search facets', description='JSON object of facet:value pairs'),
         north_bound: float = Query(None, title='North bound latitude', ge=-90, le=90),
         south_bound: float = Query(None, title='South bound latitude', ge=-90, le=90),
         east_bound: float = Query(None, title='East bound longitude', ge=-180, le=180),
@@ -140,6 +143,21 @@ async def search_records(
         stmt = stmt.where(text(
             "full_text @@ plainto_tsquery('english', :text_query)"
         ).bindparams(text_query=text_query))
+
+    if facets is not None:
+        if not isinstance(facets, dict):
+            raise HTTPException(HTTP_422_UNPROCESSABLE_ENTITY, 'facets must be a JSON object')
+
+        for facet_title, facet_value in facets.items():
+            if not isinstance(facet_value, str):
+                raise HTTPException(HTTP_422_UNPROCESSABLE_ENTITY, 'facet value must be a string')
+
+            crf = aliased(CatalogRecordFacet, name=f'crf{facet_title}')
+            stmt = stmt.join(crf)
+            stmt = stmt.where(and_(
+                crf.facet == facet_title,
+                crf.value == facet_value,
+            ))
 
     if exclusive_region:
         if north_bound is not None:
