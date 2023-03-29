@@ -255,7 +255,7 @@ async def search_records(
     response_model=PublishedSAEONRecordModel | PublishedDataCiteRecordModel,
     dependencies=[Depends(Authorize(ODPScope.CATALOG_READ))],
 )
-async def get_published_record(
+async def get_record(
         catalog_id: str,
         record_id: str = Path(..., title='UUID or DOI'),
 ):
@@ -288,7 +288,7 @@ async def get_published_record(
     response_model=Optional[dict[str, Any]],
     dependencies=[Depends(Authorize(ODPScope.CATALOG_READ))],
 )
-async def get_external_published_record(
+async def get_external_record(
         catalog_id: str,
         record_id: str,
         datacite: DataciteClient = Depends(get_datacite_client),
