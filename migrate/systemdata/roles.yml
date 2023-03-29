@@ -19,5 +19,4 @@ SAEON.Staff:
 
 Default:
   scopes:
-    - odp.catalog:read
     - odp.token:read

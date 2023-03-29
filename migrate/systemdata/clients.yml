@@ -25,7 +25,6 @@ ODP.Web.UI:
   secret_env: ODP_WEB_UI_CLIENT_SECRET
   url_env: ODP_WEB_URL
   scopes:
-    - odp.catalog:read
     - odp.token:read
     - openid
     - offline_access
@@ -40,6 +39,7 @@ ODP.Web.CI:
   secret_env: ODP_WEB_CI_CLIENT_SECRET
   scopes:
     - odp.catalog:read
+    - odp.catalog:search
   grant_types:
     - client_credentials
 

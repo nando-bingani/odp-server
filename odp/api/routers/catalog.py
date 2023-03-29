@@ -111,7 +111,7 @@ async def list_records(
 @router.get(
     '/{catalog_id}/search',
     response_model=SearchResult,
-    dependencies=[Depends(Authorize(ODPScope.CATALOG_READ))],
+    dependencies=[Depends(Authorize(ODPScope.CATALOG_SEARCH))],
     description="Search a catalog's published records.",
 )
 async def search_records(
