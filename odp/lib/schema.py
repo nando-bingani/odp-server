@@ -56,7 +56,7 @@ schema_catalog.create_metaschema(
     URI("https://json-schema.org/draft/2020-12/vocab/format-annotation"),
     URI("https://json-schema.org/draft/2020-12/vocab/meta-data"),
     URI("https://json-schema.org/draft/2020-12/vocab/content"),
-    URI("https://jschon.dev/ext/translation"),
+    URI("https://jschon.dev/vocab/translation"),
     URI('https://odp.saeon.ac.za/schema/__meta__'),
 )
 

@@ -6,10 +6,10 @@ from test.factories import VocabularyFactory
 
 
 def test_validity():
-    with catalog.session() as session:
-        input_schema = catalog.get_schema(URI('https://odp.saeon.ac.za/schema/metadata/saeon/iso19115'), session=session)
+    with catalog.cache() as cacheid:
+        input_schema = catalog.get_schema(URI('https://odp.saeon.ac.za/schema/metadata/saeon/iso19115'), cacheid=cacheid)
         input_json = catalog.load_json(URI('https://odp.saeon.ac.za/schema/metadata/saeon/iso19115-example'))
-        output_schema = catalog.get_schema(URI('https://odp.saeon.ac.za/schema/metadata/saeon/datacite4'), session=session)
+        output_schema = catalog.get_schema(URI('https://odp.saeon.ac.za/schema/metadata/saeon/datacite4'), cacheid=cacheid)
         output_json = catalog.load_json(URI('https://odp.saeon.ac.za/schema/metadata/saeon/datacite4-example-translated'))
 
         assert input_schema.validate().valid
@@ -19,8 +19,8 @@ def test_validity():
 
 
 def test_translate_iso19115_to_datacite():
-    with catalog.session() as session:
-        input_schema = catalog.get_schema(URI('https://odp.saeon.ac.za/schema/metadata/saeon/iso19115'), session=session)
+    with catalog.cache() as cacheid:
+        input_schema = catalog.get_schema(URI('https://odp.saeon.ac.za/schema/metadata/saeon/iso19115'), cacheid=cacheid)
         input_json = catalog.load_json(URI('https://odp.saeon.ac.za/schema/metadata/saeon/iso19115-example'))
         output_json = catalog.load_json(URI('https://odp.saeon.ac.za/schema/metadata/saeon/datacite4-example-translated'))
 
@@ -37,10 +37,10 @@ def test_translate_iso19115_to_datacite():
 
 @pytest.mark.parametrize('vocab_id', ['Project', 'Infrastructure'])
 def test_vocabulary_keyword_valid_term(vocab_id):
-    with catalog.session() as session:
+    with catalog.cache() as cacheid:
         vocab_key = vocab_id.lower()
         vocab = VocabularyFactory(id=vocab_id)
-        tag_schema = catalog.get_schema(URI(f'https://odp.saeon.ac.za/schema/tag/collection/{vocab_key}'), session=session)
+        tag_schema = catalog.get_schema(URI(f'https://odp.saeon.ac.za/schema/tag/collection/{vocab_key}'), cacheid=cacheid)
         tag_json = JSON({
             vocab_key: vocab.terms[0].term_id
         })
@@ -54,10 +54,10 @@ def test_vocabulary_keyword_valid_term(vocab_id):
 
 @pytest.mark.parametrize('vocab_id', ['Project', 'Infrastructure'])
 def test_vocabulary_keyword_invalid_term(vocab_id):
-    with catalog.session() as session:
+    with catalog.cache() as cacheid:
         vocab_key = vocab_id.lower()
         vocab = VocabularyFactory(id=vocab_id)
-        tag_schema = catalog.get_schema(URI(f'https://odp.saeon.ac.za/schema/tag/collection/{vocab_key}'), session=session)
+        tag_schema = catalog.get_schema(URI(f'https://odp.saeon.ac.za/schema/tag/collection/{vocab_key}'), cacheid=cacheid)
         tag_json = JSON({
             vocab_key: 'foo'
         })
@@ -71,9 +71,9 @@ def test_vocabulary_keyword_invalid_term(vocab_id):
 
 @pytest.mark.parametrize('vocab_id', ['Project', 'Infrastructure'])
 def test_vocabulary_keyword_unknown_vocab(vocab_id):
-    with catalog.session() as session:
+    with catalog.cache() as cacheid:
         vocab_key = vocab_id.lower()
-        tag_schema = catalog.get_schema(URI(f'https://odp.saeon.ac.za/schema/tag/collection/{vocab_key}'), session=session)
+        tag_schema = catalog.get_schema(URI(f'https://odp.saeon.ac.za/schema/tag/collection/{vocab_key}'), cacheid=cacheid)
         tag_json = JSON({
             vocab_key: 'foo'
         })
