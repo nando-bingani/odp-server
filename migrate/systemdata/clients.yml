@@ -48,7 +48,9 @@ ODP.Migrate:
   secret_env: ODP_MIGRATE_CLIENT_SECRET
   scopes:
     - odp.collection:admin
+    - odp.collection:harvested
     - odp.collection:infrastructure
+    - odp.collection:nosearch
     - odp.collection:project
     - odp.collection:read
     - odp.collection:ready
