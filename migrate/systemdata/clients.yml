@@ -52,8 +52,8 @@ ODP.Migrate:
     - odp.collection:infrastructure
     - odp.collection:nosearch
     - odp.collection:project
+    - odp.collection:publish
     - odp.collection:read
-    - odp.collection:ready
     - odp.provider:admin
     - odp.record:admin
     - odp.record:migrate

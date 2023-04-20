@@ -196,8 +196,8 @@ class Catalog:
              datetime.fromisoformat(tag.timestamp) >= datetime.fromisoformat(record_model.timestamp)),
             None
         )
-        collection_ready = any(
-            (tag for tag in record_model.tags if tag.tag_id == ODPCollectionTag.READY)
+        collection_published = any(
+            (tag for tag in record_model.tags if tag.tag_id == ODPCollectionTag.PUBLISHED)
         )
         collection_harvested = any(
             (tag for tag in record_model.tags if tag.tag_id == ODPCollectionTag.HARVESTED)
@@ -212,11 +212,11 @@ class Catalog:
         )
         metadata_valid = record_model.validity['valid']
 
-        # collection readiness applies to both migrated and non-migrated records
-        if collection_ready:
-            can_publish_reasons += ['collection ready']
+        # collection published tag is required in all cases
+        if collection_published:
+            can_publish_reasons += ['collection published']
         else:
-            cannot_publish_reasons += ['collection not ready']
+            cannot_publish_reasons += ['collection not published']
 
         if migrated_tag:
             if migrated_tag.data['published']:

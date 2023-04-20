@@ -330,10 +330,10 @@ def _set_record(
             where(CollectionTag.tag_id == ODPCollectionTag.FROZEN)
         ).first() is not None
 
-        is_ready = Session.execute(
+        is_published = Session.execute(
             select(CollectionTag).
             where(CollectionTag.collection_id == record_in.collection_id).
-            where(CollectionTag.tag_id == ODPCollectionTag.READY)
+            where(CollectionTag.tag_id == ODPCollectionTag.PUBLISHED)
         ).first() is not None
 
         is_harvested = Session.execute(
@@ -348,10 +348,10 @@ def _set_record(
                 'Cannot update a record belonging to a frozen collection',
             )
 
-        if is_ready and not is_harvested:
+        if is_published and not is_harvested:
             raise HTTPException(
                 HTTP_422_UNPROCESSABLE_ENTITY,
-                'Cannot update a record belonging to a ready collection',
+                'Cannot update a record belonging to a published collection',
             )
 
     if record_in.doi and Session.execute(
@@ -431,11 +431,11 @@ def _delete_record(
     if not ignore_collection_tags and Session.execute(
         select(CollectionTag).
         where(CollectionTag.collection_id == record.collection_id).
-        where(CollectionTag.tag_id.in_((ODPCollectionTag.FROZEN, ODPCollectionTag.READY)))
+        where(CollectionTag.tag_id.in_((ODPCollectionTag.FROZEN, ODPCollectionTag.PUBLISHED)))
     ).first() is not None:
         raise HTTPException(
             HTTP_422_UNPROCESSABLE_ENTITY,
-            'Cannot delete a record belonging to a ready or frozen collection',
+            'Cannot delete a record belonging to a published or frozen collection',
         )
 
     if Session.get(PublishedRecord, record_id):

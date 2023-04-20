@@ -1,8 +1,8 @@
-Collection.Ready:
+Collection.Published:
   type: collection
   cardinality: one
   public: False
-  scope_id: odp.collection:ready
+  scope_id: odp.collection:publish
   schema_id: Tag.Generic
 
 Collection.Frozen:
