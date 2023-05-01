@@ -1,10 +1,9 @@
-from sqlalchemy import Boolean, Column, String
+from sqlalchemy import Boolean, Column, Enum, ForeignKey, ForeignKeyConstraint, String
 from sqlalchemy.ext.associationproxy import association_proxy
 from sqlalchemy.orm import relationship
 
 from odp.db import Base
-from odp.db.models.client_collection import ClientCollection
-from odp.db.models.client_scope import ClientScope
+from odp.db.models.types import ScopeType
 
 
 class Client(Base):
@@ -34,3 +33,38 @@ class Client(Base):
     collections = association_proxy('client_collections', 'collection', creator=lambda c: ClientCollection(collection=c))
 
     _repr_ = 'id', 'collection_specific'
+
+
+class ClientCollection(Base):
+    """Model of a many-to-many client-collection association,
+    representing the collections to which a client is restricted."""
+
+    __tablename__ = 'client_collection'
+
+    client_id = Column(String, ForeignKey('client.id', ondelete='CASCADE'), primary_key=True)
+    collection_id = Column(String, ForeignKey('collection.id', ondelete='CASCADE'), primary_key=True)
+
+    client = relationship('Client', viewonly=True)
+    collection = relationship('Collection')
+
+
+class ClientScope(Base):
+    """Model of a many-to-many client-scope association,
+    representing the set of OAuth2 scopes that a client
+    may request."""
+
+    __tablename__ = 'client_scope'
+
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ('scope_id', 'scope_type'), ('scope.id', 'scope.type'),
+            name='client_scope_scope_fkey', ondelete='CASCADE',
+        ),
+    )
+
+    client_id = Column(String, ForeignKey('client.id', ondelete='CASCADE'), primary_key=True)
+    scope_id = Column(String, primary_key=True)
+    scope_type = Column(Enum(ScopeType), primary_key=True)
+
+    client = relationship('Client', viewonly=True)
+    scope = relationship('Scope')

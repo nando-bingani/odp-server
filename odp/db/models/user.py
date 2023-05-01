@@ -1,11 +1,12 @@
 import uuid
+from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, Column, String
+from sqlalchemy import ARRAY, Boolean, Column, Enum, ForeignKey, Identity, Integer, String, TIMESTAMP
 from sqlalchemy.ext.associationproxy import association_proxy
 from sqlalchemy.orm import relationship
 
 from odp.db import Base
-from odp.db.models.user_role import UserRole
+from odp.db.models.types import IdentityCommand
 
 
 class User(Base):
@@ -27,3 +28,34 @@ class User(Base):
     roles = association_proxy('user_roles', 'role', creator=lambda r: UserRole(role=r))
 
     _repr_ = 'id', 'email', 'name', 'active', 'verified'
+
+
+class UserRole(Base):
+    """A user-role assignment."""
+
+    __tablename__ = 'user_role'
+
+    user_id = Column(String, ForeignKey('user.id', ondelete='CASCADE'), primary_key=True)
+    role_id = Column(String, ForeignKey('role.id', ondelete='CASCADE'), primary_key=True)
+
+    user = relationship('User', viewonly=True)
+    role = relationship('Role')
+
+
+class IdentityAudit(Base):
+    """User identity audit log."""
+
+    __tablename__ = 'identity_audit'
+
+    id = Column(Integer, Identity(), primary_key=True)
+    client_id = Column(String, nullable=False)
+    user_id = Column(String)  # admin user id, for user edit/delete
+    command = Column(Enum(IdentityCommand), nullable=False)
+    completed = Column(Boolean, nullable=False)
+    error = Column(String)
+    timestamp = Column(TIMESTAMP(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+
+    _id = Column(String)
+    _email = Column(String)
+    _active = Column(Boolean)
+    _roles = Column(ARRAY(String))

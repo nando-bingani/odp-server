@@ -1,10 +1,9 @@
-from sqlalchemy import Boolean, Column, String
+from sqlalchemy import Boolean, CheckConstraint, Column, Enum, ForeignKey, ForeignKeyConstraint, String
 from sqlalchemy.ext.associationproxy import association_proxy
 from sqlalchemy.orm import relationship
 
 from odp.db import Base
-from odp.db.models.role_collection import RoleCollection
-from odp.db.models.role_scope import RoleScope
+from odp.db.models.types import ScopeType
 
 
 class Role(Base):
@@ -36,3 +35,40 @@ class Role(Base):
     users = association_proxy('role_users', 'user')
 
     _repr_ = 'id', 'collection_specific'
+
+
+class RoleCollection(Base):
+    """Model of a many-to-many role-collection association,
+    representing the collections to which a role is restricted."""
+
+    __tablename__ = 'role_collection'
+
+    role_id = Column(String, ForeignKey('role.id', ondelete='CASCADE'), primary_key=True)
+    collection_id = Column(String, ForeignKey('collection.id', ondelete='CASCADE'), primary_key=True)
+
+    role = relationship('Role', viewonly=True)
+    collection = relationship('Collection')
+
+
+class RoleScope(Base):
+    """Model of a many-to-many role-scope association."""
+
+    __tablename__ = 'role_scope'
+
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ('scope_id', 'scope_type'), ('scope.id', 'scope.type'),
+            name='role_scope_scope_fkey', ondelete='CASCADE',
+        ),
+        CheckConstraint(
+            f"scope_type in ('{ScopeType.odp}', '{ScopeType.client}')",
+            name='role_scope_scope_type_check',
+        ),
+    )
+
+    role_id = Column(String, ForeignKey('role.id', ondelete='CASCADE'), primary_key=True)
+    scope_id = Column(String, primary_key=True)
+    scope_type = Column(Enum(ScopeType), primary_key=True)
+
+    role = relationship('Role', viewonly=True)
+    scope = relationship('Scope')
