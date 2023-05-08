@@ -83,7 +83,7 @@ async def list_records(
         catalog_id: str,
         include_nonsearchable: bool = False,
         include_retracted: bool = False,
-        paginator: Paginator = Depends(partial(Paginator, sort='record_id')),
+        paginator: Paginator = Depends(partial(Paginator, sort='timestamp')),
 ):
     if not Session.get(Catalog, catalog_id):
         raise HTTPException(HTTP_404_NOT_FOUND)
@@ -215,7 +215,7 @@ async def search_records(
     items = [
         output_published_record_model(row.CatalogRecord) for row in Session.execute(
             stmt.
-            order_by('record_id').
+            order_by(CatalogRecord.timestamp.desc()).
             offset(limit * (page - 1)).
             limit(limit)
         )

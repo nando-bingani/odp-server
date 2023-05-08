@@ -1,4 +1,4 @@
-from sqlalchemy import ARRAY, Boolean, Column, ForeignKey, ForeignKeyConstraint, Identity, Integer, Numeric, String, TIMESTAMP
+from sqlalchemy import ARRAY, Boolean, Column, ForeignKey, ForeignKeyConstraint, Identity, Index, Integer, Numeric, String, TIMESTAMP
 from sqlalchemy.dialects.postgresql import JSONB, TSVECTOR
 from sqlalchemy.orm import deferred, relationship
 
@@ -23,6 +23,11 @@ class CatalogRecord(Base):
     public catalog."""
 
     __tablename__ = 'catalog_record'
+
+    __table_args__ = (
+        Index('ix_catalog_record_catalog_id_timestamp', 'catalog_id', 'timestamp'),
+        Index('ix_catalog_record_catalog_id_published_searchable', 'catalog_id', 'published', 'searchable'),
+    )
 
     catalog_id = Column(String, ForeignKey('catalog.id', ondelete='CASCADE'), primary_key=True)
     record_id = Column(String, ForeignKey('record.id', ondelete='CASCADE'), primary_key=True)
