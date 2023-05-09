@@ -126,7 +126,6 @@ async def search_records(
         end_date: date = Query(None, title='Date range end'),
         exclusive_region: bool = Query(False, title='Exclude partial spatial matches'),
         exclusive_interval: bool = Query(False, title='Exclude partial temporal matches'),
-        include_nonsearchable: bool = Query(False, title='Include records tagged as not searchable'),
         page: int = Query(1, ge=1, title='Page number'),
         size: int = Query(50, ge=0, title='Page size; 0=unlimited'),
 ):
@@ -202,9 +201,6 @@ async def search_records(
 
         if end_date:
             stmt = stmt.where(CatalogRecord.temporal_start <= end_date)
-
-    if not include_nonsearchable:
-        stmt = stmt.where(CatalogRecord.searchable)
 
     total = Session.execute(
         select(func.count())
