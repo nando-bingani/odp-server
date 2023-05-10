@@ -136,6 +136,7 @@ async def search_records(
         select(CatalogRecord)
         .where(CatalogRecord.catalog_id == catalog_id)
         .where(CatalogRecord.published)
+        .where(CatalogRecord.searchable)
     )
 
     if text_query and (text_query := text_query.strip()):
