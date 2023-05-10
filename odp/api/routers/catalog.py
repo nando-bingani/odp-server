@@ -189,15 +189,11 @@ async def search_records(
             stmt = stmt.where(CatalogRecord.temporal_start >= start_date)
 
         if end_date:
-            # if the record has only a start date, it is taken to be its end date too
-            stmt = stmt.where(func.coalesce(CatalogRecord.temporal_end,
-                                            CatalogRecord.temporal_start) <= end_date)
+            stmt = stmt.where(CatalogRecord.temporal_end <= end_date)
 
     else:
         if start_date:
-            # if the record has only a start date, it is taken to be its end date too
-            stmt = stmt.where(func.coalesce(CatalogRecord.temporal_end,
-                                            CatalogRecord.temporal_start) >= start_date)
+            stmt = stmt.where(CatalogRecord.temporal_end >= start_date)
 
         if end_date:
             stmt = stmt.where(CatalogRecord.temporal_start <= end_date)

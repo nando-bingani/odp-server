@@ -191,6 +191,7 @@ FROM (SELECT catalog_record.catalog_id AS catalog_id,
 GROUP BY anon_1.facet, anon_1.value;
 
 -- search_records(n, s, e, w, exclusive_region)
+-- :spatial_south_1 takes the south_bound API param, etc
 EXPLAIN
 SELECT count(*) AS count_1
 FROM (SELECT 1
@@ -230,7 +231,9 @@ FROM (SELECT catalog_record.catalog_id AS catalog_id,
 GROUP BY anon_1.facet, anon_1.value;
 
 -- search_records(start, end)
--- :coalesce_1 takes the start_date API param
+-- note that in this non-exclusive interval case, the param names produced by
+-- SQLA are mismatched with the API params; i.e.
+-- :temporal_end_1 takes the start_date API param
 -- :temporal_start_1 takes the end_date API param
 EXPLAIN
 SELECT count(*) AS count_1
@@ -238,7 +241,7 @@ FROM (SELECT 1
       FROM catalog_record
       WHERE catalog_record.catalog_id = :catalog_id_1
         AND catalog_record.published
-        AND coalesce(catalog_record.temporal_end, catalog_record.temporal_start) >= :coalesce_1
+        AND catalog_record.temporal_end >= :temporal_end_1
         AND catalog_record.temporal_start <= :temporal_start_1) AS anon_1;
 
 EXPLAIN
@@ -246,7 +249,7 @@ SELECT 1
 FROM catalog_record
 WHERE catalog_record.catalog_id = :catalog_id_1
   AND catalog_record.published
-  AND coalesce(catalog_record.temporal_end, catalog_record.temporal_start) >= :coalesce_1
+  AND catalog_record.temporal_end >= :temporal_end_1
   AND catalog_record.temporal_start <= :temporal_start_1
 ORDER BY catalog_record.timestamp DESC
 LIMIT :param_1 OFFSET :param_2;
@@ -258,7 +261,7 @@ FROM (SELECT catalog_record.catalog_id AS catalog_id,
       FROM catalog_record
       WHERE catalog_record.catalog_id = :catalog_id_1
         AND catalog_record.published
-        AND coalesce(catalog_record.temporal_end, catalog_record.temporal_start) >= :coalesce_1
+        AND catalog_record.temporal_end >= :temporal_end_1
         AND catalog_record.temporal_start <= :temporal_start_1) AS anon_2
          JOIN (SELECT *
                FROM catalog_record_facet) AS anon_1 ON anon_2.catalog_id = anon_1.catalog_id AND anon_2.record_id = anon_1.record_id
@@ -266,7 +269,7 @@ GROUP BY anon_1.facet, anon_1.value;
 
 -- search_records(start, end, exclusive_interval)
 -- :temporal_start_1 takes the start_date API param
--- :coalesce_1 takes the end_date API param
+-- :temporal_end_1 takes the end_date API param
 EXPLAIN
 SELECT count(*) AS count_1
 FROM (SELECT 1
@@ -274,7 +277,7 @@ FROM (SELECT 1
       WHERE catalog_record.catalog_id = :catalog_id_1
         AND catalog_record.published
         AND catalog_record.temporal_start >= :temporal_start_1
-        AND coalesce(catalog_record.temporal_end, catalog_record.temporal_start) <= :coalesce_1) AS anon_1;
+        AND catalog_record.temporal_end <= :temporal_end_1) AS anon_1;
 
 EXPLAIN
 SELECT 1
@@ -282,7 +285,7 @@ FROM catalog_record
 WHERE catalog_record.catalog_id = :catalog_id_1
   AND catalog_record.published
   AND catalog_record.temporal_start >= :temporal_start_1
-  AND coalesce(catalog_record.temporal_end, catalog_record.temporal_start) <= :coalesce_1
+  AND catalog_record.temporal_end <= :temporal_end_1
 ORDER BY catalog_record.timestamp DESC
 LIMIT :param_1 OFFSET :param_2;
 
@@ -294,7 +297,7 @@ FROM (SELECT catalog_record.catalog_id AS catalog_id,
       WHERE catalog_record.catalog_id = :catalog_id_1
         AND catalog_record.published
         AND catalog_record.temporal_start >= :temporal_start_1
-        AND coalesce(catalog_record.temporal_end, catalog_record.temporal_start) <= :coalesce_1) AS anon_2
+        AND catalog_record.temporal_end <= :temporal_end_1) AS anon_2
          JOIN (SELECT *
                FROM catalog_record_facet) AS anon_1 ON anon_2.catalog_id = anon_1.catalog_id AND anon_2.record_id = anon_1.record_id
 GROUP BY anon_1.facet, anon_1.value;

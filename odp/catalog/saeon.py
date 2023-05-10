@@ -188,7 +188,10 @@ class SAEONCatalog(Catalog):
     def create_temporal_index_data(
             self, published_record: PublishedSAEONRecordModel
     ) -> tuple[Optional[datetime], Optional[datetime]]:
-        """Create a start-end tuple of the temporal extent to be indexed for temporal search."""
+        """Create a start-end tuple of the temporal extent to be indexed for temporal search.
+
+        If the record has only a start date, it is taken to be its end date too.
+        """
 
         def _get_dt(n):
             try:
@@ -210,6 +213,9 @@ class SAEONCatalog(Catalog):
                     if end_dt := _get_dt(1):
                         if not end or end_dt > end:
                             end = end_dt
+
+        if start and not end:
+            end = start
 
         return start, end
 
