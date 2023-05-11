@@ -1,5 +1,6 @@
 import re
 from datetime import date
+from enum import Enum
 from functools import partial
 from math import ceil
 from typing import Any, Optional
@@ -23,6 +24,11 @@ from odp.db.models import Catalog, CatalogRecord, CatalogRecordFacet, PublishedR
 from odp.lib.datacite import DataciteClient, DataciteError
 
 router = APIRouter()
+
+
+class SearchResultSort(str, Enum):
+    TIMESTAMP_DESC = 'timestamp desc'
+    RANK_DESC = 'rank desc'
 
 
 @router.get(
@@ -128,6 +134,7 @@ async def search_records(
         exclusive_interval: bool = Query(False, title='Exclude partial temporal matches'),
         page: int = Query(1, ge=1, title='Page number'),
         size: int = Query(50, ge=0, title='Page size; 0=unlimited'),
+        sort: SearchResultSort = Query(SearchResultSort.TIMESTAMP_DESC, title='Sort by'),
 ):
     if not Session.get(Catalog, catalog_id):
         raise HTTPException(HTTP_404_NOT_FOUND)
@@ -140,9 +147,13 @@ async def search_records(
     )
 
     if text_query and (text_query := text_query.strip()):
-        stmt = stmt.where(text(
-            "full_text @@ plainto_tsquery('english', :text_query)"
-        ).bindparams(text_query=text_query))
+        stmt = stmt.add_columns(func.plainto_tsquery('english', text_query).column_valued('query'))
+        stmt = stmt.where(text('full_text @@ query'))
+        if sort == SearchResultSort.RANK_DESC:
+            # the third parameter to ts_rank_cd is a normalization bit mask:
+            # 1 = divides the rank by 1 + the logarithm of the document length
+            # 4 = divides the rank by the mean harmonic distance between extents
+            stmt = stmt.add_columns(func.ts_rank_cd('full_text', 'query', 1 | 4).label('rank'))
 
     if facet_query is not None:
         if not isinstance(facet_query, dict):
@@ -204,11 +215,16 @@ async def search_records(
         .select_from(stmt.subquery())
     ).scalar_one()
 
+    if text_query and sort == SearchResultSort.RANK_DESC:
+        order_by = text('rank DESC')
+    else:
+        order_by = CatalogRecord.timestamp.desc()
+
     limit = size or total
     items = [
         output_published_record_model(row.CatalogRecord) for row in Session.execute(
             stmt.
-            order_by(CatalogRecord.timestamp.desc()).
+            order_by(order_by).
             offset(limit * (page - 1)).
             limit(limit)
         )
