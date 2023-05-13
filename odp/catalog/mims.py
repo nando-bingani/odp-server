@@ -34,7 +34,7 @@ class MIMSCatalog(SAEONCatalog):
         """Create a mapping of facet names to values to be indexed for faceted search."""
         facets = super().create_facet_index_data(published_record)
         facets |= {
-            'Project': [],
+            'Project': [],  # replaces SAEON 'Project' facet
             'Location': [],
             'Instrument': [],
         }
