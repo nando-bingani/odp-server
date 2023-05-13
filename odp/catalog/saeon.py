@@ -138,7 +138,14 @@ class SAEONCatalog(Catalog):
             self, published_record: PublishedSAEONRecordModel
     ) -> dict[str, list[str]]:
         """Create a mapping of facet names to values to be indexed for faceted search."""
-        return {}
+        facets = {
+            'License': [],
+        }
+        datacite_metadata = self._get_metadata_dict(published_record, ODPMetadataSchema.SAEON_DATACITE4)
+        for rights_obj in datacite_metadata.get('rightsList', ()):
+            facets['License'] += [rights_obj.get('rights', '')]
+
+        return facets
 
     def create_spatial_index_data(
             self, published_record: PublishedSAEONRecordModel

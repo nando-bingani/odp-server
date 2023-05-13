@@ -32,11 +32,11 @@ class MIMSCatalog(SAEONCatalog):
             self, published_record: PublishedSAEONRecordModel
     ) -> dict[str, list[str]]:
         """Create a mapping of facet names to values to be indexed for faceted search."""
-        facets = {
+        facets = super().create_facet_index_data(published_record)
+        facets |= {
             'Project': [],
             'Location': [],
             'Instrument': [],
-            'License': [],
         }
         iso19115_facets = {
             'theme': 'Project',
@@ -47,9 +47,5 @@ class MIMSCatalog(SAEONCatalog):
             for keyword_obj in iso19115_metadata.get('descriptiveKeywords', ()):
                 if (keyword_type := keyword_obj.get('keywordType')) in ('theme', 'place', 'stratum'):
                     facets[iso19115_facets[keyword_type]] += [keyword_obj.get('keyword', '')]
-
-        datacite_metadata = self._get_metadata_dict(published_record, ODPMetadataSchema.SAEON_DATACITE4)
-        for rights_obj in datacite_metadata.get('rightsList', ()):
-            facets['License'] += [rights_obj.get('rights', '')]
 
         return facets
