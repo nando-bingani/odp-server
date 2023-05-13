@@ -25,6 +25,7 @@ ODP.Web.UI:
   secret_env: ODP_WEB_UI_CLIENT_SECRET
   url_env: ODP_WEB_URL
   scopes:
+    - odp.record:read
     - odp.token:read
     - openid
     - offline_access
