@@ -33,8 +33,10 @@ class MIMSCatalog(SAEONCatalog):
     ) -> dict[str, list[str]]:
         """Create a mapping of facet names to values to be indexed for faceted search."""
         facets = super().create_facet_index_data(published_record)
+        facets.pop('Collection')
+        facets.pop('Product')
         facets |= {
-            'Project': [],  # replaces SAEON 'Project' facet
+            'Project': [],
             'Location': [],
             'Instrument': [],
         }

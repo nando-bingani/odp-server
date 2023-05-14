@@ -144,7 +144,7 @@ class SAEONCatalog(Catalog):
             'Collection': [
                 published_record.collection_name
             ],
-            'Project': [
+            'Product': [
                 tag.data['project']
                 for tag in published_record.tags
                 if tag.tag_id == ODPCollectionTag.PROJECT
