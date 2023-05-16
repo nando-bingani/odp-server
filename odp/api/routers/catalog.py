@@ -89,6 +89,7 @@ async def list_records(
         catalog_id: str,
         include_nonsearchable: bool = False,
         include_retracted: bool = False,
+        updated_since: date = None,
         paginator: Paginator = Depends(partial(Paginator, sort='timestamp')),
 ):
     if not Session.get(Catalog, catalog_id):
@@ -106,6 +107,9 @@ async def list_records(
         stmt = stmt.join(PublishedRecord, CatalogRecord.record_id == PublishedRecord.id)
     else:
         stmt = stmt.where(CatalogRecord.published)
+
+    if updated_since:
+        stmt = stmt.where(CatalogRecord.timestamp >= updated_since)
 
     return paginator.paginate(
         stmt,
