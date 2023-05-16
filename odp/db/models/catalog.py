@@ -50,7 +50,7 @@ class CatalogRecord(Base):
     # internal catalog indexing
     full_text = deferred(Column(TSVECTOR))
     keywords = Column(ARRAY(String))
-    facets = relationship('CatalogRecordFacet')
+    facets = relationship('CatalogRecordFacet', cascade='all, delete-orphan', passive_deletes=True)
     spatial_north = Column(Numeric)
     spatial_east = Column(Numeric)
     spatial_south = Column(Numeric)
