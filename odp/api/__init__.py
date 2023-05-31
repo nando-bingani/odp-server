@@ -11,7 +11,7 @@ app = FastAPI(
     description="SAEON | Open Data Platform API",
     version=VERSION,
     root_path=config.ODP.API.PATH_PREFIX,
-    docs_url='/interactive',
+    docs_url='/swagger',
     redoc_url='/docs',
 )
 
