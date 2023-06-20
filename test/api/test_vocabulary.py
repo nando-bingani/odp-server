@@ -18,6 +18,13 @@ def vocabulary_batch():
     return [VocabularyFactory() for _ in range(randint(3, 5))]
 
 
+@pytest.fixture
+def vocabulary_batch_non_static():
+    """Create and commit a batch of Vocabulary instances,
+    with associated terms; with static=False."""
+    return [VocabularyFactory(static=False) for _ in range(randint(3, 5))]
+
+
 def prepare_project_vocabulary(vocab):
     """Update a factory-generated vocabulary to be an ODP Project vocabulary."""
     vocab.scope = Session.get(Scope, (ODPScope.VOCABULARY_PROJECT, ScopeType.odp)) or \
@@ -48,6 +55,7 @@ def assert_db_state(vocabularies):
         assert row.scope_type == 'odp'
         assert row.schema_id == vocabularies[n].schema_id
         assert row.schema_type == 'vocabulary'
+        assert row.static == vocabularies[n].static
         dbterms = Session.execute(select(VocabularyTerm).where(VocabularyTerm.vocabulary_id == row.id)).scalars().all()
         dbterms.sort(key=lambda t: t.term_id)
         terms = sorted(vocabularies[n].terms, key=lambda t: t.term_id)
@@ -83,6 +91,7 @@ def assert_json_result(response, json, vocabulary):
     assert json['schema_id'] == vocabulary.schema_id
     assert json['schema_uri'] == vocabulary.schema.uri
     assert json['schema_']['$id'] == vocabulary.schema.uri
+    assert json['static'] == vocabulary.static
 
     json_terms = sorted(json['terms'], key=lambda t: t['id'])
     vocab_terms = sorted(vocabulary.terms, key=lambda t: t.term_id)
@@ -162,38 +171,43 @@ def test_create_term(api, vocabulary_batch, scopes):
     ))
 
     if authorized:
-        assert_empty_result(r)
-        assert_db_state(modified_vocab_batch)
-        assert_audit_log('insert', term)
+        if modified_vocab.static:
+            assert_unprocessable(r, 'Static vocabulary cannot be modified')
+            assert_db_state(vocabulary_batch)
+            assert_no_audit_log()
+        else:
+            assert_empty_result(r)
+            assert_db_state(modified_vocab_batch)
+            assert_audit_log('insert', term)
     else:
         assert_forbidden(r)
         assert_db_state(vocabulary_batch)
         assert_no_audit_log()
 
 
-def test_create_term_conflict(api, vocabulary_batch):
+def test_create_term_conflict(api, vocabulary_batch_non_static):
     scopes = [ODPScope.VOCABULARY_PROJECT]
     client = api(scopes)
-    vocab = prepare_project_vocabulary(vocabulary_batch[2])
+    vocab = prepare_project_vocabulary(vocabulary_batch_non_static[2])
     r = client.post(f'/vocabulary/{vocab.id}/term', json=dict(
         id=vocab.terms[1].term_id,
         data={'title': 'Some Project'},
     ))
     assert_conflict(r, 'Term already exists in vocabulary')
-    assert_db_state(vocabulary_batch)
+    assert_db_state(vocabulary_batch_non_static)
     assert_no_audit_log()
 
 
-def test_create_term_invalid(api, vocabulary_batch):
+def test_create_term_invalid(api, vocabulary_batch_non_static):
     scopes = [ODPScope.VOCABULARY_PROJECT]
     client = api(scopes)
-    vocab = prepare_project_vocabulary(vocabulary_batch[2])
+    vocab = prepare_project_vocabulary(vocabulary_batch_non_static[2])
     r = client.post(f'/vocabulary/{vocab.id}/term', json=dict(
         id=fake.word(),
         data={'name': 'Project should have a title not a name'},
     ))
     assert_unprocessable(r, valid=False)
-    assert_db_state(vocabulary_batch)
+    assert_db_state(vocabulary_batch_non_static)
     assert_no_audit_log()
 
 
@@ -221,38 +235,43 @@ def test_update_term(api, vocabulary_batch, scopes):
     ))
 
     if authorized:
-        assert_empty_result(r)
-        assert_db_state(modified_vocab_batch)
-        assert_audit_log('update', term)
+        if modified_vocab.static:
+            assert_unprocessable(r, 'Static vocabulary cannot be modified')
+            assert_db_state(vocabulary_batch)
+            assert_no_audit_log()
+        else:
+            assert_empty_result(r)
+            assert_db_state(modified_vocab_batch)
+            assert_audit_log('update', term)
     else:
         assert_forbidden(r)
         assert_db_state(vocabulary_batch)
         assert_no_audit_log()
 
 
-def test_update_term_not_found(api, vocabulary_batch):
+def test_update_term_not_found(api, vocabulary_batch_non_static):
     scopes = [ODPScope.VOCABULARY_PROJECT]
     client = api(scopes)
-    vocab = prepare_project_vocabulary(vocabulary_batch[2])
+    vocab = prepare_project_vocabulary(vocabulary_batch_non_static[2])
     r = client.put(f'/vocabulary/{vocab.id}/term', json=dict(
         id=fake.word(),
         data={'title': 'Some Project'},
     ))
     assert_not_found(r)
-    assert_db_state(vocabulary_batch)
+    assert_db_state(vocabulary_batch_non_static)
     assert_no_audit_log()
 
 
-def test_update_term_invalid(api, vocabulary_batch):
+def test_update_term_invalid(api, vocabulary_batch_non_static):
     scopes = [ODPScope.VOCABULARY_PROJECT]
     client = api(scopes)
-    vocab = prepare_project_vocabulary(vocabulary_batch[2])
+    vocab = prepare_project_vocabulary(vocabulary_batch_non_static[2])
     r = client.put(f'/vocabulary/{vocab.id}/term', json=dict(
         id=vocab.terms[1].term_id,
         data={'name': 'Project should have a title not a name'},
     ))
     assert_unprocessable(r, valid=False)
-    assert_db_state(vocabulary_batch)
+    assert_db_state(vocabulary_batch_non_static)
     assert_no_audit_log()
 
 
@@ -274,21 +293,26 @@ def test_delete_term(api, vocabulary_batch, scopes):
     r = client.delete(f'/vocabulary/{modified_vocab.id}/term/{deleted_term.term_id}')
 
     if authorized:
-        assert_empty_result(r)
-        # check audit log first because assert_db_state expires the deleted item
-        assert_audit_log('delete', deleted_term)
-        assert_db_state(modified_vocab_batch)
+        if modified_vocab.static:
+            assert_unprocessable(r, 'Static vocabulary cannot be modified')
+            assert_db_state(vocabulary_batch)
+            assert_no_audit_log()
+        else:
+            assert_empty_result(r)
+            # check audit log first because assert_db_state expires the deleted item
+            assert_audit_log('delete', deleted_term)
+            assert_db_state(modified_vocab_batch)
     else:
         assert_forbidden(r)
         assert_db_state(vocabulary_batch)
         assert_no_audit_log()
 
 
-def test_delete_term_not_found(api, vocabulary_batch):
+def test_delete_term_not_found(api, vocabulary_batch_non_static):
     scopes = [ODPScope.VOCABULARY_PROJECT]
     client = api(scopes)
-    vocab = prepare_project_vocabulary(vocabulary_batch[2])
+    vocab = prepare_project_vocabulary(vocabulary_batch_non_static[2])
     r = client.delete(f'/vocabulary/{vocab.id}/term/{fake.word()}')
     assert_not_found(r)
-    assert_db_state(vocabulary_batch)
+    assert_db_state(vocabulary_batch_non_static)
     assert_no_audit_log()

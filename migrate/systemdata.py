@@ -14,7 +14,7 @@ from odp.const import (ODPCatalog, ODPCollectionTag, ODPMetadataSchema, ODPRecor
                        ODPVocabularySchema)
 from odp.const.hydra import GrantType, HydraScope
 from odp.db import Base, Session, engine
-from odp.db.models import Catalog, Client, Collection, Role, Schema, SchemaType, Scope, ScopeType, Tag, Vocabulary
+from odp.db.models import Catalog, Client, Collection, Role, Schema, SchemaType, Scope, ScopeType, Tag, Vocabulary, VocabularyTerm
 from odp.lib.hydra import HydraAdminAPI
 from odp.lib.schema import schema_md5
 
@@ -165,8 +165,8 @@ def init_tags():
 def init_vocabularies():
     """Create or update vocabulary definitions.
 
-    This does not create any vocabulary terms; terms are audited
-    so any changes need to be made using the API.
+    If `static_terms` are declared in the .yml, the vocabulary is flagged
+    as static, and its terms are maintained here without audit logging.
     """
     with open(datadir / 'vocabularies.yml') as f:
         vocabulary_data = yaml.safe_load(f)
@@ -178,6 +178,27 @@ def init_vocabularies():
         vocabulary.scope_type = ScopeType.odp
         vocabulary.schema_id = vocabulary_spec['schema_id']
         vocabulary.schema_type = SchemaType.vocabulary
+
+        if static_terms := vocabulary_spec.get('static_terms'):
+            vocabulary.static = True
+            term_ids = []
+            for term_spec in static_terms:
+                term_ids += [term_id := term_spec['id']]
+                term = Session.get(VocabularyTerm, (vocabulary_id, term_id)) or VocabularyTerm(
+                    vocabulary_id=vocabulary_id,
+                    term_id=term_id,
+                )
+                term.data = term_spec
+                term.save()
+
+                Session.execute(
+                    delete(VocabularyTerm).
+                    where(VocabularyTerm.vocabulary_id == vocabulary_id).
+                    where(VocabularyTerm.term_id.not_in(term_ids))
+                )
+        else:
+            vocabulary.static = False
+
         vocabulary.save()
 
     if orphaned_yml_vocabularies := [vocabulary_id for vocabulary_id in vocabulary_data if vocabulary_id not in vocabulary_ids]:

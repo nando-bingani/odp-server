@@ -25,6 +25,7 @@ def output_vocabulary_model(vocabulary: Vocabulary) -> VocabularyModel:
         schema_id=vocabulary.schema_id,
         schema_uri=vocabulary.schema.uri,
         schema_=schema_catalog.get_schema(URI(vocabulary.schema.uri)).value,
+        static=vocabulary.static,
         terms=[VocabularyTermModel(
             id=term.term_id,
             data=term.data,
@@ -97,6 +98,12 @@ async def create_term(
         term_schema: JSONSchema = Depends(get_vocabulary_schema),
         auth: Authorized = Depends(VocabularyAuthorize()),
 ):
+    if not (vocabulary := Session.get(Vocabulary, vocabulary_id)):
+        raise HTTPException(HTTP_404_NOT_FOUND)
+
+    if vocabulary.static:
+        raise HTTPException(HTTP_422_UNPROCESSABLE_ENTITY, 'Static vocabulary cannot be modified')
+
     if Session.get(VocabularyTerm, (vocabulary_id, term_in.id)):
         raise HTTPException(HTTP_409_CONFLICT, 'Term already exists in vocabulary')
 
@@ -125,6 +132,12 @@ async def update_term(
         term_schema: JSONSchema = Depends(get_vocabulary_schema),
         auth: Authorized = Depends(VocabularyAuthorize()),
 ):
+    if not (vocabulary := Session.get(Vocabulary, vocabulary_id)):
+        raise HTTPException(HTTP_404_NOT_FOUND)
+
+    if vocabulary.static:
+        raise HTTPException(HTTP_422_UNPROCESSABLE_ENTITY, 'Static vocabulary cannot be modified')
+
     if not (term := Session.get(VocabularyTerm, (vocabulary_id, term_in.id))):
         raise HTTPException(HTTP_404_NOT_FOUND)
 
@@ -149,6 +162,12 @@ async def delete_term(
         term_id: str,
         auth: Authorized = Depends(VocabularyAuthorize()),
 ):
+    if not (vocabulary := Session.get(Vocabulary, vocabulary_id)):
+        raise HTTPException(HTTP_404_NOT_FOUND)
+
+    if vocabulary.static:
+        raise HTTPException(HTTP_422_UNPROCESSABLE_ENTITY, 'Static vocabulary cannot be modified')
+
     if not (term := Session.get(VocabularyTerm, (vocabulary_id, term_id))):
         raise HTTPException(HTTP_404_NOT_FOUND)
 

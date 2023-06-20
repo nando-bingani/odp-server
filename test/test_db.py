@@ -172,6 +172,7 @@ def test_create_vocabulary():
         row.Vocabulary.scope_type,
         row.Vocabulary.schema_id,
         row.Vocabulary.schema_type,
+        row.Vocabulary.static,
         row.VocabularyTerm.vocabulary_id,
         row.VocabularyTerm.term_id,
         row.VocabularyTerm.data
@@ -181,6 +182,7 @@ def test_create_vocabulary():
         'odp',
         vocabulary.schema_id,
         'vocabulary',
+        vocabulary.static,
         term.vocabulary_id,
         term.term_id,
         term.data,

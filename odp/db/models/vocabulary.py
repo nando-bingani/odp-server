@@ -1,4 +1,4 @@
-from sqlalchemy import CheckConstraint, Column, Enum, ForeignKey, ForeignKeyConstraint, Identity, Integer, String, TIMESTAMP
+from sqlalchemy import Boolean, CheckConstraint, Column, Enum, ForeignKey, ForeignKeyConstraint, Identity, Integer, String, TIMESTAMP
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 
@@ -41,10 +41,13 @@ class Vocabulary(Base):
     scope_type = Column(Enum(ScopeType), nullable=False)
     scope = relationship('Scope')
 
+    # if static, terms are maintained by the system
+    static = Column(Boolean, nullable=False, server_default='false')
+
     # view of associated terms (one-to-many)
     terms = relationship('VocabularyTerm', viewonly=True)
 
-    _repr_ = 'id', 'schema_id', 'scope_id'
+    _repr_ = 'id', 'schema_id', 'scope_id', 'static'
 
 
 class VocabularyTerm(Base):

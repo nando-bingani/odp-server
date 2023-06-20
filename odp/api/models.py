@@ -329,6 +329,7 @@ class VocabularyModel(BaseModel):
     schema_id: str
     schema_uri: str
     schema_: dict[str, Any]
+    static: bool
     terms: list[VocabularyTermModel]
 
 

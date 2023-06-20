@@ -260,6 +260,7 @@ class VocabularyFactory(ODPModelFactory):
     id = factory.Sequence(lambda n: id_from_fake('word', n))
     scope = factory.SubFactory(ScopeFactory, type='odp')
     schema = factory.SubFactory(SchemaFactory, type='vocabulary')
+    static = factory.LazyFunction(lambda: randint(0, 1))
     terms = factory.RelatedFactoryList(
         VocabularyTermFactory,
         factory_related_name='vocabulary',
