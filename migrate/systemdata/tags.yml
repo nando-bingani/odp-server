@@ -81,3 +81,10 @@ Record.Note:
   public: False
   scope_id: odp.record:note
   schema_id: Tag.Generic
+
+Record.SDG:
+  type: record
+  cardinality: multi
+  public: True
+  scope_id: odp.record:sdg
+  schema_id: Tag.Record.SDG

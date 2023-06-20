@@ -30,6 +30,10 @@ Tag.Record.Migrated:
   type: tag
   uri: https://odp.saeon.ac.za/schema/tag/record/migrated
 
+Tag.Record.SDG:
+  type: tag
+  uri: https://odp.saeon.ac.za/schema/tag/record/sdg
+
 Tag.Generic:
   type: tag
   uri: https://odp.saeon.ac.za/schema/tag/generic
@@ -41,3 +45,7 @@ Vocabulary.Infrastructure:
 Vocabulary.Project:
   type: vocabulary
   uri: https://odp.saeon.ac.za/schema/vocabulary/project
+
+Vocabulary.SDG:
+  type: vocabulary
+  uri: https://odp.saeon.ac.za/schema/vocabulary/sdg
