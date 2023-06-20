@@ -136,7 +136,7 @@ async def delete_user(
 @router.get(
     '/{user_id}/audit',
     response_model=Page[IdentityAuditModel],
-    dependencies=[Depends(Authorize(ODPScope.USER_READ))],
+    dependencies=[Depends(Authorize(ODPScope.USER_ADMIN))],
 )
 async def get_user_audit_log(
         user_id: str,
@@ -157,7 +157,7 @@ async def get_user_audit_log(
 @router.get(
     '/{user_id}/audit/{audit_id}',
     response_model=IdentityAuditModel,
-    dependencies=[Depends(Authorize(ODPScope.USER_READ))],
+    dependencies=[Depends(Authorize(ODPScope.USER_ADMIN))],
 )
 async def get_user_audit_detail(
         user_id: str,
