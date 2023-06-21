@@ -178,6 +178,7 @@ def init_vocabularies():
         vocabulary.scope_type = ScopeType.odp
         vocabulary.schema_id = vocabulary_spec['schema_id']
         vocabulary.schema_type = SchemaType.vocabulary
+        vocabulary.save()
 
         if static_terms := vocabulary_spec.get('static_terms'):
             vocabulary.static = True
@@ -198,8 +199,6 @@ def init_vocabularies():
                 )
         else:
             vocabulary.static = False
-
-        vocabulary.save()
 
     if orphaned_yml_vocabularies := [vocabulary_id for vocabulary_id in vocabulary_data if vocabulary_id not in vocabulary_ids]:
         logger.warning(f'Orphaned vocabulary definitions in vocabularies.yml {orphaned_yml_vocabularies}')
