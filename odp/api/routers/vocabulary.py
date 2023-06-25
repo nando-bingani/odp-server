@@ -29,7 +29,7 @@ def output_vocabulary_model(vocabulary: Vocabulary) -> VocabularyModel:
         terms=[VocabularyTermModel(
             id=term.term_id,
             data=term.data,
-        ) for term in vocabulary.terms]
+        ) for term in sorted(vocabulary.terms, key=lambda vt: vt.term_id)]
     )
 
 
