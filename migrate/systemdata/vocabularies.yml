@@ -10,31 +10,31 @@ SDG:
   scope_id: odp.vocabulary:sdg
   schema_id: Vocabulary.SDG
   static_terms:
-    - id: '1'
+    - id: '01'
       title: No poverty
       goal: End poverty in all its forms everywhere
-    - id: '2'
+    - id: '02'
       title: Zero hunger
       goal: End hunger, achieve food security and improved nutrition and promote sustainable agriculture
-    - id: '3'
+    - id: '03'
       title: Good health and well-being
       goal: Ensure healthy lives and promote well-being for all at all ages
-    - id: '4'
+    - id: '04'
       title: Quality education
       goal: Ensure inclusive and equitable quality education and promote lifelong learning opportunities for all
-    - id: '5'
+    - id: '05'
       title: Gender equality
       goal: Achieve gender equality and empower all women and girls
-    - id: '6'
+    - id: '06'
       title: Clean water and sanitation
       goal: Ensure availability and sustainable management of water and sanitation for all
-    - id: '7'
+    - id: '07'
       title: Affordable and clean energy
       goal: Ensure access to affordable, reliable, sustainable and modern energy for all
-    - id: '8'
+    - id: '08'
       title: Decent work and economic growth
       goal: Promote sustained, inclusive and sustainable economic growth, full and productive employment and decent work for all
-    - id: '9'
+    - id: '09'
       title: Industry, innovation and infrastructure
       goal: Build resilient infrastructure, promote inclusive and sustainable industrialization and foster innovation
     - id: '10'
