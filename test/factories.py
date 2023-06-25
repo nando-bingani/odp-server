@@ -148,6 +148,30 @@ class ClientFactory(ODPModelFactory):
                 Session.commit()
 
 
+class VocabularyTermFactory(ODPModelFactory):
+    class Meta:
+        model = VocabularyTerm
+
+    vocabulary = None
+    term_id = factory.Sequence(lambda n: id_from_fake('word', n))
+    data = factory.LazyAttribute(lambda t: {'id': t.term_id})
+
+
+class VocabularyFactory(ODPModelFactory):
+    class Meta:
+        model = Vocabulary
+
+    id = factory.Sequence(lambda n: id_from_fake('word', n))
+    scope = factory.SubFactory(ScopeFactory, type='odp')
+    schema = factory.SubFactory(SchemaFactory, type='vocabulary')
+    static = factory.LazyFunction(lambda: randint(0, 1))
+    terms = factory.RelatedFactoryList(
+        VocabularyTermFactory,
+        factory_related_name='vocabulary',
+        size=lambda: randint(3, 5),
+    )
+
+
 class TagFactory(ODPModelFactory):
     class Meta:
         model = Tag
@@ -158,6 +182,7 @@ class TagFactory(ODPModelFactory):
     public = factory.LazyFunction(lambda: randint(0, 1))
     scope = factory.SubFactory(ScopeFactory, type='odp')
     schema = factory.SubFactory(SchemaFactory, type='tag')
+    vocabulary = factory.SubFactory(VocabularyFactory)
 
 
 class UserFactory(ODPModelFactory):
@@ -242,27 +267,3 @@ class RoleFactory(ODPModelFactory):
                 obj.collections.append(collection)
             if create:
                 Session.commit()
-
-
-class VocabularyTermFactory(ODPModelFactory):
-    class Meta:
-        model = VocabularyTerm
-
-    vocabulary = None
-    term_id = factory.Sequence(lambda n: id_from_fake('word', n))
-    data = factory.LazyAttribute(lambda t: {'id': t.term_id})
-
-
-class VocabularyFactory(ODPModelFactory):
-    class Meta:
-        model = Vocabulary
-
-    id = factory.Sequence(lambda n: id_from_fake('word', n))
-    scope = factory.SubFactory(ScopeFactory, type='odp')
-    schema = factory.SubFactory(SchemaFactory, type='vocabulary')
-    static = factory.LazyFunction(lambda: randint(0, 1))
-    terms = factory.RelatedFactoryList(
-        VocabularyTermFactory,
-        factory_related_name='vocabulary',
-        size=lambda: randint(3, 5),
-    )

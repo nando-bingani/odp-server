@@ -153,6 +153,7 @@ def init_tags():
         tag.scope_type = ScopeType.odp
         tag.schema_id = tag_spec['schema_id']
         tag.schema_type = SchemaType.tag
+        tag.vocabulary_id = tag_spec.get('vocabulary_id')
         tag.save()
 
     if orphaned_yml_tags := [tag_id for tag_id in tag_data if tag_id not in tag_ids]:

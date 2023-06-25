@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, CheckConstraint, Column, Enum, ForeignKeyConstraint, String
+from sqlalchemy import Boolean, CheckConstraint, Column, Enum, ForeignKey, ForeignKeyConstraint, String
 from sqlalchemy.orm import relationship
 
 from odp.db import Base
@@ -41,5 +41,8 @@ class Tag(Base):
     scope_id = Column(String, nullable=False)
     scope_type = Column(Enum(ScopeType), nullable=False)
     scope = relationship('Scope')
+
+    vocabulary_id = Column(String, ForeignKey('vocabulary.id', ondelete='RESTRICT'))
+    vocabulary = relationship('Vocabulary')
 
     _repr_ = 'id', 'type', 'cardinality', 'public', 'schema_id', 'scope_id'

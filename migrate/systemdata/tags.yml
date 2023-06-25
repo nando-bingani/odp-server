@@ -18,6 +18,7 @@ Collection.Infrastructure:
   public: False
   scope_id: odp.collection:infrastructure
   schema_id: Tag.Collection.Infrastructure
+  vocabulary_id: Infrastructure
 
 Collection.Project:
   type: collection
@@ -25,6 +26,7 @@ Collection.Project:
   public: True
   scope_id: odp.collection:project
   schema_id: Tag.Collection.Project
+  vocabulary_id: Project
 
 Collection.NotSearchable:
   type: collection
@@ -88,3 +90,4 @@ Record.SDG:
   public: True
   scope_id: odp.record:sdg
   schema_id: Tag.Record.SDG
+  vocabulary_id: SDG
