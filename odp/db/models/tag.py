@@ -45,4 +45,4 @@ class Tag(Base):
     vocabulary_id = Column(String, ForeignKey('vocabulary.id', ondelete='RESTRICT'))
     vocabulary = relationship('Vocabulary')
 
-    _repr_ = 'id', 'type', 'cardinality', 'public', 'schema_id', 'scope_id'
+    _repr_ = 'id', 'type', 'cardinality', 'public', 'schema_id', 'scope_id', 'vocabulary_id'
