@@ -41,6 +41,7 @@ ODP.Web.CI:
   scopes:
     - odp.catalog:read
     - odp.catalog:search
+    - odp.vocabulary:read
   grant_types:
     - client_credentials
 
