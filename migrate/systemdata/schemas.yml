@@ -30,13 +30,13 @@ Tag.Record.Migrated:
   type: tag
   uri: https://odp.saeon.ac.za/schema/tag/record/migrated
 
-Tag.Record.SDG:
-  type: tag
-  uri: https://odp.saeon.ac.za/schema/tag/record/sdg
-
 Tag.Generic:
   type: tag
   uri: https://odp.saeon.ac.za/schema/tag/generic
+
+Tag.Keyword:
+  type: tag
+  uri: https://odp.saeon.ac.za/schema/tag/keyword
 
 Vocabulary.Infrastructure:
   type: vocabulary

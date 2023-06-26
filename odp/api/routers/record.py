@@ -18,7 +18,7 @@ from odp.api.models import (AuditModel, CatalogRecordModel, RecordAuditModel, Re
 from odp.const import ODPCollectionTag, ODPMetadataSchema, ODPScope
 from odp.db import Session
 from odp.db.models import (AuditCommand, CatalogRecord, Collection, CollectionTag, PublishedRecord, Record, RecordAudit, RecordTag, RecordTagAudit,
-                           SchemaType, Tag, TagCardinality, TagType, User)
+                           SchemaType, Tag, TagCardinality, TagType, User, VocabularyTerm)
 
 router = APIRouter()
 
@@ -515,6 +515,15 @@ async def tag_record(
         validity = tag_schema.evaluate(JSON(tag_instance_in.data)).output('detailed')
         if not validity['valid']:
             raise HTTPException(HTTP_422_UNPROCESSABLE_ENTITY, validity)
+
+        if tag.vocabulary_id is not None:
+            # it's a keyword tag; we expect the data to conform to the Tag.Keyword schema
+            vocab_id = tag_instance_in.data.get('vocabulary')
+            keyword_id = tag_instance_in.data.get('keyword')
+            if vocab_id != tag.vocabulary_id:
+                raise HTTPException(HTTP_422_UNPROCESSABLE_ENTITY, f'Vocabulary {vocab_id} not allowed for tag {tag.id}')
+            if not Session.get(VocabularyTerm, (vocab_id, keyword_id)):
+                raise HTTPException(HTTP_422_UNPROCESSABLE_ENTITY, f'Vocabulary {vocab_id} does not contain keyword {keyword_id}')
 
         record_tag.data = tag_instance_in.data
         record_tag.timestamp = (timestamp := datetime.now(timezone.utc))

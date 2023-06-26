@@ -89,5 +89,5 @@ Record.SDG:
   cardinality: multi
   public: True
   scope_id: odp.record:sdg
-  schema_id: Tag.Record.SDG
+  schema_id: Tag.Keyword
   vocabulary_id: SDG

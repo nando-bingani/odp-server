@@ -10,7 +10,8 @@ from odp.db import Session
 from odp.db.models import CollectionTag, PublishedRecord, Record, RecordAudit, RecordTag, RecordTagAudit, Scope, ScopeType
 from test.api import (CollectionAuth, all_scopes, all_scopes_excluding, assert_conflict, assert_empty_result, assert_forbidden, assert_new_timestamp,
                       assert_not_found, assert_unprocessable)
-from test.factories import CollectionFactory, CollectionTagFactory, RecordFactory, RecordTagFactory, SchemaFactory, TagFactory
+from test.factories import (CollectionFactory, CollectionTagFactory, RecordFactory, RecordTagFactory, SchemaFactory, TagFactory, VocabularyFactory,
+                            fake)
 
 
 @pytest.fixture
@@ -706,7 +707,8 @@ def test_delete_record_not_found(api, record_batch, admin, collection_auth):
     assert_no_audit_log()
 
 
-def new_generic_tag(cardinality):
+def new_generic_tag(cardinality, is_keyword_tag=False):
+    schema_uri = 'https://odp.saeon.ac.za/schema/tag/keyword' if is_keyword_tag else 'https://odp.saeon.ac.za/schema/tag/generic'
     return TagFactory(
         type='record',
         cardinality=cardinality,
@@ -717,9 +719,15 @@ def new_generic_tag(cardinality):
         ),
         schema=SchemaFactory(
             type='tag',
-            uri='https://odp.saeon.ac.za/schema/tag/generic',
+            uri=schema_uri,
         ),
+        is_keyword_tag=is_keyword_tag,
     )
+
+
+@pytest.fixture(params=['no', 'yes-valid', 'yes-invalid-vocab', 'yes-invalid-keyword'])
+def is_keyword(request):
+    return request.param
 
 
 @pytest.mark.parametrize('scopes', [
@@ -728,7 +736,19 @@ def new_generic_tag(cardinality):
     all_scopes,
     all_scopes_excluding(ODPScope.RECORD_QC),
 ])
-def test_tag_record(api, record_batch_no_tags, scopes, collection_auth, tag_cardinality):
+def test_tag_record(api, record_batch_no_tags, scopes, collection_auth, tag_cardinality, is_keyword):
+
+    def tag_data(n):
+        nonlocal incorrect_vocab, incorrect_keyword
+        if is_keyword == 'no':
+            return {'comment': f'test{n}'}
+        elif is_keyword == 'yes-valid':
+            return {'vocabulary': tag.vocabulary_id, 'keyword': tag.vocabulary.terms[n].term_id}
+        elif is_keyword == 'yes-invalid-vocab':
+            return {'vocabulary': (incorrect_vocab := VocabularyFactory()).id, 'keyword': incorrect_vocab.terms[n].term_id}
+        elif is_keyword == 'yes-invalid-keyword':
+            return {'vocabulary': tag.vocabulary_id, 'keyword': (incorrect_keyword := fake.word())}
+
     authorized = ODPScope.RECORD_QC in scopes and \
                  collection_auth in (CollectionAuth.NONE, CollectionAuth.MATCH)
 
@@ -740,53 +760,61 @@ def test_tag_record(api, record_batch_no_tags, scopes, collection_auth, tag_card
         api_client_collections = None
 
     client = api(scopes, api_client_collections)
-    tag = new_generic_tag(tag_cardinality)
+    tag = new_generic_tag(tag_cardinality, is_keyword != 'no')
+    incorrect_vocab = None
+    incorrect_keyword = None
 
     r = client.post(
         f'/record/{(record_id := record_batch_no_tags[2].id)}/tag',
         json=(record_tag_1 := dict(
             tag_id=tag.id,
-            data={'comment': 'test1'},
+            data=tag_data(1),
         )))
 
     if authorized:
-        assert_json_tag_result(r, r.json(), record_tag_1 | dict(cardinality=tag_cardinality, public=tag.public))
-        assert_db_tag_state(record_id, record_tag_1)
-        assert_tag_audit_log(
-            dict(command='insert', record_id=record_id, record_tag=record_tag_1),
-        )
+        if is_keyword in ('no', 'yes-valid'):
+            assert_json_tag_result(r, r.json(), record_tag_1 | dict(cardinality=tag_cardinality, public=tag.public))
+            assert_db_tag_state(record_id, record_tag_1)
+            assert_tag_audit_log(
+                dict(command='insert', record_id=record_id, record_tag=record_tag_1),
+            )
+        elif is_keyword == 'yes-invalid-vocab':
+            assert_unprocessable(r, f'Vocabulary {incorrect_vocab.id} not allowed for tag {tag.id}')
+        elif is_keyword == 'yes-invalid-keyword':
+            assert_unprocessable(r, f'Vocabulary {tag.vocabulary_id} does not contain keyword {incorrect_keyword}')
     else:
         assert_forbidden(r)
         assert_db_tag_state(record_id)
         assert_tag_audit_log()
 
-    r = client.post(
-        f'/record/{(record_id := record_batch_no_tags[2].id)}/tag',
-        json=(record_tag_2 := dict(
-            tag_id=tag.id,
-            data={'comment': 'test2'},
-        )))
+    if is_keyword in ('no', 'yes-valid'):
+        r = client.post(
+            f'/record/{(record_id := record_batch_no_tags[2].id)}/tag',
+            json=(record_tag_2 := dict(
+                tag_id=tag.id,
+                data=tag_data(2),
+            )))
 
-    if authorized:
-        assert_json_tag_result(r, r.json(), record_tag_2 | dict(cardinality=tag_cardinality, public=tag.public))
-        if tag_cardinality in ('one', 'user'):
-            assert_db_tag_state(record_id, record_tag_2)
-            assert_tag_audit_log(
-                dict(command='insert', record_id=record_id, record_tag=record_tag_1),
-                dict(command='update', record_id=record_id, record_tag=record_tag_2),
-            )
-        elif tag_cardinality == 'multi':
-            assert_db_tag_state(record_id, record_tag_1, record_tag_2)
-            assert_tag_audit_log(
-                dict(command='insert', record_id=record_id, record_tag=record_tag_1),
-                dict(command='insert', record_id=record_id, record_tag=record_tag_2),
-            )
+        if authorized:
+            assert_json_tag_result(r, r.json(), record_tag_2 | dict(cardinality=tag_cardinality, public=tag.public))
+            if tag_cardinality in ('one', 'user'):
+                assert_db_tag_state(record_id, record_tag_2)
+                assert_tag_audit_log(
+                    dict(command='insert', record_id=record_id, record_tag=record_tag_1),
+                    dict(command='update', record_id=record_id, record_tag=record_tag_2),
+                )
+            elif tag_cardinality == 'multi':
+                assert_db_tag_state(record_id, record_tag_1, record_tag_2)
+                assert_tag_audit_log(
+                    dict(command='insert', record_id=record_id, record_tag=record_tag_1),
+                    dict(command='insert', record_id=record_id, record_tag=record_tag_2),
+                )
+            else:
+                assert False
         else:
-            assert False
-    else:
-        assert_forbidden(r)
-        assert_db_tag_state(record_id)
-        assert_tag_audit_log()
+            assert_forbidden(r)
+            assert_db_tag_state(record_id)
+            assert_tag_audit_log()
 
     assert_db_state(record_batch_no_tags)
     assert_no_audit_log()

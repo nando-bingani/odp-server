@@ -174,7 +174,7 @@ class VocabularyFactory(ODPModelFactory):
 class TagFactory(ODPModelFactory):
     class Meta:
         model = Tag
-        exclude = ('has_vocabulary',)
+        exclude = ('is_keyword_tag',)
 
     id = factory.LazyAttribute(lambda tag: f'tag-{tag.scope.id}')
     type = factory.LazyFunction(lambda: choice(('collection', 'record')))
@@ -183,9 +183,9 @@ class TagFactory(ODPModelFactory):
     scope = factory.SubFactory(ScopeFactory, type='odp')
     schema = factory.SubFactory(SchemaFactory, type='tag')
 
-    has_vocabulary = factory.LazyFunction(lambda: randint(0, 1))
+    is_keyword_tag = factory.LazyFunction(lambda: randint(0, 1))
     vocabulary = factory.Maybe(
-        'has_vocabulary',
+        'is_keyword_tag',
         yes_declaration=factory.SubFactory(VocabularyFactory),
         no_declaration=None,
     )
