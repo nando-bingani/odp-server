@@ -20,8 +20,27 @@ def assert_db_state(tags):
     """Verify that the DB tag table contains the given tag batch."""
     Session.expire_all()
     result = Session.execute(select(Tag)).scalars().all()
-    assert set((row.id, row.cardinality, row.public, row.scope_id, row.scope_type, row.schema_id, row.schema_type) for row in result) \
-           == set((tag.id, tag.cardinality, tag.public, tag.scope_id, tag.scope_type, tag.schema_id, tag.schema_type) for tag in tags)
+    assert set(
+        (row.id,
+         row.cardinality,
+         row.public,
+         row.scope_id,
+         row.scope_type,
+         row.schema_id,
+         row.schema_type,
+         row.vocabulary_id,
+         ) for row in result
+    ) == set(
+        (tag.id,
+         tag.cardinality,
+         tag.public,
+         tag.scope_id,
+         tag.scope_type,
+         tag.schema_id,
+         tag.schema_type,
+         tag.vocabulary_id,
+         ) for tag in tags
+    )
 
 
 def assert_json_result(response, json, tag):
@@ -34,6 +53,7 @@ def assert_json_result(response, json, tag):
     assert json['schema_id'] == tag.schema_id
     assert json['schema_uri'] == tag.schema.uri
     assert json['schema_']['$id'] == tag.schema.uri
+    assert json['vocabulary_id'] == tag.vocabulary_id
 
 
 def assert_json_results(response, json, tags):

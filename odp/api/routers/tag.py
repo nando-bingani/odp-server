@@ -32,6 +32,7 @@ async def list_tags(
             schema_id=row.Tag.schema_id,
             schema_uri=row.Tag.schema.uri,
             schema_=schema_catalog.get_schema(URI(row.Tag.schema.uri)).value,
+            vocabulary_id=row.Tag.vocabulary_id,
         )
     )
 
@@ -60,4 +61,5 @@ async def get_tag(
         schema_id=tag.schema_id,
         schema_uri=tag.schema.uri,
         schema_=schema_catalog.get_schema(URI(tag.schema.uri)).value,
+        vocabulary_id=tag.vocabulary_id,
     )

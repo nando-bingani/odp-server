@@ -126,7 +126,6 @@ class CollectionFactory(ODPModelFactory):
 class ClientFactory(ODPModelFactory):
     class Meta:
         model = Client
-        exclude = ('is_collection_client',)
 
     id = factory.Sequence(lambda n: id_from_fake('catch_phrase', n))
     collection_specific = factory.LazyFunction(lambda: randint(0, 1))
@@ -175,6 +174,7 @@ class VocabularyFactory(ODPModelFactory):
 class TagFactory(ODPModelFactory):
     class Meta:
         model = Tag
+        exclude = ('has_vocabulary',)
 
     id = factory.LazyAttribute(lambda tag: f'tag-{tag.scope.id}')
     type = factory.LazyFunction(lambda: choice(('collection', 'record')))
@@ -182,7 +182,13 @@ class TagFactory(ODPModelFactory):
     public = factory.LazyFunction(lambda: randint(0, 1))
     scope = factory.SubFactory(ScopeFactory, type='odp')
     schema = factory.SubFactory(SchemaFactory, type='tag')
-    vocabulary = factory.SubFactory(VocabularyFactory)
+
+    has_vocabulary = factory.LazyFunction(lambda: randint(0, 1))
+    vocabulary = factory.Maybe(
+        'has_vocabulary',
+        yes_declaration=factory.SubFactory(VocabularyFactory),
+        no_declaration=None,
+    )
 
 
 class UserFactory(ODPModelFactory):
@@ -247,7 +253,6 @@ class RecordTagFactory(ODPModelFactory):
 class RoleFactory(ODPModelFactory):
     class Meta:
         model = Role
-        exclude = ('is_collection_role',)
 
     id = factory.Sequence(lambda n: id_from_fake('job', n))
     collection_specific = factory.LazyFunction(lambda: randint(0, 1))

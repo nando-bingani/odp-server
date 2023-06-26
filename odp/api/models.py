@@ -295,6 +295,7 @@ class TagModel(BaseModel):
     schema_id: str
     schema_uri: str
     schema_: dict[str, Any]
+    vocabulary_id: Optional[str]
 
 
 class UserModel(BaseModel):
