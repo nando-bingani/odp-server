@@ -6,7 +6,7 @@ alembic
 argon2-cffi
 pyyaml
 fastapi
-pydantic
+pydantic<2
 starlette
 jschon
 jschon-translation
