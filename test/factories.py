@@ -224,7 +224,7 @@ class CollectionTagFactory(ODPModelFactory):
 class RecordFactory(ODPModelFactory):
     class Meta:
         model = Record
-        exclude = ('identifiers',)
+        exclude = ('identifiers', 'is_child_record')
 
     identifiers = factory.LazyFunction(lambda: choice(('doi', 'sid', 'both')))
     doi = factory.LazyAttributeSequence(lambda r, n: f'10.5555/test-{n}' if r.identifiers in ('doi', 'both') else None)
@@ -237,6 +237,13 @@ class RecordFactory(ODPModelFactory):
     schema = factory.LazyAttribute(lambda r: Session.get(Schema, (r.schema_id, 'metadata')) or
                                              SchemaFactory(id=r.schema_id, type='metadata'))
     timestamp = factory.LazyFunction(lambda: datetime.now(timezone.utc))
+
+    is_child_record = factory.LazyFunction(lambda: randint(0, 1))
+    parent = factory.Maybe(
+        'is_child_record',
+        yes_declaration=factory.SubFactory('test.factories.RecordFactory', is_child_record=False),
+        no_declaration=None,
+    )
 
 
 class RecordTagFactory(ODPModelFactory):

@@ -237,7 +237,7 @@ def test_delete_provider(api, provider_batch, scopes, has_record):
 
     if has_record:
         if collection := next((c for c in provider_batch[2].collections), None):
-            RecordFactory(collection=collection)
+            RecordFactory(collection=collection, is_child_record=False)
         else:
             has_record = False
 

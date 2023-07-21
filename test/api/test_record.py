@@ -19,7 +19,7 @@ def record_batch():
     """Create and commit a batch of Record instances."""
     records = []
     for _ in range(randint(3, 5)):
-        records += [record := RecordFactory()]
+        records += [record := RecordFactory(is_child_record=False)]
         RecordTagFactory.create_batch(randint(0, 3), record=record)
         CollectionTagFactory.create_batch(randint(0, 3), collection=record.collection)
     return records
@@ -29,14 +29,14 @@ def record_batch():
 def record_batch_no_tags():
     """Create and commit a batch of Record instances
     without any tag instances."""
-    return [RecordFactory() for _ in range(randint(3, 5))]
+    return [RecordFactory(is_child_record=False) for _ in range(randint(3, 5))]
 
 
 @pytest.fixture
 def record_batch_with_ids():
     """Create and commit a batch of Record instances
     with both DOIs and SIDs."""
-    return [RecordFactory(identifiers='both') for _ in range(randint(3, 5))]
+    return [RecordFactory(identifiers='both', is_child_record=False) for _ in range(randint(3, 5))]
 
 
 def record_build(collection=None, collection_tags=None, **id):
@@ -46,6 +46,7 @@ def record_build(collection=None, collection_tags=None, **id):
         **id,
         collection=collection or (collection := CollectionFactory()),
         collection_id=collection.id,
+        is_child_record=False,
     )
     if collection_tags:
         for ct in collection_tags:

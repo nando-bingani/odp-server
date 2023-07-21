@@ -51,13 +51,18 @@ class Record(Base):
     schema_type = Column(Enum(SchemaType), nullable=False)
     schema = relationship('Schema')
 
+    # parent-child relationship for HasPart/IsPartOf related identifiers
+    parent_id = Column(String, ForeignKey('record.id', ondelete='RESTRICT'))
+    parent = relationship('Record', remote_side=id)
+    children = relationship('Record', viewonly=True)
+
     # view of associated tags (one-to-many)
     tags = relationship('RecordTag', viewonly=True)
 
     # view of associated catalog records (one-to-many)
     catalog_records = relationship('CatalogRecord', viewonly=True)
 
-    _repr_ = 'id', 'doi', 'sid', 'collection_id', 'schema_id'
+    _repr_ = 'id', 'doi', 'sid', 'collection_id', 'schema_id', 'parent_id'
 
 
 class RecordAudit(Base):

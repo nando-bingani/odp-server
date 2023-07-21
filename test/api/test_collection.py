@@ -429,7 +429,7 @@ def test_delete_collection(api, collection_batch, scopes, collection_auth, has_r
     del modified_collection_batch[2]
 
     if has_record:
-        RecordFactory(collection=collection_batch[2])
+        RecordFactory(collection=collection_batch[2], is_child_record=False)
 
     r = api(scopes, api_client_collections).delete(f'/collection/{collection_batch[2].id}')
 
