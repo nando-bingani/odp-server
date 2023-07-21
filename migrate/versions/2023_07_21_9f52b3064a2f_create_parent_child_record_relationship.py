@@ -1,8 +1,8 @@
 """Create parent-child record relationship
 
-Revision ID: aa0153edf5a9
-Revises: 48bf65c26f62
-Create Date: 2023-07-19 13:58:52.518432
+Revision ID: 9f52b3064a2f
+Revises: 7cb5c8d08d82
+Create Date: 2023-07-21 14:08:44.199331
 
 """
 from alembic import op
@@ -10,8 +10,8 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = 'aa0153edf5a9'
-down_revision = '48bf65c26f62'
+revision = '9f52b3064a2f'
+down_revision = '7cb5c8d08d82'
 branch_labels = None
 depends_on = None
 
