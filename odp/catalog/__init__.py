@@ -225,19 +225,21 @@ class Catalog:
                 cannot_publish_reasons += ['migrated as not published']
 
         else:
-            # if a collection is tagged as harvested, QC is ignored
+            # for harvested collections, metadata must be valid, QC is ignored
             if collection_harvested:
                 can_publish_reasons += ['collection harvested']
+                if not metadata_valid:
+                    cannot_publish_reasons += ['metadata invalid']
+
+            # for non-harvested collections, QC is checked, metadata validity is ignored
             elif qc_passed:
                 can_publish_reasons += ['QC passed']
+
             else:
                 cannot_publish_reasons += ['QC failed']
 
             if retracted:
                 cannot_publish_reasons += ['record retracted']
-
-            if not metadata_valid:
-                cannot_publish_reasons += ['metadata invalid']
 
     def create_published_record(self, record_model: RecordModel) -> PublishedRecordModel:
         """Create the published form of a record."""
