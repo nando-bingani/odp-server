@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import CheckConstraint, Column, Enum, ForeignKey, ForeignKeyConstraint, Identity, Integer, String, TIMESTAMP
+from sqlalchemy import CheckConstraint, Column, Enum, ForeignKey, ForeignKeyConstraint, Identity, Index, Integer, String, TIMESTAMP, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 
@@ -19,6 +19,10 @@ class Record(Base):
     __tablename__ = 'record'
 
     __table_args__ = (
+        Index(
+            'ix_record_doi', text('lower(doi)'),
+            unique=True,
+        ),
         ForeignKeyConstraint(
             ('schema_id', 'schema_type'), ('schema.id', 'schema.type'),
             name='record_schema_fkey', ondelete='RESTRICT',
@@ -134,6 +138,13 @@ class PublishedRecord(Base):
     or having their DOIs changed or removed."""
 
     __tablename__ = 'published_record'
+
+    __table_args__ = (
+        Index(
+            'ix_published_record_doi', text('lower(doi)'),
+            unique=True,
+        ),
+    )
 
     id = Column(String, ForeignKey('record.id', ondelete='RESTRICT', onupdate='RESTRICT'), primary_key=True)
     doi = Column(String, ForeignKey('record.doi', ondelete='RESTRICT', onupdate='RESTRICT'), unique=True)

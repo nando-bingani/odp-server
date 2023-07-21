@@ -5,7 +5,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from jschon import JSON, JSONSchema
-from sqlalchemy import and_, literal_column, null, or_, select, union_all
+from sqlalchemy import and_, func, literal_column, null, or_, select, union_all
 from sqlalchemy.orm import aliased
 from starlette.status import HTTP_403_FORBIDDEN, HTTP_404_NOT_FOUND, HTTP_409_CONFLICT, HTTP_422_UNPROCESSABLE_ENTITY
 
@@ -242,7 +242,7 @@ def _create_record(
 
     if record_in.doi and Session.execute(
         select(Record).
-        where(Record.doi == record_in.doi)
+        where(func.lower(Record.doi) == record_in.doi.lower())
     ).first() is not None:
         raise HTTPException(HTTP_409_CONFLICT, 'DOI is already in use')
 
@@ -357,7 +357,7 @@ def _set_record(
     if record_in.doi and Session.execute(
         select(Record).
         where(Record.id != record.id).
-        where(Record.doi == record_in.doi)
+        where(func.lower(Record.doi) == record_in.doi.lower())
     ).first() is not None:
         raise HTTPException(HTTP_409_CONFLICT, 'DOI is already in use')
 

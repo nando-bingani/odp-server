@@ -345,7 +345,7 @@ def test_create_record_conflict(api, record_batch_with_ids, admin, collection_au
 
     if conflict == 'doi':
         record = record_build(
-            doi=record_batch_with_ids[0].doi,
+            doi=record_batch_with_ids[0].doi.upper(),  # DOIs are case-insensitive
             collection=new_record_collection,
         )
     elif conflict == 'sid':
@@ -518,7 +518,7 @@ def test_update_record_conflict(api, record_batch_with_ids, admin, collection_au
     if conflict == 'doi':
         record = record_build(
             id=record_batch_with_ids[2].id,
-            doi=record_batch_with_ids[0].doi,
+            doi=record_batch_with_ids[0].doi.upper(),  # DOIs are case-insensitive
             collection=modified_record_collection,
         )
     elif conflict == 'sid':
