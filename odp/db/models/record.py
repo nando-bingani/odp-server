@@ -82,6 +82,7 @@ class RecordAudit(Base):
     _metadata = Column(JSONB, nullable=False)
     _collection_id = Column(String, nullable=False)
     _schema_id = Column(String, nullable=False)
+    _parent_id = Column(String)
 
 
 class RecordTag(Base):
