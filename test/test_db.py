@@ -1,3 +1,5 @@
+from random import randint
+
 from sqlalchemy import select
 
 import migrate.systemdata
@@ -90,7 +92,7 @@ def test_create_provider():
 
 
 def test_create_record():
-    record = RecordFactory()
+    record = RecordFactory(is_child_record=randint(0, 1))
     result = Session.execute(
         select(Record).where(Record.id == record.id)
     ).scalar_one()

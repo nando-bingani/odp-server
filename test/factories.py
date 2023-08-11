@@ -238,10 +238,10 @@ class RecordFactory(ODPModelFactory):
                                              SchemaFactory(id=r.schema_id, type='metadata'))
     timestamp = factory.LazyFunction(lambda: datetime.now(timezone.utc))
 
-    is_child_record = factory.LazyFunction(lambda: randint(0, 1))
+    is_child_record = False
     parent = factory.Maybe(
         'is_child_record',
-        yes_declaration=factory.SubFactory('test.factories.RecordFactory', is_child_record=False),
+        yes_declaration=factory.SubFactory('test.factories.RecordFactory'),
         no_declaration=None,
     )
 
