@@ -28,6 +28,19 @@ def _sanitize_id(val):
     return re.sub(r'[^-.:\w]', '_', val)
 
 
+def create_metadata(record, n):
+    metadata = {'foo': f'test-{n}'}
+    if record.doi:
+        metadata |= {'doi': record.doi}
+    if record.parent_doi:
+        metadata |= {"relatedIdentifiers": [{
+            "relatedIdentifier": record.parent_doi,
+            "relatedIdentifierType": "DOI",
+            "relationType": "IsPartOf"
+        }]}
+    return metadata
+
+
 def schema_uri_from_type(schema):
     if schema.type == 'metadata':
         return choice((
@@ -224,12 +237,13 @@ class CollectionTagFactory(ODPModelFactory):
 class RecordFactory(ODPModelFactory):
     class Meta:
         model = Record
-        exclude = ('identifiers', 'is_child_record')
+        exclude = ('identifiers', 'is_child_record', 'parent_doi')
 
     identifiers = factory.LazyFunction(lambda: choice(('doi', 'sid', 'both')))
     doi = factory.LazyAttributeSequence(lambda r, n: f'10.5555/test-{n}' if r.identifiers in ('doi', 'both') else None)
     sid = factory.LazyAttributeSequence(lambda r, n: f'test-{n}' if r.doi is None or r.identifiers in ('sid', 'both') else None)
-    metadata_ = factory.LazyAttributeSequence(lambda r, n: {'doi': r.doi, 'foo': f'test-{n}'} if r.doi else {'foo': f'test-{n}'})
+    parent_doi = None
+    metadata_ = factory.LazyAttributeSequence(create_metadata)
     validity = {}
     collection = factory.SubFactory(CollectionFactory)
     schema_id = factory.LazyFunction(lambda: choice(('SAEON.DataCite4', 'SAEON.ISO19115')))

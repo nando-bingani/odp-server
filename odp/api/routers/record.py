@@ -1,3 +1,4 @@
+import re
 from datetime import datetime, timezone
 from functools import partial
 from typing import Any
@@ -15,7 +16,7 @@ from odp.api.lib.schema import get_metadata_schema, get_tag_schema
 from odp.api.lib.utils import output_published_record_model, output_tag_instance_model
 from odp.api.models import (AuditModel, CatalogRecordModel, RecordAuditModel, RecordModel, RecordModelIn, RecordTagAuditModel, TagInstanceModel,
                             TagInstanceModelIn)
-from odp.const import ODPCollectionTag, ODPMetadataSchema, ODPScope
+from odp.const import DOI_REGEX, ODPCollectionTag, ODPMetadataSchema, ODPScope
 from odp.db import Session
 from odp.db.models import (AuditCommand, CatalogRecord, Collection, CollectionTag, PublishedRecord, Record, RecordAudit, RecordTag, RecordTagAudit,
                            SchemaType, Tag, TagCardinality, TagType, User, VocabularyTerm)
@@ -79,6 +80,61 @@ def output_catalog_record_model(catalog_record: CatalogRecord) -> CatalogRecordM
     )
 
 
+def get_parent_id(metadata: dict[str, Any], schema_id: ODPMetadataSchema) -> str | None:
+    """Return the id of the parent record implied by an IsPartOf related identifier.
+
+    The child-parent relationship is only established when both sides have a DOI.
+
+    This is supported for the SAEON.DataCite4 and SAEON.ISO19115 metadata schemas.
+    """
+    try:
+        child_doi = metadata['doi']
+    except KeyError:
+        return
+
+    if schema_id not in (ODPMetadataSchema.SAEON_DATACITE4, ODPMetadataSchema.SAEON_ISO19115):
+        return
+
+    try:
+        parent_refs = list(filter(
+            lambda ref: ref['relationType'] == 'IsPartOf' and ref['relatedIdentifierType'] == 'DOI',
+            metadata['relatedIdentifiers']
+        ))
+    except KeyError:
+        return
+
+    if not parent_refs:
+        return
+
+    if len(parent_refs) > 1:
+        raise HTTPException(
+            HTTP_422_UNPROCESSABLE_ENTITY,
+            'Cannot determine parent DOI: found multiple related identifiers with relation IsPartOf and type DOI.',
+        )
+
+    # related DOIs sometimes appear as doi.org links, sometimes as plain DOIs
+    if match := re.search(DOI_REGEX[1:], parent_refs[0]['relatedIdentifier']):
+        parent_doi = match.group(0)
+        parent_record = Session.execute(
+            select(Record).
+            where(func.lower(Record.doi) == parent_doi.lower())
+        ).scalar_one_or_none()
+
+        if parent_record is None:
+            raise HTTPException(
+                HTTP_422_UNPROCESSABLE_ENTITY,
+                f'Record not found for parent DOI {parent_doi}.',
+            )
+
+        if parent_record.doi.lower() == child_doi.lower():
+            raise HTTPException(
+                HTTP_422_UNPROCESSABLE_ENTITY,
+                'DOI cannot be a parent of itself.',
+            )
+
+        return parent_record.id
+
+
 def get_validity(metadata: dict[str, Any], schema: JSONSchema) -> Any:
     if (result := schema.evaluate(JSON(metadata))).valid:
         return result.output('flag')
@@ -103,6 +159,7 @@ def create_audit_record(
         _metadata=record.metadata_,
         _collection_id=record.collection_id,
         _schema_id=record.schema_id,
+        _parent_id=record.parent_id,
     ).save()
 
 
@@ -256,6 +313,7 @@ def _create_record(
         doi=record_in.doi,
         sid=record_in.sid,
         collection_id=record_in.collection_id,
+        parent_id=get_parent_id(record_in.metadata, record_in.schema_id),
         schema_id=record_in.schema_id,
         schema_type=SchemaType.metadata,
         metadata_=record_in.metadata,
@@ -385,6 +443,7 @@ def _set_record(
         record.doi = record_in.doi
         record.sid = record_in.sid
         record.collection_id = record_in.collection_id
+        record.parent_id = get_parent_id(record_in.metadata, record_in.schema_id)
         record.schema_id = record_in.schema_id
         record.schema_type = SchemaType.metadata
         record.metadata_ = record_in.metadata
@@ -733,6 +792,7 @@ async def get_record_audit_detail(
         record_metadata=row.RecordAudit._metadata,
         record_collection_id=row.RecordAudit._collection_id,
         record_schema_id=row.RecordAudit._schema_id,
+        record_parent_id=row.RecordAudit._parent_id,
     )
 
 

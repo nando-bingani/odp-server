@@ -18,8 +18,10 @@ from test.factories import (CollectionFactory, CollectionTagFactory, RecordFacto
 def record_batch():
     """Create and commit a batch of Record instances."""
     records = []
-    for _ in range(randint(3, 5)):
-        records += [record := RecordFactory(is_child_record=False)]
+    for n in range(randint(3, 5)):
+        # ensure record 0 has a DOI; it can be used as a parent record
+        kwargs = dict(identifiers='doi') if n == 0 else {}
+        records += [record := RecordFactory(**kwargs)]
         RecordTagFactory.create_batch(randint(0, 3), record=record)
         CollectionTagFactory.create_batch(randint(0, 3), collection=record.collection)
     return records
@@ -29,24 +31,24 @@ def record_batch():
 def record_batch_no_tags():
     """Create and commit a batch of Record instances
     without any tag instances."""
-    return [RecordFactory(is_child_record=False) for _ in range(randint(3, 5))]
+    return [RecordFactory() for _ in range(randint(3, 5))]
 
 
 @pytest.fixture
 def record_batch_with_ids():
     """Create and commit a batch of Record instances
     with both DOIs and SIDs."""
-    return [RecordFactory(identifiers='both', is_child_record=False) for _ in range(randint(3, 5))]
+    return [RecordFactory(identifiers='both') for _ in range(randint(3, 5))]
 
 
-def record_build(collection=None, collection_tags=None, **id):
+def record_build(collection=None, collection_tags=None, parent_doi=None, **id):
     """Build and return an uncommitted Record instance.
     Referenced collection is however committed."""
     record = RecordFactory.build(
         **id,
         collection=collection or (collection := CollectionFactory()),
         collection_id=collection.id,
-        is_child_record=False,
+        parent_doi=parent_doi,
     )
     if collection_tags:
         for ct in collection_tags:
@@ -87,6 +89,11 @@ def is_same_user(request):
     return request.param
 
 
+@pytest.fixture(params=[None, 'doi', 'doi.org'])
+def with_parent(request):
+    return request.param
+
+
 def new_generic_tag(cardinality, is_keyword_tag=False):
     schema_uri = 'https://odp.saeon.ac.za/schema/tag/keyword' if is_keyword_tag else 'https://odp.saeon.ac.za/schema/tag/generic'
     return TagFactory(
@@ -121,6 +128,7 @@ def assert_db_state(records):
         assert row.collection_id == records[n].collection_id
         assert row.schema_id == records[n].schema_id
         assert row.schema_type == records[n].schema_type
+        assert row.parent_id == records[n].parent_id
 
 
 def assert_db_tag_state(record_id, *record_tags):
@@ -155,6 +163,7 @@ def assert_audit_log(command, record):
     assert result._metadata == record.metadata_
     assert result._collection_id == record.collection_id
     assert result._schema_id == record.schema_id
+    assert result._parent_id == record.parent_id
 
 
 def assert_no_audit_log():
@@ -317,7 +326,7 @@ def test_get_record_not_found(api, record_batch, collection_auth):
     (True, all_scopes, []),
     (True, all_scopes_excluding(ODPScope.RECORD_ADMIN), []),
 ])
-def test_create_record(api, record_batch, admin_route, scopes, collection_tags, collection_auth):
+def test_create_record(api, record_batch, admin_route, scopes, collection_tags, collection_auth, with_parent):
     route = '/record/admin/' if admin_route else '/record/'
 
     authorized = admin_route and ODPScope.RECORD_ADMIN in scopes or \
@@ -336,9 +345,17 @@ def test_create_record(api, record_batch, admin_route, scopes, collection_tags, 
     else:
         new_record_collection = None  # new collection
 
+    if with_parent == 'doi':
+        parent_doi = record_batch[0].doi.upper()  # ensure DOI ref works case-insensitively
+    elif with_parent == 'doi.org':
+        parent_doi = f'https://doi.org/{record_batch[0].doi.upper()}'
+    else:
+        parent_doi = None
+
     modified_record_batch = record_batch + [record := record_build(
         collection=new_record_collection,
         collection_tags=collection_tags,
+        parent_doi=parent_doi,
     )]
 
     r = api(scopes, api_client_collections).post(route, json=dict(
@@ -356,6 +373,7 @@ def test_create_record(api, record_batch, admin_route, scopes, collection_tags, 
             assert_no_audit_log()
         else:
             record.id = r.json().get('id')
+            record.parent_id = record_batch[0].id if record.doi and parent_doi else None
             assert_json_record_result(r, r.json(), record)
             assert_db_state(modified_record_batch)
             assert_audit_log('insert', record)
@@ -437,7 +455,7 @@ def test_create_record_conflict(api, record_batch_with_ids, is_admin_route, coll
     (True, all_scopes, []),
     (True, all_scopes_excluding(ODPScope.RECORD_ADMIN), []),
 ])
-def test_update_record(api, record_batch, admin_route, scopes, collection_tags, collection_auth):
+def test_update_record(api, record_batch, admin_route, scopes, collection_tags, collection_auth, with_parent):
     route = '/record/admin/' if admin_route else '/record/'
 
     authorized = admin_route and ODPScope.RECORD_ADMIN in scopes or \
@@ -456,12 +474,20 @@ def test_update_record(api, record_batch, admin_route, scopes, collection_tags, 
     else:
         modified_record_collection = None  # new collection
 
+    if with_parent == 'doi':
+        parent_doi = record_batch[0].doi.upper()  # ensure DOI ref works case-insensitively
+    elif with_parent == 'doi.org':
+        parent_doi = f'https://doi.org/{record_batch[0].doi.upper()}'
+    else:
+        parent_doi = None
+
     modified_record_batch = record_batch.copy()
     modified_record_batch[2] = (record := record_build(
         id=record_batch[2].id,
         doi=record_batch[2].doi,
         collection=modified_record_collection,
         collection_tags=collection_tags,
+        parent_doi=parent_doi,
     ))
 
     r = api(scopes, api_client_collections).put(route + record.id, json=dict(
@@ -482,6 +508,7 @@ def test_update_record(api, record_batch, admin_route, scopes, collection_tags, 
             assert_db_state(record_batch)
             assert_no_audit_log()
         else:
+            record.parent_id = record_batch[0].id if record.doi and parent_doi else None
             assert_json_record_result(r, r.json(), record)
             assert_db_state(modified_record_batch)
             assert_audit_log('update', record)

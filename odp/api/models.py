@@ -368,6 +368,7 @@ class RecordAuditModel(AuditModel):
     record_metadata: dict[str, Any]
     record_collection_id: str
     record_schema_id: str
+    record_parent_id: Optional[str]
 
 
 class RecordTagAuditModel(AuditModel):
