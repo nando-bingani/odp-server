@@ -94,6 +94,16 @@ def with_parent(request):
     return request.param
 
 
+@pytest.fixture(params=['create', 'update'])
+def create_or_update(request):
+    return request.param
+
+
+@pytest.fixture(params=['non-doi', 'multiple-parents', 'parent-not-found', 'parent-self'])
+def parent_error(request):
+    return request.param
+
+
 def new_generic_tag(cardinality, is_keyword_tag=False):
     schema_uri = 'https://odp.saeon.ac.za/schema/tag/keyword' if is_keyword_tag else 'https://odp.saeon.ac.za/schema/tag/generic'
     return TagFactory(
@@ -434,6 +444,93 @@ def test_create_record_conflict(api, record_batch_with_ids, is_admin_route, coll
         assert_forbidden(r)
 
     assert_db_state(record_batch_with_ids)
+    assert_no_audit_log()
+
+
+def test_create_or_update_record_parent_error(api, record_batch, create_or_update, is_admin_route, collection_auth, parent_error):
+    route = '/record/admin/' if is_admin_route else '/record/'
+    scopes = [ODPScope.RECORD_ADMIN] if is_admin_route else [ODPScope.RECORD_WRITE]
+    authorized = collection_auth in (CollectionAuth.NONE, CollectionAuth.MATCH)
+
+    if collection_auth == CollectionAuth.MATCH:
+        api_client_collections = [record_batch[2].collection]
+    elif collection_auth == CollectionAuth.MISMATCH:
+        api_client_collections = [record_batch[1].collection]
+    else:
+        api_client_collections = None
+
+    if collection_auth in (CollectionAuth.MATCH, CollectionAuth.MISMATCH):
+        collection = record_batch[2].collection
+    else:
+        collection = None  # new collection
+
+    kwargs = dict(
+        collection=collection,
+        identifiers='doi',
+    )
+    if create_or_update == 'update':
+        kwargs |= dict(
+            id=record_batch[2].id,
+        )
+
+    if parent_error == 'non-doi':
+        record = record_build(
+            **kwargs,
+            parent_doi='foo',
+        )
+    elif parent_error == 'multiple-parents':
+        record = record_build(
+            **kwargs,
+            parent_doi='10.55555/foo',
+        )
+        record.metadata_["relatedIdentifiers"] += [{
+            "relatedIdentifier": "10.55555/bar",
+            "relatedIdentifierType": "DOI",
+            "relationType": "IsPartOf"
+        }]
+    elif parent_error == 'parent-not-found':
+        record = record_build(
+            **kwargs,
+            parent_doi='10.55555/foo',
+        )
+    elif parent_error == 'parent-self':
+        record = record_build(
+            **kwargs,
+        )
+        record.metadata_["relatedIdentifiers"] = [{
+            "relatedIdentifier": record.doi,
+            "relatedIdentifierType": "DOI",
+            "relationType": "IsPartOf"
+        }]
+
+    client = api(scopes, api_client_collections)
+
+    if create_or_update == 'create':
+        func = client.post
+    elif create_or_update == 'update':
+        func = client.put
+        route += record.id
+
+    r = func(route, json=dict(
+        doi=record.doi,
+        collection_id=record.collection_id,
+        schema_id=record.schema_id,
+        metadata=record.metadata_,
+    ))
+
+    if authorized:
+        if parent_error == 'non-doi':
+            assert_unprocessable(r, 'Parent reference is not a valid DOI.')
+        elif parent_error == 'multiple-parents':
+            assert_unprocessable(r, 'Cannot determine parent DOI: found multiple related identifiers with relation IsPartOf and type DOI.')
+        elif parent_error == 'parent-not-found':
+            assert_unprocessable(r, 'Record not found for parent DOI 10.55555/foo')
+        elif parent_error == 'parent-self':
+            assert_unprocessable(r, 'DOI cannot be a parent of itself.')
+    else:
+        assert_forbidden(r)
+
+    assert_db_state(record_batch)
     assert_no_audit_log()
 
 

@@ -115,6 +115,13 @@ def get_parent_id(metadata: dict[str, Any], schema_id: ODPMetadataSchema) -> str
     # related DOIs sometimes appear as doi.org links, sometimes as plain DOIs
     if match := re.search(DOI_REGEX[1:], parent_refs[0]['relatedIdentifier']):
         parent_doi = match.group(0)
+
+        if parent_doi.lower() == child_doi.lower():
+            raise HTTPException(
+                HTTP_422_UNPROCESSABLE_ENTITY,
+                'DOI cannot be a parent of itself.',
+            )
+
         parent_record = Session.execute(
             select(Record).
             where(func.lower(Record.doi) == parent_doi.lower())
@@ -123,16 +130,16 @@ def get_parent_id(metadata: dict[str, Any], schema_id: ODPMetadataSchema) -> str
         if parent_record is None:
             raise HTTPException(
                 HTTP_422_UNPROCESSABLE_ENTITY,
-                f'Record not found for parent DOI {parent_doi}.',
+                f'Record not found for parent DOI {parent_doi}',
             )
 
-        if parent_record.doi.lower() == child_doi.lower():
-            raise HTTPException(
-                HTTP_422_UNPROCESSABLE_ENTITY,
-                'DOI cannot be a parent of itself.',
-            )
+    else:
+        raise HTTPException(
+            HTTP_422_UNPROCESSABLE_ENTITY,
+            'Parent reference is not a valid DOI.',
+        )
 
-        return parent_record.id
+    return parent_record.id
 
 
 def get_validity(metadata: dict[str, Any], schema: JSONSchema) -> Any:

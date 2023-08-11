@@ -32,12 +32,32 @@ def create_metadata(record, n):
     metadata = {'foo': f'test-{n}'}
     if record.doi:
         metadata |= {'doi': record.doi}
+
     if record.parent_doi:
         metadata |= {"relatedIdentifiers": [{
             "relatedIdentifier": record.parent_doi,
             "relatedIdentifierType": "DOI",
             "relationType": "IsPartOf"
         }]}
+
+    # non-DOI relatedIdentifierType should be ignored for parent_id calculation
+    if randint(0, 1):
+        metadata.setdefault("relatedIdentifiers", [])
+        metadata["relatedIdentifiers"] += [{
+            "relatedIdentifier": "foo",
+            "relatedIdentifierType": "URL",
+            "relationType": "IsPartOf"
+        }]
+
+    # non-IsPartOf relationType should be ignored for parent_id calculation
+    if randint(0, 1):
+        metadata.setdefault("relatedIdentifiers", [])
+        metadata["relatedIdentifiers"] += [{
+            "relatedIdentifier": "bar",
+            "relatedIdentifierType": "DOI",
+            "relationType": "HasPart"
+        }]
+
     return metadata
 
 
