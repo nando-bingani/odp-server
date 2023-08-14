@@ -24,8 +24,8 @@ def record_batch():
             # ensure record 0 has a DOI; it can be used as a parent record
             kwargs |= dict(identifiers='doi')
         elif randint(0, 1):
-            # optionally make this a child of record 0
-            kwargs |= dict(parent=records[0])
+            # optionally make this a child of record 0; the child must also have a DOI
+            kwargs |= dict(identifiers='doi', parent=records[0])
 
         records += [record := RecordFactory(**kwargs)]
         RecordTagFactory.create_batch(randint(0, 3), record=record)
