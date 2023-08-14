@@ -6,6 +6,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from jschon import JSON, JSONSchema
+from pydantic import UUID4, constr
 from sqlalchemy import and_, func, literal_column, null, or_, select, union_all
 from sqlalchemy.orm import aliased
 from starlette.status import HTTP_403_FORBIDDEN, HTTP_404_NOT_FOUND, HTTP_409_CONFLICT, HTTP_422_UNPROCESSABLE_ENTITY
@@ -248,14 +249,22 @@ async def list_records(
 
 
 @router.get(
-    '/{record_id}',
+    '/{record_id:path}',
     response_model=RecordModel,
 )
 async def get_record(
-        record_id: str,
+        record_id: UUID4 | constr(regex=DOI_REGEX),
         auth: Authorized = Depends(Authorize(ODPScope.RECORD_READ)),
 ):
-    if not (record := Session.get(Record, record_id)):
+    if re.match(DOI_REGEX, record_id := str(record_id)):
+        record = Session.execute(
+            select(Record).
+            where(func.lower(Record.doi) == record_id.lower())
+        ).scalar_one_or_none()
+    else:
+        record = Session.get(Record, record_id)
+
+    if not record:
         raise HTTPException(HTTP_404_NOT_FOUND)
 
     if auth.collection_ids != '*' and record.collection_id not in auth.collection_ids:

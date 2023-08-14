@@ -104,6 +104,11 @@ def parent_error(request):
     return request.param
 
 
+@pytest.fixture(params=['id', 'doi'])
+def record_ident(request):
+    return request.param
+
+
 def new_generic_tag(cardinality, is_keyword_tag=False):
     schema_uri = 'https://odp.saeon.ac.za/schema/tag/keyword' if is_keyword_tag else 'https://odp.saeon.ac.za/schema/tag/generic'
     return TagFactory(
@@ -285,7 +290,7 @@ def test_list_records(api, record_batch, scopes, collection_auth):
     all_scopes,
     all_scopes_excluding(ODPScope.RECORD_READ),
 ])
-def test_get_record(api, record_batch, scopes, collection_auth):
+def test_get_record(api, record_batch, scopes, collection_auth, record_ident):
     authorized = ODPScope.RECORD_READ in scopes and \
                  collection_auth in (CollectionAuth.NONE, CollectionAuth.MATCH)
 
@@ -296,7 +301,12 @@ def test_get_record(api, record_batch, scopes, collection_auth):
     else:
         api_client_collections = None
 
-    r = api(scopes, api_client_collections).get(f'/record/{record_batch[2].id}')
+    if record_ident == 'id':
+        r = api(scopes, api_client_collections).get(f'/record/{record_batch[2].id}')
+    elif record_ident == 'doi':
+        if not (doi := record_batch[2].doi):
+            return
+        r = api(scopes, api_client_collections).get(f'/record/{doi}')
 
     if authorized:
         assert_json_record_result(r, r.json(), record_batch[2])
@@ -307,7 +317,7 @@ def test_get_record(api, record_batch, scopes, collection_auth):
     assert_no_audit_log()
 
 
-def test_get_record_not_found(api, record_batch, collection_auth):
+def test_get_record_not_found(api, record_batch, collection_auth, record_ident):
     scopes = [ODPScope.RECORD_READ]
 
     if collection_auth == CollectionAuth.NONE:
@@ -315,7 +325,10 @@ def test_get_record_not_found(api, record_batch, collection_auth):
     else:
         api_client_collections = [record_batch[2].collection]
 
-    r = api(scopes, api_client_collections).get('/record/foo')
+    if record_ident == 'id':
+        r = api(scopes, api_client_collections).get(f'/record/{uuid.uuid4()}')
+    elif record_ident == 'doi':
+        r = api(scopes, api_client_collections).get('/record/10.55555/foo')
 
     assert_not_found(r)
     assert_db_state(record_batch)
