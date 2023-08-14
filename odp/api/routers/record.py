@@ -38,6 +38,11 @@ def output_record_model(record: Record) -> RecordModel:
         provider_name=record.collection.provider.name,
         schema_id=record.schema_id,
         schema_uri=record.schema.uri,
+        parent_doi=record.parent.doi if record.parent_id else None,
+        child_dois=[
+            child.doi
+            for child in record.children
+        ],
         metadata=record.metadata_,
         validity=record.validity,
         timestamp=record.timestamp.isoformat(),

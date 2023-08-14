@@ -19,8 +19,14 @@ def record_batch():
     """Create and commit a batch of Record instances."""
     records = []
     for n in range(randint(3, 5)):
-        # ensure record 0 has a DOI; it can be used as a parent record
-        kwargs = dict(identifiers='doi') if n == 0 else {}
+        kwargs = {}
+        if n == 0:
+            # ensure record 0 has a DOI; it can be used as a parent record
+            kwargs |= dict(identifiers='doi')
+        elif randint(0, 1):
+            # optionally make this a child of record 0
+            kwargs |= dict(parent=records[0])
+
         records += [record := RecordFactory(**kwargs)]
         RecordTagFactory.create_batch(randint(0, 3), record=record)
         CollectionTagFactory.create_batch(randint(0, 3), collection=record.collection)
@@ -41,14 +47,13 @@ def record_batch_with_ids():
     return [RecordFactory(identifiers='both') for _ in range(randint(3, 5))]
 
 
-def record_build(collection=None, collection_tags=None, parent_doi=None, **id):
+def record_build(collection=None, collection_tags=None, **id):
     """Build and return an uncommitted Record instance.
     Referenced collection is however committed."""
     record = RecordFactory.build(
         **id,
         collection=collection or (collection := CollectionFactory()),
         collection_id=collection.id,
-        parent_doi=parent_doi,
     )
     if collection_tags:
         for ct in collection_tags:
@@ -214,6 +219,8 @@ def assert_json_record_result(response, json, record):
     assert json['schema_id'] == record.schema_id
     assert json['metadata'] == record.metadata_
     assert_new_timestamp(datetime.fromisoformat(json['timestamp']))
+    assert json['parent_doi'] == (record.parent.doi if record.parent_id else None)
+    assert sorted(json['child_dois']) == sorted(child.doi for child in record.children)
 
     json_tags = json['tags']
     db_tags = Session.execute(
@@ -396,7 +403,9 @@ def test_create_record(api, record_batch, admin_route, scopes, collection_tags, 
             assert_no_audit_log()
         else:
             record.id = r.json().get('id')
-            record.parent_id = record_batch[0].id if record.doi and parent_doi else None
+            if record.doi and parent_doi:
+                record.parent = record_batch[0]
+                record.parent_id = record_batch[0].id
             assert_json_record_result(r, r.json(), record)
             assert_db_state(modified_record_batch)
             assert_audit_log('insert', record)
@@ -618,7 +627,9 @@ def test_update_record(api, record_batch, admin_route, scopes, collection_tags, 
             assert_db_state(record_batch)
             assert_no_audit_log()
         else:
-            record.parent_id = record_batch[0].id if record.doi and parent_doi else None
+            if record.doi and parent_doi:
+                record.parent = record_batch[0]
+                record.parent_id = record_batch[0].id
             assert_json_record_result(r, r.json(), record)
             assert_db_state(modified_record_batch)
             assert_audit_log('update', record)
