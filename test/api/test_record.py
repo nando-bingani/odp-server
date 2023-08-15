@@ -313,7 +313,7 @@ def test_get_record(api, record_batch, scopes, collection_auth, record_ident):
     elif record_ident == 'doi':
         if not (doi := record_batch[2].doi):
             return
-        r = api(scopes, api_client_collections).get(f'/record/{doi}')
+        r = api(scopes, api_client_collections).get(f'/record/doi/{doi}')
 
     if authorized:
         assert_json_record_result(r, r.json(), record_batch[2])
@@ -335,7 +335,7 @@ def test_get_record_not_found(api, record_batch, collection_auth, record_ident):
     if record_ident == 'id':
         r = api(scopes, api_client_collections).get(f'/record/{uuid.uuid4()}')
     elif record_ident == 'doi':
-        r = api(scopes, api_client_collections).get('/record/10.55555/foo')
+        r = api(scopes, api_client_collections).get('/record/doi/10.55555/foo')
 
     assert_not_found(r)
     assert_db_state(record_batch)

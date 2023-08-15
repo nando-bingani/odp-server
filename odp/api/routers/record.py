@@ -254,22 +254,34 @@ async def list_records(
 
 
 @router.get(
-    '/{record_id:path}',
+    '/{record_id}',
     response_model=RecordModel,
 )
 async def get_record(
-        record_id: UUID4 | constr(regex=DOI_REGEX),
+        record_id: str,
         auth: Authorized = Depends(Authorize(ODPScope.RECORD_READ)),
 ):
-    if re.match(DOI_REGEX, record_id := str(record_id)):
-        record = Session.execute(
-            select(Record).
-            where(func.lower(Record.doi) == record_id.lower())
-        ).scalar_one_or_none()
-    else:
-        record = Session.get(Record, record_id)
+    if not (record := Session.get(Record, record_id)):
+        raise HTTPException(HTTP_404_NOT_FOUND)
 
-    if not record:
+    if auth.collection_ids != '*' and record.collection_id not in auth.collection_ids:
+        raise HTTPException(HTTP_403_FORBIDDEN)
+
+    return output_record_model(record)
+
+
+@router.get(
+    '/doi/{record_doi:path}',
+    response_model=RecordModel,
+)
+async def get_record_by_doi(
+        record_doi: constr(regex=DOI_REGEX),
+        auth: Authorized = Depends(Authorize(ODPScope.RECORD_READ)),
+):
+    if not (record := Session.execute(
+            select(Record).
+            where(func.lower(Record.doi) == record_doi.lower())
+    ).scalar_one_or_none()):
         raise HTTPException(HTTP_404_NOT_FOUND)
 
     if auth.collection_ids != '*' and record.collection_id not in auth.collection_ids:
