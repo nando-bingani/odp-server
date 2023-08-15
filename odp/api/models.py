@@ -203,6 +203,7 @@ class RecordModel(BaseModel):
     provider_name: str
     schema_id: str
     schema_uri: str
+    parent_id: Optional[str]
     parent_doi: Optional[str]
     child_dois: list[str]
     metadata: dict[str, Any]

@@ -219,6 +219,7 @@ def assert_json_record_result(response, json, record):
     assert json['schema_id'] == record.schema_id
     assert json['metadata'] == record.metadata_
     assert_new_timestamp(datetime.fromisoformat(json['timestamp']))
+    assert json['parent_id'] == record.parent_id
     assert json['parent_doi'] == (record.parent.doi if record.parent_id else None)
     assert sorted(json['child_dois']) == sorted(child.doi for child in record.children)
 
