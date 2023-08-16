@@ -114,6 +114,11 @@ def record_ident(request):
     return request.param
 
 
+@pytest.fixture(params=[None, 'parent_id'])  # todo: this can be expanded
+def record_list_filter(request):
+    return request.param
+
+
 def new_generic_tag(cardinality, is_keyword_tag=False):
     schema_uri = 'https://odp.saeon.ac.za/schema/tag/keyword' if is_keyword_tag else 'https://odp.saeon.ac.za/schema/tag/generic'
     return TagFactory(
@@ -268,7 +273,7 @@ def assert_json_record_results(response, json, records):
     all_scopes,
     all_scopes_excluding(ODPScope.RECORD_READ),
 ])
-def test_list_records(api, record_batch, scopes, collection_auth):
+def test_list_records(api, record_batch, scopes, collection_auth, record_list_filter):
     authorized = ODPScope.RECORD_READ in scopes
 
     if collection_auth == CollectionAuth.MATCH:
@@ -281,7 +286,17 @@ def test_list_records(api, record_batch, scopes, collection_auth):
         api_client_collections = None
         expected_result_batch = record_batch
 
-    r = api(scopes, api_client_collections).get('/record/')
+    params = {}
+    if record_list_filter == 'parent_id':
+        params |= dict(
+            parent_id=(parent_id := record_batch[0].id)
+        )
+        expected_result_batch = list(filter(
+            lambda rec: rec.parent_id == parent_id,
+            expected_result_batch
+        ))
+
+    r = api(scopes, api_client_collections).get('/record/', params=params)
 
     if authorized:
         assert_json_record_results(r, r.json(), expected_result_batch)

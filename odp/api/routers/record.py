@@ -204,6 +204,7 @@ async def list_records(
         auth: Authorized = Depends(Authorize(ODPScope.RECORD_READ)),
         paginator: Paginator = Depends(),
         collection_id: list[str] = Query(None),
+        parent_id: str = None,
         identifier_q: str = None,
         title_q: str = None,
 ):
@@ -216,6 +217,9 @@ async def list_records(
 
     if collection_id:
         stmt = stmt.where(Collection.id.in_(collection_id))
+
+    if parent_id:
+        stmt = stmt.where(Record.parent_id == parent_id)
 
     if identifier_q and (id_terms := identifier_q.split()):
         id_exprs = []
