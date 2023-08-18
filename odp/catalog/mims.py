@@ -1,4 +1,4 @@
-from odp.api.models import PublishedSAEONRecordModel, RecordModel
+from odp.api.models import PublishedRecordModel, PublishedSAEONRecordModel, RecordModel
 from odp.catalog.saeon import SAEONCatalog
 from odp.const import ODPCollectionTag, ODPMetadataSchema
 
@@ -27,6 +27,20 @@ class MIMSCatalog(SAEONCatalog):
             can_publish_reasons += ['MIMS collection']
         else:
             cannot_publish_reasons += ['not a MIMS collection']
+
+    def create_published_record(self, record_model: RecordModel) -> PublishedRecordModel:
+        published_record: PublishedSAEONRecordModel = super().create_published_record(record_model)
+        if record_model.child_dois:
+            for metadata_record in published_record.metadata_records:
+                metadata_record.metadata.setdefault('relatedIdentifiers', [])
+                for child_doi in record_model.child_dois:
+                    metadata_record.metadata['relatedIdentifiers'] += [{
+                        'relatedIdentifier': child_doi,
+                        'relatedIdentifierType': 'DOI',
+                        'relationType': 'HasPart',
+                    }]
+
+        return published_record
 
     def create_facet_index_data(
             self, published_record: PublishedSAEONRecordModel

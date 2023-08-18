@@ -362,6 +362,10 @@ def _create_record(
 
     create_audit_record(auth, record, timestamp, AuditCommand.insert)
 
+    if record.parent_id:
+        record.parent.timestamp = timestamp
+        record.parent.save()
+
     return output_record_model(record)
 
 
@@ -481,12 +485,28 @@ def _set_record(
         record.doi = record_in.doi
         record.sid = record_in.sid
         record.collection_id = record_in.collection_id
-        record.parent_id = get_parent_id(record_in.metadata, record_in.schema_id)
         record.schema_id = record_in.schema_id
         record.schema_type = SchemaType.metadata
         record.metadata_ = record_in.metadata
         record.validity = get_validity(record_in.metadata, metadata_schema)
         record.timestamp = (timestamp := datetime.now(timezone.utc))
+
+        parent_id = get_parent_id(record_in.metadata, record_in.schema_id)
+        if record.parent_id != parent_id:
+            # timestamp old parent for child removal
+            if record.parent_id:
+                record.parent.timestamp = timestamp
+                record.parent.save()
+
+            record.parent_id = parent_id
+
+            # timestamp new parent for child addition
+            if record.parent_id:
+                # load new parent explicitly; record.parent hasn't changed at this point
+                new_parent = Session.get(Record, record.parent_id)
+                new_parent.timestamp = timestamp
+                new_parent.save()
+
         record.save()
 
         create_audit_record(auth, record, timestamp, AuditCommand.insert if create else AuditCommand.update)
