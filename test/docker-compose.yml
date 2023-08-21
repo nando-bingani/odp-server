@@ -57,3 +57,10 @@ services:
     depends_on:
       - hydra-db
     restart: on-failure
+
+  redis:
+    container_name: TEST-redis
+    image: redis:6
+    ports:
+      - "7379:6379"
+    restart: always

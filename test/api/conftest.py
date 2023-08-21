@@ -5,7 +5,8 @@ from starlette.testclient import TestClient
 import odp.api
 from odp.config import config
 from odp.const import ODPScope
-from odp.db.models import TagCardinality
+from odp.db import Session
+from odp.db.models import Scope, TagCardinality
 from odp.lib.hydra import HydraAdminAPI
 from test.api import CollectionAuth
 from test.factories import ClientFactory, ScopeFactory
@@ -16,10 +17,15 @@ hydra_public_url = config.HYDRA.PUBLIC.URL
 
 @pytest.fixture
 def api():
-    def scoped_client(scopes, collections=None):
+    def scoped_client(scopes, collections=None, create_scopes=True):
+        if create_scopes:
+            scope_objects = [ScopeFactory(id=s.value, type='odp') for s in scopes]
+        else:
+            scope_objects = [Session.get(Scope, (s.value, 'odp')) for s in scopes]
+
         ClientFactory(
             id='odp.test',
-            scopes=[ScopeFactory(id=s.value, type='odp') for s in scopes],
+            scopes=scope_objects,
             collection_specific=collections is not None,
             collections=collections,
         )
