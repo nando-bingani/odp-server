@@ -29,9 +29,9 @@ published to that catalog. For records that should be published, a
 catalog-specific representation of the record's digital object metadata,
 identifiers and auxiliary information is created (or updated), and indexing
 data are updated to facilitate full-text, spatial, temporal and faceted search.
-Records that should not be published are made accessible as retracted record
-stubs at the catalog's API endpoint, to facilitate local deletion by
-external catalog client systems.
+Previously published records that should no longer be published are made
+available as retracted record stubs at the catalog's API endpoint, to
+facilitate local deletion by external catalog client systems.
 
 Finally, in the case of an external catalog system such as DataCite, to
 which the ODP is a client, the published records for the catalog are
