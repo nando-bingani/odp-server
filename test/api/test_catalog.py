@@ -150,13 +150,8 @@ def assert_json_results(response, json, catalogs):
         assert_json_result(response, items[n], catalog)
 
 
-@pytest.mark.parametrize('scopes', [
-    [ODPScope.CATALOG_READ],
-    [],
-    all_scopes,
-    all_scopes_excluding(ODPScope.CATALOG_READ),
-])
 def test_list_catalogs(api, catalog_batch, scopes):
+    scopes = scopes(ODPScope.CATALOG_READ)
     authorized = ODPScope.CATALOG_READ in scopes
     r = api(scopes).get('/catalog/')
     if authorized:
@@ -166,13 +161,8 @@ def test_list_catalogs(api, catalog_batch, scopes):
     assert_db_state(catalog_batch)
 
 
-@pytest.mark.parametrize('scopes', [
-    [ODPScope.CATALOG_READ],
-    [],
-    all_scopes,
-    all_scopes_excluding(ODPScope.CATALOG_READ),
-])
 def test_get_catalog(api, catalog_batch, scopes):
+    scopes = scopes(ODPScope.CATALOG_READ)
     authorized = ODPScope.CATALOG_READ in scopes
     r = api(scopes).get(f'/catalog/{catalog_batch[2].id}')
     if authorized:
@@ -214,12 +204,6 @@ def test_redirect_to(api, catalog_batch, catalog_exists, record_id_format):
         assert_unprocessable(r)
 
 
-@pytest.mark.parametrize('scopes', [
-    [ODPScope.CATALOG_READ],
-    [],
-    all_scopes,
-    all_scopes_excluding(ODPScope.CATALOG_READ),
-])
 def test_get_published_record(api, scopes, static_publishing_data, published_record, catalog_id, endpoint):
     def check_metadata_record(schema_id, deep=True):
         metadata_record = next(filter(
@@ -235,6 +219,8 @@ def test_get_published_record(api, scopes, static_publishing_data, published_rec
             else:
                 expected_metadata.pop('doi')
             assert metadata_record['metadata'] == expected_metadata
+
+    scopes = scopes(ODPScope.CATALOG_READ)
 
     published = (
             published_record.tag_collection_published is True and

@@ -8,7 +8,7 @@ from odp.const import ODPScope
 from odp.db import Session
 from odp.db.models import Scope, TagCardinality
 from odp.lib.hydra import HydraAdminAPI
-from test.api import CollectionAuth
+from test.api import CollectionAuth, all_scopes, all_scopes_excluding
 from test.factories import ClientFactory, ScopeFactory
 
 hydra_admin_url = config.HYDRA.ADMIN.URL
@@ -64,3 +64,35 @@ def collection_auth(request):
 def tag_cardinality(request):
     """Use for parameterizing the range of tag cardinalities."""
     return request.param
+
+
+@pytest.fixture(params=[1, 2, 3, 4])
+def scopes(request):
+    """Generate the most commonly used scopes parameterization.
+
+    For example, calling the fixture as follows in a test function::
+
+        scopes = scopes(ODPScope.CATALOG_READ)
+
+    is equivalent to using the following parameterization::
+
+        @pytest.mark.parametrize('scopes', [
+            [ODPScope.CATALOG_READ],
+            [],
+            all_scopes,
+            all_scopes_excluding(ODPScope.CATALOG_READ),
+        ])
+
+    """
+
+    def parameterized_scopes(scope):
+        if request.param == 1:
+            return [scope]
+        elif request.param == 2:
+            return []
+        elif request.param == 3:
+            return all_scopes
+        elif request.param == 4:
+            return all_scopes_excluding(scope)
+
+    return parameterized_scopes
