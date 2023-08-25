@@ -71,7 +71,7 @@ def catalog_id(request):
 
 
 @pytest.fixture(params=['list', 'get'])
-def method(request):
+def endpoint(request):
     return request.param
 
 
@@ -214,7 +214,13 @@ def test_redirect_to(api, catalog_batch, catalog_exists, record_id_format):
         assert_unprocessable(r)
 
 
-def test_get_published_record(api, static_publishing_data, published_record, catalog_id, method):
+@pytest.mark.parametrize('scopes', [
+    [ODPScope.CATALOG_READ],
+    [],
+    all_scopes,
+    all_scopes_excluding(ODPScope.CATALOG_READ),
+])
+def test_get_published_record(api, scopes, static_publishing_data, published_record, catalog_id, endpoint):
     def check_metadata_record(schema_id, deep=True):
         metadata_record = next(filter(
             lambda m: m['schema_id'] == schema_id, result['metadata_records']
@@ -240,17 +246,20 @@ def test_get_published_record(api, static_publishing_data, published_record, cat
 
     route = f'/catalog/{catalog_id}/records'
     resp_code = 200
-    if method == 'get':
+    if endpoint == 'get':
         route += f'/{published_record.doi}' if published_record.doi else f'/{published_record.id}'
         resp_code = 200 if published else 404
 
-    r = api(
-        [ODPScope.CATALOG_READ], create_scopes=False
-    ).get(route)
+    r = api(scopes, create_scopes=False).get(route)
+
+    authorized = ODPScope.CATALOG_READ in scopes
+    if not authorized:
+        assert_forbidden(r)
+        return
 
     assert r.status_code == resp_code
 
-    if method == 'list':
+    if endpoint == 'list':
         json = r.json()
         items = json['items']
         assert json['total'] == len(items) == published
@@ -258,7 +267,7 @@ def test_get_published_record(api, static_publishing_data, published_record, cat
     if not published:
         return
 
-    result = items[0] if method == 'list' else r.json()
+    result = items[0] if endpoint == 'list' else r.json()
 
     assert result['id'] == published_record.id
     assert result['doi'] == published_record.doi
