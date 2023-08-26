@@ -6,7 +6,7 @@ from sqlalchemy import select
 from odp.const import ODPScope
 from odp.db import Session
 from odp.db.models import Scope
-from test.api import all_scopes, all_scopes_excluding, assert_forbidden
+from test.api import assert_forbidden
 from test.factories import ScopeFactory
 
 
@@ -44,12 +44,7 @@ def assert_json_results(response, json, scopes):
         assert_json_result(response, items[n], scope)
 
 
-@pytest.mark.parametrize('scopes', [
-    [ODPScope.SCOPE_READ],
-    [],
-    all_scopes,
-    all_scopes_excluding(ODPScope.SCOPE_READ),
-])
+@pytest.mark.require_scope(ODPScope.SCOPE_READ)
 def test_list_scopes(api, scope_batch, scopes):
     authorized = ODPScope.SCOPE_READ in scopes
     # add the parameterized scopes to the batch of expected scopes,

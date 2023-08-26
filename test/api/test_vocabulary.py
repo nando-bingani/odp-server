@@ -6,7 +6,7 @@ from sqlalchemy import select
 from odp.const import ODPScope
 from odp.db import Session
 from odp.db.models import SchemaType, Scope, ScopeType, Vocabulary, VocabularyTerm, VocabularyTermAudit
-from test.api import (all_scopes, all_scopes_excluding, assert_conflict, assert_empty_result, assert_forbidden, assert_new_timestamp,
+from test.api import (assert_conflict, assert_empty_result, assert_forbidden, assert_new_timestamp,
                       assert_not_found, assert_unprocessable)
 from test.factories import SchemaFactory, VocabularyFactory, VocabularyTermFactory, fake
 
@@ -109,12 +109,7 @@ def assert_json_results(response, json, vocabularies):
         assert_json_result(response, items[n], vocabulary)
 
 
-@pytest.mark.parametrize('scopes', [
-    [ODPScope.VOCABULARY_READ],
-    [],
-    all_scopes,
-    all_scopes_excluding(ODPScope.VOCABULARY_READ),
-])
+@pytest.mark.require_scope(ODPScope.VOCABULARY_READ)
 def test_list_vocabularies(api, vocabulary_batch, scopes):
     authorized = ODPScope.VOCABULARY_READ in scopes
     r = api(scopes).get('/vocabulary/')
@@ -125,12 +120,7 @@ def test_list_vocabularies(api, vocabulary_batch, scopes):
     assert_db_state(vocabulary_batch)
 
 
-@pytest.mark.parametrize('scopes', [
-    [ODPScope.VOCABULARY_READ],
-    [],
-    all_scopes,
-    all_scopes_excluding(ODPScope.VOCABULARY_READ),
-])
+@pytest.mark.require_scope(ODPScope.VOCABULARY_READ)
 def test_get_vocabulary(api, vocabulary_batch, scopes):
     authorized = ODPScope.VOCABULARY_READ in scopes
     r = api(scopes).get(f'/vocabulary/{vocabulary_batch[2].id}')
@@ -148,12 +138,7 @@ def test_get_vocabulary_not_found(api, vocabulary_batch):
     assert_db_state(vocabulary_batch)
 
 
-@pytest.mark.parametrize('scopes', [
-    [ODPScope.VOCABULARY_PROJECT],
-    [],
-    all_scopes,
-    all_scopes_excluding(ODPScope.VOCABULARY_PROJECT),
-])
+@pytest.mark.require_scope(ODPScope.VOCABULARY_PROJECT)
 def test_create_term(api, vocabulary_batch, scopes):
     authorized = ODPScope.VOCABULARY_PROJECT in scopes
     client = api(scopes)
@@ -211,12 +196,7 @@ def test_create_term_invalid(api, vocabulary_batch_non_static):
     assert_no_audit_log()
 
 
-@pytest.mark.parametrize('scopes', [
-    [ODPScope.VOCABULARY_PROJECT],
-    [],
-    all_scopes,
-    all_scopes_excluding(ODPScope.VOCABULARY_PROJECT),
-])
+@pytest.mark.require_scope(ODPScope.VOCABULARY_PROJECT)
 def test_update_term(api, vocabulary_batch, scopes):
     authorized = ODPScope.VOCABULARY_PROJECT in scopes
     client = api(scopes)
@@ -275,12 +255,7 @@ def test_update_term_invalid(api, vocabulary_batch_non_static):
     assert_no_audit_log()
 
 
-@pytest.mark.parametrize('scopes', [
-    [ODPScope.VOCABULARY_PROJECT],
-    [],
-    all_scopes,
-    all_scopes_excluding(ODPScope.VOCABULARY_PROJECT),
-])
+@pytest.mark.require_scope(ODPScope.VOCABULARY_PROJECT)
 def test_delete_term(api, vocabulary_batch, scopes):
     authorized = ODPScope.VOCABULARY_PROJECT in scopes
     client = api(scopes)

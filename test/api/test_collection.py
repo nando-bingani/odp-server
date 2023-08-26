@@ -162,12 +162,7 @@ def assert_doi_result(response, collection):
     assert re.match(r'^\d{8}$', suffix) is not None
 
 
-@pytest.mark.parametrize('scopes', [
-    [ODPScope.COLLECTION_READ],
-    [],
-    all_scopes,
-    all_scopes_excluding(ODPScope.COLLECTION_READ),
-])
+@pytest.mark.require_scope(ODPScope.COLLECTION_READ)
 def test_list_collections(api, collection_batch_with_roles_and_clients, scopes, collection_auth):
     authorized = ODPScope.COLLECTION_READ in scopes
 
@@ -193,12 +188,7 @@ def test_list_collections(api, collection_batch_with_roles_and_clients, scopes, 
     assert_no_audit_log()
 
 
-@pytest.mark.parametrize('scopes', [
-    [ODPScope.COLLECTION_READ],
-    [],
-    all_scopes,
-    all_scopes_excluding(ODPScope.COLLECTION_READ),
-])
+@pytest.mark.require_scope(ODPScope.COLLECTION_READ)
 def test_get_collection(api, collection_batch_with_roles_and_clients, scopes, collection_auth):
     authorized = ODPScope.COLLECTION_READ in scopes and \
                  collection_auth in (CollectionAuth.NONE, CollectionAuth.MATCH)
@@ -241,12 +231,7 @@ def test_get_collection_not_found(api, collection_batch_with_roles_and_clients, 
     assert_no_audit_log()
 
 
-@pytest.mark.parametrize('scopes', [
-    [ODPScope.COLLECTION_ADMIN],
-    [],
-    all_scopes,
-    all_scopes_excluding(ODPScope.COLLECTION_ADMIN),
-])
+@pytest.mark.require_scope(ODPScope.COLLECTION_ADMIN)
 def test_create_collection(api, collection_batch, scopes, collection_auth):
     # note that collection-specific auth will never allow creating a new collection
     authorized = ODPScope.COLLECTION_ADMIN in scopes and \
@@ -304,12 +289,7 @@ def test_create_collection_conflict(api, collection_batch, collection_auth):
     assert_no_audit_log()
 
 
-@pytest.mark.parametrize('scopes', [
-    [ODPScope.COLLECTION_ADMIN],
-    [],
-    all_scopes,
-    all_scopes_excluding(ODPScope.COLLECTION_ADMIN),
-])
+@pytest.mark.require_scope(ODPScope.COLLECTION_ADMIN)
 def test_update_collection(api, collection_batch, scopes, collection_auth):
     authorized = ODPScope.COLLECTION_ADMIN in scopes and \
                  collection_auth in (CollectionAuth.NONE, CollectionAuth.MATCH)
@@ -407,12 +387,7 @@ def has_record(request):
     return request.param
 
 
-@pytest.mark.parametrize('scopes', [
-    [ODPScope.COLLECTION_ADMIN],
-    [],
-    all_scopes,
-    all_scopes_excluding(ODPScope.COLLECTION_ADMIN),
-])
+@pytest.mark.require_scope(ODPScope.COLLECTION_ADMIN)
 def test_delete_collection(api, collection_batch, scopes, collection_auth, has_record):
     authorized = ODPScope.COLLECTION_ADMIN in scopes and \
                  collection_auth in (CollectionAuth.NONE, CollectionAuth.MATCH)
@@ -469,12 +444,7 @@ def test_delete_collection_not_found(api, collection_batch, collection_auth):
     assert_no_audit_log()
 
 
-@pytest.mark.parametrize('scopes', [
-    [ODPScope.COLLECTION_READ],
-    [],
-    all_scopes,
-    all_scopes_excluding(ODPScope.COLLECTION_READ),
-])
+@pytest.mark.require_scope(ODPScope.COLLECTION_READ)
 def test_get_new_doi(api, collection_batch, scopes, collection_auth):
     authorized = ODPScope.COLLECTION_READ in scopes and \
                  collection_auth in (CollectionAuth.NONE, CollectionAuth.MATCH)
@@ -517,12 +487,7 @@ def new_generic_tag(cardinality):
     )
 
 
-@pytest.mark.parametrize('scopes', [
-    [ODPScope.COLLECTION_FREEZE],  # the scope we've associated with the generic tag
-    [],
-    all_scopes,
-    all_scopes_excluding(ODPScope.COLLECTION_FREEZE),
-])
+@pytest.mark.require_scope(ODPScope.COLLECTION_FREEZE)  # scope associated with the generic tag
 def test_tag_collection(api, collection_batch, scopes, collection_auth, tag_cardinality):
     authorized = ODPScope.COLLECTION_FREEZE in scopes and \
                  collection_auth in (CollectionAuth.NONE, CollectionAuth.MATCH)
@@ -587,12 +552,7 @@ def test_tag_collection(api, collection_batch, scopes, collection_auth, tag_card
     assert_no_audit_log()
 
 
-@pytest.mark.parametrize('scopes', [
-    [ODPScope.COLLECTION_FREEZE],  # the scope we've associated with the generic tag
-    [],
-    all_scopes,
-    all_scopes_excluding(ODPScope.COLLECTION_FREEZE),
-])
+@pytest.mark.require_scope(ODPScope.COLLECTION_FREEZE)  # scope associated with the generic tag
 def test_tag_collection_user_conflict(api, collection_batch, scopes, collection_auth, tag_cardinality):
     authorized = ODPScope.COLLECTION_FREEZE in scopes and \
                  collection_auth in (CollectionAuth.NONE, CollectionAuth.MATCH)

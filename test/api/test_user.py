@@ -6,7 +6,7 @@ from sqlalchemy import select
 from odp.const import ODPScope
 from odp.db import Session
 from odp.db.models import IdentityAudit, User
-from test.api import (all_scopes, all_scopes_excluding, assert_empty_result, assert_forbidden, assert_method_not_allowed, assert_new_timestamp,
+from test.api import (all_scopes, assert_empty_result, assert_forbidden, assert_method_not_allowed, assert_new_timestamp,
                       assert_not_found, assert_unprocessable)
 from test.factories import CollectionTagFactory, RecordTagFactory, RoleFactory, UserFactory
 
@@ -73,12 +73,7 @@ def assert_json_results(response, json, users):
         assert_json_result(response, items[n], user)
 
 
-@pytest.mark.parametrize('scopes', [
-    [ODPScope.USER_READ],
-    [],
-    all_scopes,
-    all_scopes_excluding(ODPScope.USER_READ),
-])
+@pytest.mark.require_scope(ODPScope.USER_READ)
 def test_list_users(api, user_batch, scopes):
     authorized = ODPScope.USER_READ in scopes
     r = api(scopes).get('/user/')
@@ -90,12 +85,7 @@ def test_list_users(api, user_batch, scopes):
     assert_no_audit_log()
 
 
-@pytest.mark.parametrize('scopes', [
-    [ODPScope.USER_READ],
-    [],
-    all_scopes,
-    all_scopes_excluding(ODPScope.USER_READ),
-])
+@pytest.mark.require_scope(ODPScope.USER_READ)
 def test_get_user(api, user_batch, scopes):
     authorized = ODPScope.USER_READ in scopes
     r = api(scopes).get(f'/user/{user_batch[2].id}')
@@ -121,12 +111,7 @@ def test_create_user(api):
     assert_no_audit_log()
 
 
-@pytest.mark.parametrize('scopes', [
-    [ODPScope.USER_ADMIN],
-    [],
-    all_scopes,
-    all_scopes_excluding(ODPScope.USER_ADMIN),
-])
+@pytest.mark.require_scope(ODPScope.USER_ADMIN)
 def test_update_user(api, user_batch, scopes):
     authorized = ODPScope.USER_ADMIN in scopes
     modified_user_batch = user_batch.copy()
@@ -176,12 +161,7 @@ def has_tag_instance(request):
     return request.param
 
 
-@pytest.mark.parametrize('scopes', [
-    [ODPScope.USER_ADMIN],
-    [],
-    all_scopes,
-    all_scopes_excluding(ODPScope.USER_ADMIN),
-])
+@pytest.mark.require_scope(ODPScope.USER_ADMIN)
 def test_delete_user(api, user_batch, scopes, has_tag_instance):
     authorized = ODPScope.USER_ADMIN in scopes
     modified_user_batch = user_batch.copy()

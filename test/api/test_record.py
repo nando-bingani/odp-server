@@ -267,12 +267,7 @@ def assert_json_record_results(response, json, records):
         assert_json_record_result(response, items[n], record)
 
 
-@pytest.mark.parametrize('scopes', [
-    [ODPScope.RECORD_READ],
-    [],
-    all_scopes,
-    all_scopes_excluding(ODPScope.RECORD_READ),
-])
+@pytest.mark.require_scope(ODPScope.RECORD_READ)
 def test_list_records(api, record_batch, scopes, collection_auth, record_list_filter):
     authorized = ODPScope.RECORD_READ in scopes
 
@@ -307,12 +302,7 @@ def test_list_records(api, record_batch, scopes, collection_auth, record_list_fi
     assert_no_audit_log()
 
 
-@pytest.mark.parametrize('scopes', [
-    [ODPScope.RECORD_READ],
-    [],
-    all_scopes,
-    all_scopes_excluding(ODPScope.RECORD_READ),
-])
+@pytest.mark.require_scope(ODPScope.RECORD_READ)
 def test_get_record(api, record_batch, scopes, collection_auth, record_ident):
     authorized = ODPScope.RECORD_READ in scopes and \
                  collection_auth in (CollectionAuth.NONE, CollectionAuth.MATCH)
@@ -900,14 +890,8 @@ def test_delete_record_not_found(api, record_batch, is_admin_route, collection_a
     assert_no_audit_log()
 
 
-@pytest.mark.parametrize('scopes', [
-    [ODPScope.RECORD_QC],
-    [],
-    all_scopes,
-    all_scopes_excluding(ODPScope.RECORD_QC),
-])
+@pytest.mark.require_scope(ODPScope.RECORD_QC)
 def test_tag_record(api, record_batch_no_tags, scopes, collection_auth, tag_cardinality, is_keyword):
-
     def tag_data(n):
         nonlocal incorrect_vocab, incorrect_keyword
         if is_keyword == 'no':
@@ -990,12 +974,7 @@ def test_tag_record(api, record_batch_no_tags, scopes, collection_auth, tag_card
     assert_no_audit_log()
 
 
-@pytest.mark.parametrize('scopes', [
-    [ODPScope.RECORD_QC],
-    [],
-    all_scopes,
-    all_scopes_excluding(ODPScope.RECORD_QC),
-])
+@pytest.mark.require_scope(ODPScope.RECORD_QC)
 def test_tag_record_user_conflict(api, record_batch_no_tags, scopes, collection_auth, tag_cardinality):
     authorized = ODPScope.RECORD_QC in scopes and \
                  collection_auth in (CollectionAuth.NONE, CollectionAuth.MATCH)

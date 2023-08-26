@@ -8,7 +8,7 @@ from sqlalchemy import select
 from odp.const import ODPScope
 from odp.db import Session
 from odp.db.models import Provider, ProviderAudit
-from test.api import (all_scopes, all_scopes_excluding, assert_conflict, assert_empty_result, assert_forbidden, assert_new_timestamp,
+from test.api import (assert_conflict, assert_empty_result, assert_forbidden, assert_new_timestamp,
                       assert_not_found, assert_unprocessable)
 from test.factories import CollectionFactory, ProviderFactory, RecordFactory
 
@@ -86,12 +86,7 @@ def assert_json_results(response, json, providers):
         assert_json_result(response, items[n], provider)
 
 
-@pytest.mark.parametrize('scopes', [
-    [ODPScope.PROVIDER_READ],
-    [],
-    all_scopes,
-    all_scopes_excluding(ODPScope.PROVIDER_READ),
-])
+@pytest.mark.require_scope(ODPScope.PROVIDER_READ)
 def test_list_providers(api, provider_batch, scopes):
     authorized = ODPScope.PROVIDER_READ in scopes
     r = api(scopes).get('/provider/')
@@ -103,12 +98,7 @@ def test_list_providers(api, provider_batch, scopes):
     assert_no_audit_log()
 
 
-@pytest.mark.parametrize('scopes', [
-    [ODPScope.PROVIDER_READ],
-    [],
-    all_scopes,
-    all_scopes_excluding(ODPScope.PROVIDER_READ),
-])
+@pytest.mark.require_scope(ODPScope.PROVIDER_READ)
 def test_get_provider(api, provider_batch, scopes):
     authorized = ODPScope.PROVIDER_READ in scopes
     r = api(scopes).get(f'/provider/{provider_batch[2].id}')
@@ -128,12 +118,7 @@ def test_get_provider_not_found(api, provider_batch):
     assert_no_audit_log()
 
 
-@pytest.mark.parametrize('scopes', [
-    [ODPScope.PROVIDER_ADMIN],
-    [],
-    all_scopes,
-    all_scopes_excluding(ODPScope.PROVIDER_ADMIN),
-])
+@pytest.mark.require_scope(ODPScope.PROVIDER_ADMIN)
 def test_create_provider(api, provider_batch, scopes):
     authorized = ODPScope.PROVIDER_ADMIN in scopes
     modified_provider_batch = provider_batch + [provider := provider_build()]
@@ -164,12 +149,7 @@ def test_create_provider_conflict(api, provider_batch):
     assert_no_audit_log()
 
 
-@pytest.mark.parametrize('scopes', [
-    [ODPScope.PROVIDER_ADMIN],
-    [],
-    all_scopes,
-    all_scopes_excluding(ODPScope.PROVIDER_ADMIN),
-])
+@pytest.mark.require_scope(ODPScope.PROVIDER_ADMIN)
 def test_update_provider(api, provider_batch, scopes):
     authorized = ODPScope.PROVIDER_ADMIN in scopes
     modified_provider_batch = provider_batch.copy()
@@ -223,12 +203,7 @@ def has_record(request):
     return request.param
 
 
-@pytest.mark.parametrize('scopes', [
-    [ODPScope.PROVIDER_ADMIN],
-    [],
-    all_scopes,
-    all_scopes_excluding(ODPScope.PROVIDER_ADMIN),
-])
+@pytest.mark.require_scope(ODPScope.PROVIDER_ADMIN)
 def test_delete_provider(api, provider_batch, scopes, has_record):
     authorized = ODPScope.PROVIDER_ADMIN in scopes
     modified_provider_batch = provider_batch.copy()

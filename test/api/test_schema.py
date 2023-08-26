@@ -6,7 +6,7 @@ from sqlalchemy import select
 from odp.const import ODPScope
 from odp.db import Session
 from odp.db.models import Schema
-from test.api import all_scopes, all_scopes_excluding, assert_forbidden, assert_not_found
+from test.api import assert_forbidden, assert_not_found
 from test.factories import SchemaFactory
 
 
@@ -48,12 +48,7 @@ def assert_json_results(response, json, schemas):
         assert_json_result(response, items[n], schema)
 
 
-@pytest.mark.parametrize('scopes', [
-    [ODPScope.SCHEMA_READ],
-    [],
-    all_scopes,
-    all_scopes_excluding(ODPScope.SCHEMA_READ),
-])
+@pytest.mark.require_scope(ODPScope.SCHEMA_READ)
 def test_list_schemas(api, schema_batch, scopes):
     authorized = ODPScope.SCHEMA_READ in scopes
     r = api(scopes).get('/schema/')
@@ -64,12 +59,7 @@ def test_list_schemas(api, schema_batch, scopes):
     assert_db_state(schema_batch)
 
 
-@pytest.mark.parametrize('scopes', [
-    [ODPScope.SCHEMA_READ],
-    [],
-    all_scopes,
-    all_scopes_excluding(ODPScope.SCHEMA_READ),
-])
+@pytest.mark.require_scope(ODPScope.SCHEMA_READ)
 def test_get_schema(api, schema_batch, scopes):
     authorized = ODPScope.SCHEMA_READ in scopes
     r = api(scopes).get(f'/schema/{schema_batch[2].id}')
