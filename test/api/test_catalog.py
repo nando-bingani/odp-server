@@ -13,7 +13,7 @@ from odp.db import Session
 from odp.db.models import Catalog, Tag
 from odp.lib.cache import Cache
 from test import datacite4_example, iso19115_example
-from test.api import all_scopes, all_scopes_excluding, assert_forbidden, assert_new_timestamp, assert_not_found, assert_redirect, assert_unprocessable
+from test.api import assert_forbidden, assert_new_timestamp, assert_not_found, assert_redirect, assert_unprocessable
 from test.factories import CatalogFactory, CollectionTagFactory, RecordFactory, RecordTagFactory, fake
 
 
@@ -75,17 +75,22 @@ def endpoint(request):
     return request.param
 
 
-@pytest.fixture
-def published_record(
+def create_example_record(
         tag_collection_published,
         tag_collection_infrastructure,
         tag_record_qc,
         tag_record_retracted,
+        schema_id=None,
 ):
-    """Fixture which creates and returns a single record instance,
+    """Create and return a single record instance,
     with valid (example) metadata, optionally with collection and/or
     record tags, and evaluated for publishing."""
-    record = RecordFactory(use_example_metadata=True)
+    kwargs = dict(use_example_metadata=True)
+    if schema_id:
+        kwargs |= dict(schema_id=schema_id)
+
+    record = RecordFactory(**kwargs)
+
     if tag_collection_published is not None:
         CollectionTagFactory.create(
             tag=Session.get(Tag, ('Collection.Published', 'collection')),
@@ -115,12 +120,6 @@ def published_record(
     }
     for catalog_id, catalog_cls in catalog_classes.items():
         catalog_cls(catalog_id, Cache(__name__)).publish()
-
-    # save fixture params on record for later reference
-    record.tag_collection_published = tag_collection_published
-    record.tag_collection_infrastructure = tag_collection_infrastructure
-    record.tag_record_qc = tag_record_qc
-    record.tag_record_retracted = tag_record_retracted
 
     return record
 
@@ -204,7 +203,12 @@ def test_redirect_to(api, catalog_batch, catalog_exists, record_id_format):
         assert_unprocessable(r)
 
 
-def test_get_published_record(api, scopes, static_publishing_data, published_record, catalog_id, endpoint):
+def test_get_published_record(
+        api, scopes,
+        static_publishing_data, catalog_id, endpoint,
+        tag_collection_published, tag_collection_infrastructure,
+        tag_record_qc, tag_record_retracted,
+):
     def check_metadata_record(schema_id, deep=True):
         metadata_record = next(filter(
             lambda m: m['schema_id'] == schema_id, result['metadata_records']
@@ -214,31 +218,36 @@ def test_get_published_record(api, scopes, static_publishing_data, published_rec
 
         if deep:
             expected_metadata = datacite4_example() if schema_id == 'SAEON.DataCite4' else iso19115_example()
-            if published_record.doi:
-                expected_metadata |= dict(doi=published_record.doi)
+            if example_record.doi:
+                expected_metadata |= dict(doi=example_record.doi)
             else:
                 expected_metadata.pop('doi')
             assert metadata_record['metadata'] == expected_metadata
 
     scopes = scopes(ODPScope.CATALOG_READ)
-
+    authorized = ODPScope.CATALOG_READ in scopes
+    example_record = create_example_record(
+        tag_collection_published,
+        tag_collection_infrastructure,
+        tag_record_qc,
+        tag_record_retracted,
+    )
     published = (
-            published_record.tag_collection_published is True and
-            published_record.tag_record_qc is True and
-            published_record.tag_record_retracted is None
+            tag_collection_published is True and
+            tag_record_qc is True and
+            tag_record_retracted is None
     )
     if catalog_id == 'MIMS':
-        published = published and published_record.tag_collection_infrastructure == 'MIMS'
+        published = published and tag_collection_infrastructure == 'MIMS'
 
     route = f'/catalog/{catalog_id}/records'
     resp_code = 200
     if endpoint == 'get':
-        route += f'/{published_record.doi}' if published_record.doi else f'/{published_record.id}'
+        route += f'/{example_record.doi}' if example_record.doi else f'/{example_record.id}'
         resp_code = 200 if published else 404
 
     r = api(scopes, create_scopes=False).get(route)
 
-    authorized = ODPScope.CATALOG_READ in scopes
     if not authorized:
         assert_forbidden(r)
         return
@@ -255,22 +264,22 @@ def test_get_published_record(api, scopes, static_publishing_data, published_rec
 
     result = items[0] if endpoint == 'list' else r.json()
 
-    assert result['id'] == published_record.id
-    assert result['doi'] == published_record.doi
-    assert result['sid'] == published_record.sid
-    assert result['collection_key'] == published_record.collection.key
-    assert result['collection_name'] == published_record.collection.name
-    assert result['provider_key'] == published_record.collection.provider.key
-    assert result['provider_name'] == published_record.collection.provider.name
+    assert result['id'] == example_record.id
+    assert result['doi'] == example_record.doi
+    assert result['sid'] == example_record.sid
+    assert result['collection_key'] == example_record.collection.key
+    assert result['collection_name'] == example_record.collection.name
+    assert result['provider_key'] == example_record.collection.provider.key
+    assert result['provider_name'] == example_record.collection.provider.name
     assert result['published'] is True
     assert result['searchable'] is True
     assert_new_timestamp(datetime.fromisoformat(result['timestamp']))
 
-    if published_record.schema_id == 'SAEON.DataCite4':
+    if example_record.schema_id == 'SAEON.DataCite4':
         assert len(result['metadata_records']) == 1
         check_metadata_record('SAEON.DataCite4')
 
-    elif published_record.schema_id == 'SAEON.ISO19115':
+    elif example_record.schema_id == 'SAEON.ISO19115':
         assert len(result['metadata_records']) == 2
         check_metadata_record('SAEON.ISO19115')
         # TODO: check why the example translated record does not
@@ -279,3 +288,86 @@ def test_get_published_record(api, scopes, static_publishing_data, published_rec
 
     else:
         assert False
+
+
+@pytest.mark.parametrize('schema_id, json_pointer, expected_value', [
+    ('SAEON.DataCite4', '/titles/0/title', 'Example Metadata Record: ISO19115 - SAEON Profile'),
+    ('SAEON.ISO19115', '/title', 'Example Metadata Record: ISO19115 - SAEON Profile'),
+    ('SAEON.DataCite4', '/creators/0/nameIdentifiers/0', {
+        "nameIdentifier": "https://orcid.org/0000-0001-2345-6789",
+        "nameIdentifierScheme": "https://orcid.org",
+        "schemeURI": "https://orcid.org"
+    }),
+    ('SAEON.ISO19115', '/responsibleParties/1/contactInfo', 'Intertidal Zone, Seashore Business Park'),
+    ('SAEON.DataCite4', '/geoLocations/0/geoLocationPolygons/1/polygonPoints/3/pointLatitude', -34.3),
+    ('SAEON.ISO19115', '/extent/geographicElements/0/boundingPolygon/0/polygon/2', {
+        "longitude": 18.24, "latitude": -34.18
+    }),
+])
+def test_get_published_metadata_value(
+        api, scopes,
+        static_publishing_data, catalog_id,
+        schema_id, json_pointer, expected_value,
+):
+    scopes = scopes(ODPScope.CATALOG_READ)
+    authorized = ODPScope.CATALOG_READ in scopes
+    example_record = create_example_record(
+        tag_collection_published=True,
+        tag_collection_infrastructure='MIMS',
+        tag_record_qc=True,
+        tag_record_retracted=None,
+        schema_id=schema_id,
+    )
+
+    route = f'/catalog/{catalog_id}/getvalue/'
+    route += example_record.doi if example_record.doi else example_record.id
+
+    r = api(scopes, create_scopes=False).get(route, params=dict(
+        schema_id=schema_id,
+        json_pointer=json_pointer,
+    ))
+
+    if not authorized:
+        assert_forbidden(r)
+        return
+
+    assert r.status_code == 200
+    assert r.json() == expected_value
+
+
+@pytest.mark.parametrize('schema_id', ['SAEON.DataCite4', 'SAEON.ISO19115'])
+def test_get_published_metadata_document(
+        api, scopes,
+        static_publishing_data, catalog_id,
+        schema_id,
+):
+    scopes = scopes(ODPScope.CATALOG_READ)
+    authorized = ODPScope.CATALOG_READ in scopes
+    example_record = create_example_record(
+        tag_collection_published=True,
+        tag_collection_infrastructure='MIMS',
+        tag_record_qc=True,
+        tag_record_retracted=None,
+        schema_id=schema_id,
+    )
+
+    route = f'/catalog/{catalog_id}/getvalue/'
+    route += example_record.doi if example_record.doi else example_record.id
+
+    r = api(scopes, create_scopes=False).get(route, params=dict(
+        schema_id=schema_id,
+        # json_pointer='',  # default
+    ))
+
+    if not authorized:
+        assert_forbidden(r)
+        return
+
+    expected_document = datacite4_example() if schema_id == 'SAEON.DataCite4' else iso19115_example()
+    if example_record.doi:
+        expected_document |= dict(doi=example_record.doi)
+    else:
+        expected_document.pop('doi')
+
+    assert r.status_code == 200
+    assert r.json() == expected_document
