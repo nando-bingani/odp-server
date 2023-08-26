@@ -149,8 +149,8 @@ def assert_json_results(response, json, catalogs):
         assert_json_result(response, items[n], catalog)
 
 
+@pytest.mark.require_scope(ODPScope.CATALOG_READ)
 def test_list_catalogs(api, catalog_batch, scopes):
-    scopes = scopes(ODPScope.CATALOG_READ)
     authorized = ODPScope.CATALOG_READ in scopes
     r = api(scopes).get('/catalog/')
     if authorized:
@@ -160,8 +160,8 @@ def test_list_catalogs(api, catalog_batch, scopes):
     assert_db_state(catalog_batch)
 
 
+@pytest.mark.require_scope(ODPScope.CATALOG_READ)
 def test_get_catalog(api, catalog_batch, scopes):
-    scopes = scopes(ODPScope.CATALOG_READ)
     authorized = ODPScope.CATALOG_READ in scopes
     r = api(scopes).get(f'/catalog/{catalog_batch[2].id}')
     if authorized:
@@ -203,6 +203,7 @@ def test_redirect_to(api, catalog_batch, catalog_exists, record_id_format):
         assert_unprocessable(r)
 
 
+@pytest.mark.require_scope(ODPScope.CATALOG_READ)
 def test_get_published_record(
         api, scopes,
         static_publishing_data, catalog_id, endpoint,
@@ -224,7 +225,6 @@ def test_get_published_record(
                 expected_metadata.pop('doi')
             assert metadata_record['metadata'] == expected_metadata
 
-    scopes = scopes(ODPScope.CATALOG_READ)
     authorized = ODPScope.CATALOG_READ in scopes
     example_record = create_example_record(
         tag_collection_published,
@@ -304,12 +304,12 @@ def test_get_published_record(
         "longitude": 18.24, "latitude": -34.18
     }),
 ])
+@pytest.mark.require_scope(ODPScope.CATALOG_READ)
 def test_get_published_metadata_value(
         api, scopes,
         static_publishing_data, catalog_id,
         schema_id, json_pointer, expected_value,
 ):
-    scopes = scopes(ODPScope.CATALOG_READ)
     authorized = ODPScope.CATALOG_READ in scopes
     example_record = create_example_record(
         tag_collection_published=True,
@@ -336,12 +336,12 @@ def test_get_published_metadata_value(
 
 
 @pytest.mark.parametrize('schema_id', ['SAEON.DataCite4', 'SAEON.ISO19115'])
+@pytest.mark.require_scope(ODPScope.CATALOG_READ)
 def test_get_published_metadata_document(
         api, scopes,
         static_publishing_data, catalog_id,
         schema_id,
 ):
-    scopes = scopes(ODPScope.CATALOG_READ)
     authorized = ODPScope.CATALOG_READ in scopes
     example_record = create_example_record(
         tag_collection_published=True,

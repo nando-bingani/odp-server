@@ -68,13 +68,16 @@ def tag_cardinality(request):
 
 @pytest.fixture(params=[1, 2, 3, 4])
 def scopes(request):
-    """Generate the most commonly used scopes parameterization.
+    """Fixture for parameterizing the set of auth scopes
+    to be associated with the API test client.
 
-    For example, calling the fixture as follows in a test function::
+    The test function must be decorated to indicated the scope
+    required by the API route::
 
-        scopes = scopes(ODPScope.CATALOG_READ)
+        @pytest.mark.require_scope(ODPScope.CATALOG_READ)
 
-    is equivalent to using the following parameterization::
+    This has the same effect as parameterizing the test function
+    as follows::
 
         @pytest.mark.parametrize('scopes', [
             [ODPScope.CATALOG_READ],
@@ -84,15 +87,13 @@ def scopes(request):
         ])
 
     """
+    scope = request.node.get_closest_marker('require_scope').args[0]
 
-    def parameterized_scopes(scope):
-        if request.param == 1:
-            return [scope]
-        elif request.param == 2:
-            return []
-        elif request.param == 3:
-            return all_scopes
-        elif request.param == 4:
-            return all_scopes_excluding(scope)
-
-    return parameterized_scopes
+    if request.param == 1:
+        return [scope]
+    elif request.param == 2:
+        return []
+    elif request.param == 3:
+        return all_scopes
+    elif request.param == 4:
+        return all_scopes_excluding(scope)
