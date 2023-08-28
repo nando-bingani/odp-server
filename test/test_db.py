@@ -1,3 +1,5 @@
+from random import randint
+
 from sqlalchemy import select
 
 import migrate.systemdata
@@ -90,10 +92,38 @@ def test_create_provider():
 
 
 def test_create_record():
-    record = RecordFactory()
-    result = Session.execute(select(Record)).scalar_one()
-    assert (result.id, result.doi, result.sid, result.metadata_, result.validity, result.collection_id, result.schema_id, result.schema_type) \
-           == (record.id, record.doi, record.sid, record.metadata_, record.validity, record.collection.id, record.schema.id, record.schema.type)
+    record = RecordFactory(is_child_record=randint(0, 1))
+    result = Session.execute(
+        select(Record).where(Record.id == record.id)
+    ).scalar_one()
+    assert (
+               result.id,
+               result.doi,
+               result.sid,
+               result.metadata_,
+               result.validity,
+               result.collection_id,
+               result.schema_id,
+               result.schema_type,
+               result.parent_id,
+           ) == (
+               record.id,
+               record.doi,
+               record.sid,
+               record.metadata_,
+               record.validity,
+               record.collection.id,
+               record.schema.id,
+               record.schema.type,
+               record.parent_id,
+           )
+    if record.parent_id:
+        parent = Session.execute(
+            select(Record).where(Record.id == record.parent_id)
+        ).scalar_one()
+        assert result.parent == parent
+        assert result.parent_id == parent.id
+        assert parent.children == [result]
 
 
 def test_create_record_tag():

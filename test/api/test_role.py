@@ -6,7 +6,7 @@ from sqlalchemy import select
 from odp.const import ODPScope
 from odp.db import Session
 from odp.db.models import Role
-from test.api import CollectionAuth, all_scopes, all_scopes_excluding, assert_conflict, assert_empty_result, assert_forbidden, assert_not_found
+from test.api import CollectionAuth, assert_conflict, assert_empty_result, assert_forbidden, assert_not_found
 from test.factories import CollectionFactory, RoleFactory, ScopeFactory
 
 
@@ -75,12 +75,7 @@ def assert_json_results(response, json, roles):
         assert_json_result(response, items[n], role)
 
 
-@pytest.mark.parametrize('scopes', [
-    [ODPScope.ROLE_READ],
-    [],
-    all_scopes,
-    all_scopes_excluding(ODPScope.ROLE_READ),
-])
+@pytest.mark.require_scope(ODPScope.ROLE_READ)
 def test_list_roles(api, role_batch, scopes):
     authorized = ODPScope.ROLE_READ in scopes
     r = api(scopes).get('/role/')
@@ -91,12 +86,7 @@ def test_list_roles(api, role_batch, scopes):
     assert_db_state(role_batch)
 
 
-@pytest.mark.parametrize('scopes', [
-    [ODPScope.ROLE_READ],
-    [],
-    all_scopes,
-    all_scopes_excluding(ODPScope.ROLE_READ),
-])
+@pytest.mark.require_scope(ODPScope.ROLE_READ)
 def test_get_role(api, role_batch, scopes):
     authorized = ODPScope.ROLE_READ in scopes
     r = api(scopes).get(f'/role/{role_batch[2].id}')
@@ -114,12 +104,7 @@ def test_get_role_not_found(api, role_batch):
     assert_db_state(role_batch)
 
 
-@pytest.mark.parametrize('scopes', [
-    [ODPScope.ROLE_ADMIN],
-    [],
-    all_scopes,
-    all_scopes_excluding(ODPScope.ROLE_ADMIN),
-])
+@pytest.mark.require_scope(ODPScope.ROLE_ADMIN)
 def test_create_role(api, role_batch, scopes, collection_auth):
     authorized = ODPScope.ROLE_ADMIN in scopes and \
                  collection_auth in (CollectionAuth.NONE, CollectionAuth.MATCH)
@@ -191,12 +176,7 @@ def test_create_role_conflict(api, role_batch, collection_auth):
     assert_db_state(role_batch)
 
 
-@pytest.mark.parametrize('scopes', [
-    [ODPScope.ROLE_ADMIN],
-    [],
-    all_scopes,
-    all_scopes_excluding(ODPScope.ROLE_ADMIN),
-])
+@pytest.mark.require_scope(ODPScope.ROLE_ADMIN)
 def test_update_role(api, role_batch, scopes, collection_auth):
     authorized = ODPScope.ROLE_ADMIN in scopes and \
                  collection_auth in (CollectionAuth.NONE, CollectionAuth.MATCH)
@@ -270,12 +250,7 @@ def test_update_role_not_found(api, role_batch, collection_auth):
     assert_db_state(role_batch)
 
 
-@pytest.mark.parametrize('scopes', [
-    [ODPScope.ROLE_ADMIN],
-    [],
-    all_scopes,
-    all_scopes_excluding(ODPScope.ROLE_ADMIN),
-])
+@pytest.mark.require_scope(ODPScope.ROLE_ADMIN)
 def test_delete_role(api, role_batch, scopes, collection_auth):
     authorized = ODPScope.ROLE_ADMIN in scopes and \
                  collection_auth in (CollectionAuth.NONE, CollectionAuth.MATCH)

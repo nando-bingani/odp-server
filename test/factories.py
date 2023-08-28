@@ -9,6 +9,7 @@ from faker import Faker
 from odp.db import Session
 from odp.db.models import (Catalog, Client, Collection, CollectionTag, Provider, Record, RecordTag, Role, Schema, Scope, Tag, User,
                            Vocabulary, VocabularyTerm)
+from test import datacite4_example, iso19115_example
 
 fake = Faker()
 
@@ -26,6 +27,49 @@ def id_from_fake(src, n):
 
 def _sanitize_id(val):
     return re.sub(r'[^-.:\w]', '_', val)
+
+
+def create_metadata(record, n):
+    if record.use_example_metadata:
+        if record.schema_id == 'SAEON.DataCite4':
+            metadata = datacite4_example()
+        elif record.schema_id == 'SAEON.ISO19115':
+            metadata = iso19115_example()
+    else:
+        metadata = {'foo': f'test-{n}'}
+
+    if record.doi:
+        metadata |= {'doi': record.doi}
+    else:
+        metadata.pop('doi', None)
+
+    if record.parent_doi:
+        metadata.setdefault("relatedIdentifiers", [])
+        metadata["relatedIdentifiers"] += [{
+            "relatedIdentifier": record.parent_doi,
+            "relatedIdentifierType": "DOI",
+            "relationType": "IsPartOf"
+        }]
+
+    # non-DOI relatedIdentifierType should be ignored for parent_id calculation
+    if not record.use_example_metadata and randint(0, 1):
+        metadata.setdefault("relatedIdentifiers", [])
+        metadata["relatedIdentifiers"] += [{
+            "relatedIdentifier": "foo",
+            "relatedIdentifierType": "URL",
+            "relationType": "IsPartOf"
+        }]
+
+    # non-IsPartOf relationType should be ignored for parent_id calculation
+    if not record.use_example_metadata and randint(0, 1):
+        metadata.setdefault("relatedIdentifiers", [])
+        metadata["relatedIdentifiers"] += [{
+            "relatedIdentifier": "bar",
+            "relatedIdentifierType": "DOI",
+            "relationType": "HasPart"
+        }]
+
+    return metadata
 
 
 def schema_uri_from_type(schema):
@@ -224,19 +268,30 @@ class CollectionTagFactory(ODPModelFactory):
 class RecordFactory(ODPModelFactory):
     class Meta:
         model = Record
-        exclude = ('identifiers',)
+        exclude = ('identifiers', 'is_child_record', 'parent_doi', 'use_example_metadata')
 
     identifiers = factory.LazyFunction(lambda: choice(('doi', 'sid', 'both')))
     doi = factory.LazyAttributeSequence(lambda r, n: f'10.5555/test-{n}' if r.identifiers in ('doi', 'both') else None)
     sid = factory.LazyAttributeSequence(lambda r, n: f'test-{n}' if r.doi is None or r.identifiers in ('sid', 'both') else None)
-    metadata_ = factory.LazyAttributeSequence(lambda r, n: {'doi': r.doi, 'foo': f'test-{n}'} if r.doi else {'foo': f'test-{n}'})
-    validity = {}
+
+    parent_doi = None
+    use_example_metadata = False
+    metadata_ = factory.LazyAttributeSequence(create_metadata)
+    validity = factory.LazyAttribute(lambda r: dict(valid=r.use_example_metadata))
+
     collection = factory.SubFactory(CollectionFactory)
     schema_id = factory.LazyFunction(lambda: choice(('SAEON.DataCite4', 'SAEON.ISO19115')))
     schema_type = 'metadata'
     schema = factory.LazyAttribute(lambda r: Session.get(Schema, (r.schema_id, 'metadata')) or
                                              SchemaFactory(id=r.schema_id, type='metadata'))
     timestamp = factory.LazyFunction(lambda: datetime.now(timezone.utc))
+
+    is_child_record = False
+    parent = factory.Maybe(
+        'is_child_record',
+        yes_declaration=factory.SubFactory('test.factories.RecordFactory'),
+        no_declaration=None,
+    )
 
 
 class RecordTagFactory(ODPModelFactory):

@@ -8,6 +8,8 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from fastapi.responses import RedirectResponse
+from jschon import JSONPointer
+from jschon.exc import JSONPointerMalformedError, JSONPointerReferenceError
 from pydantic import Json, UUID4, constr
 from sqlalchemy import and_, func, or_, select, text
 from sqlalchemy.orm import aliased
@@ -263,15 +265,11 @@ async def search_records(
     )
 
 
-@router.get(
-    '/{catalog_id}/records/{record_id:path}',
-    response_model=PublishedSAEONRecordModel | PublishedDataCiteRecordModel,
-    dependencies=[Depends(Authorize(ODPScope.CATALOG_READ))],
-)
-async def get_record(
+async def get_catalog_record_by_id_or_doi(
         catalog_id: str,
-        record_id: str = Path(..., title='UUID or DOI'),
-):
+        record_id_or_doi: str = Path(..., title='UUID or DOI'),
+) -> CatalogRecord:
+    """Dependency function for retrieving a published catalog record."""
     stmt = (
         select(CatalogRecord).
         where(CatalogRecord.catalog_id == catalog_id).
@@ -279,13 +277,13 @@ async def get_record(
     )
 
     try:
-        UUID(record_id, version=4)
-        stmt = stmt.where(CatalogRecord.record_id == record_id)
+        UUID(record_id_or_doi, version=4)
+        stmt = stmt.where(CatalogRecord.record_id == record_id_or_doi)
 
     except ValueError:
-        if re.match(DOI_REGEX, record_id):
+        if re.match(DOI_REGEX, record_id_or_doi):
             stmt = stmt.where(CatalogRecord.published_record.comparator.contains({
-                'doi': record_id
+                'doi': record_id_or_doi
             }))
         else:
             raise HTTPException(HTTP_422_UNPROCESSABLE_ENTITY, 'Invalid record identifier: expecting a UUID or DOI')
@@ -293,7 +291,53 @@ async def get_record(
     if not (catalog_record := Session.execute(stmt).scalar_one_or_none()):
         raise HTTPException(HTTP_404_NOT_FOUND)
 
+    return catalog_record
+
+
+@router.get(
+    '/{catalog_id}/records/{record_id_or_doi:path}',
+    response_model=PublishedSAEONRecordModel | PublishedDataCiteRecordModel,
+    dependencies=[Depends(Authorize(ODPScope.CATALOG_READ))],
+)
+async def get_record(
+        catalog_record: CatalogRecord = Depends(get_catalog_record_by_id_or_doi),
+):
     return output_published_record_model(catalog_record)
+
+
+@router.get(
+    '/{catalog_id}/getvalue/{record_id_or_doi:path}',
+    response_model=Any,
+    dependencies=[Depends(Authorize(ODPScope.CATALOG_READ))],
+    description='Get a value from the metadata for a published record',
+)
+async def get_metadata_value(
+        schema_id: str,
+        json_pointer: str = Query('', description='JSON pointer reference into the `"metadata"` document selected '
+                                                  'from a published record\'s `"metadata_records"` by the given `schema_id`'),
+        catalog_record: CatalogRecord = Depends(get_catalog_record_by_id_or_doi),
+):
+    published_record = output_published_record_model(catalog_record)
+    if not isinstance(published_record, PublishedSAEONRecordModel):
+        raise HTTPException(HTTP_422_UNPROCESSABLE_ENTITY, 'Function not available for the specified record')
+
+    try:
+        metadata_dict = next((
+            metadata_record.metadata
+            for metadata_record in published_record.metadata_records
+            if metadata_record.schema_id == schema_id
+        ))
+    except StopIteration:
+        raise HTTPException(HTTP_422_UNPROCESSABLE_ENTITY, 'Metadata not available for the specified schema')
+
+    try:
+        value = JSONPointer(json_pointer).evaluate(metadata_dict)
+    except JSONPointerMalformedError as e:
+        raise HTTPException(HTTP_422_UNPROCESSABLE_ENTITY, str(e))
+    except JSONPointerReferenceError:
+        return None
+
+    return value
 
 
 @router.get(

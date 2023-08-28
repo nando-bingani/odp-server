@@ -5,9 +5,10 @@ from starlette.testclient import TestClient
 import odp.api
 from odp.config import config
 from odp.const import ODPScope
-from odp.db.models import TagCardinality
+from odp.db import Session
+from odp.db.models import Scope, TagCardinality
 from odp.lib.hydra import HydraAdminAPI
-from test.api import CollectionAuth
+from test.api import CollectionAuth, all_scopes, all_scopes_excluding
 from test.factories import ClientFactory, ScopeFactory
 
 hydra_admin_url = config.HYDRA.ADMIN.URL
@@ -16,10 +17,15 @@ hydra_public_url = config.HYDRA.PUBLIC.URL
 
 @pytest.fixture
 def api():
-    def scoped_client(scopes, collections=None):
+    def scoped_client(scopes, collections=None, create_scopes=True):
+        if create_scopes:
+            scope_objects = [ScopeFactory(id=s.value, type='odp') for s in scopes]
+        else:
+            scope_objects = [Session.get(Scope, (s.value, 'odp')) for s in scopes]
+
         ClientFactory(
             id='odp.test',
-            scopes=[ScopeFactory(id=s.value, type='odp') for s in scopes],
+            scopes=scope_objects,
             collection_specific=collections is not None,
             collections=collections,
         )
@@ -58,3 +64,36 @@ def collection_auth(request):
 def tag_cardinality(request):
     """Use for parameterizing the range of tag cardinalities."""
     return request.param
+
+
+@pytest.fixture(params=[1, 2, 3, 4])
+def scopes(request):
+    """Fixture for parameterizing the set of auth scopes
+    to be associated with the API test client.
+
+    The test function must be decorated to indicated the scope
+    required by the API route::
+
+        @pytest.mark.require_scope(ODPScope.CATALOG_READ)
+
+    This has the same effect as parameterizing the test function
+    as follows::
+
+        @pytest.mark.parametrize('scopes', [
+            [ODPScope.CATALOG_READ],
+            [],
+            all_scopes,
+            all_scopes_excluding(ODPScope.CATALOG_READ),
+        ])
+
+    """
+    scope = request.node.get_closest_marker('require_scope').args[0]
+
+    if request.param == 1:
+        return [scope]
+    elif request.param == 2:
+        return []
+    elif request.param == 3:
+        return all_scopes
+    elif request.param == 4:
+        return all_scopes_excluding(scope)

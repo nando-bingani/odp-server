@@ -7,7 +7,7 @@ from odp.const import ODPScope
 from odp.const.hydra import TokenEndpointAuthMethod
 from odp.db import Session
 from odp.db.models import Client
-from test.api import CollectionAuth, all_scopes, all_scopes_excluding, assert_conflict, assert_empty_result, assert_forbidden, assert_not_found
+from test.api import CollectionAuth, assert_conflict, assert_empty_result, assert_forbidden, assert_not_found
 from test.factories import ClientFactory, CollectionFactory, ScopeFactory, fake
 
 
@@ -99,12 +99,7 @@ def assert_json_results(response, json, clients):
         assert_json_result(response, items[n], client)
 
 
-@pytest.mark.parametrize('scopes', [
-    [ODPScope.CLIENT_READ],
-    [],
-    all_scopes,
-    all_scopes_excluding(ODPScope.CLIENT_READ),
-])
+@pytest.mark.require_scope(ODPScope.CLIENT_READ)
 def test_list_clients(api, client_batch, scopes):
     authorized = ODPScope.CLIENT_READ in scopes
     r = api(scopes).get('/client/')
@@ -115,12 +110,7 @@ def test_list_clients(api, client_batch, scopes):
     assert_db_state(client_batch)
 
 
-@pytest.mark.parametrize('scopes', [
-    [ODPScope.CLIENT_READ],
-    [],
-    all_scopes,
-    all_scopes_excluding(ODPScope.CLIENT_READ),
-])
+@pytest.mark.require_scope(ODPScope.CLIENT_READ)
 def test_get_client(api, client_batch, scopes):
     authorized = ODPScope.CLIENT_READ in scopes
     r = api(scopes).get(f'/client/{client_batch[2].id}')
@@ -138,12 +128,7 @@ def test_get_client_not_found(api, client_batch):
     assert_db_state(client_batch)
 
 
-@pytest.mark.parametrize('scopes', [
-    [ODPScope.CLIENT_ADMIN],
-    [],
-    all_scopes,
-    all_scopes_excluding(ODPScope.CLIENT_ADMIN),
-])
+@pytest.mark.require_scope(ODPScope.CLIENT_ADMIN)
 def test_create_client(api, client_batch, scopes, collection_auth):
     authorized = ODPScope.CLIENT_ADMIN in scopes and \
                  collection_auth in (CollectionAuth.NONE, CollectionAuth.MATCH)
@@ -231,12 +216,7 @@ def test_create_client_conflict(api, client_batch, collection_auth):
     assert_db_state(client_batch)
 
 
-@pytest.mark.parametrize('scopes', [
-    [ODPScope.CLIENT_ADMIN],
-    [],
-    all_scopes,
-    all_scopes_excluding(ODPScope.CLIENT_ADMIN),
-])
+@pytest.mark.require_scope(ODPScope.CLIENT_ADMIN)
 def test_update_client(api, client_batch, scopes, collection_auth):
     authorized = ODPScope.CLIENT_ADMIN in scopes and \
                  collection_auth in (CollectionAuth.NONE, CollectionAuth.MATCH)
@@ -326,12 +306,7 @@ def test_update_client_not_found(api, client_batch, collection_auth):
     assert_db_state(client_batch)
 
 
-@pytest.mark.parametrize('scopes', [
-    [ODPScope.CLIENT_ADMIN],
-    [],
-    all_scopes,
-    all_scopes_excluding(ODPScope.CLIENT_ADMIN),
-])
+@pytest.mark.require_scope(ODPScope.CLIENT_ADMIN)
 def test_delete_client(api, client_batch, scopes, collection_auth):
     authorized = ODPScope.CLIENT_ADMIN in scopes and \
                  collection_auth in (CollectionAuth.NONE, CollectionAuth.MATCH)

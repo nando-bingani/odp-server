@@ -1,0 +1,20 @@
+#!/usr/bin/env python
+
+import argparse
+import pathlib
+import sys
+from importlib import import_module
+
+rootdir = pathlib.Path(__file__).parent.parent
+sys.path.append(str(rootdir))
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('module_name')
+    parser.add_argument('function_name')
+
+    args = parser.parse_args()
+    onceoff_mod = import_module(f'migrate.onceoff.{args.module_name}')
+    onceoff_func = getattr(onceoff_mod, args.function_name)
+
+    onceoff_func()
