@@ -40,10 +40,10 @@ def output_record_model(record: Record) -> RecordModel:
         schema_uri=record.schema.uri,
         parent_id=record.parent_id,
         parent_doi=record.parent.doi if record.parent_id else None,
-        child_dois=[
-            child.doi
+        child_dois={
+            child.doi: child.id
             for child in record.children
-        ],
+        },
         metadata=record.metadata_,
         validity=record.validity,
         timestamp=record.timestamp.isoformat(),
