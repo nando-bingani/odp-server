@@ -1,6 +1,8 @@
 from odp.api.models import PublishedRecordModel, PublishedSAEONRecordModel, RecordModel
 from odp.catalog.saeon import SAEONCatalog
 from odp.const import ODPCollectionTag, ODPMetadataSchema
+from odp.db import Session
+from odp.db.models import CatalogRecord
 
 
 class MIMSCatalog(SAEONCatalog):
@@ -30,10 +32,20 @@ class MIMSCatalog(SAEONCatalog):
 
     def create_published_record(self, record_model: RecordModel) -> PublishedRecordModel:
         published_record: PublishedSAEONRecordModel = super().create_published_record(record_model)
-        if record_model.child_dois:
-            for metadata_record in published_record.metadata_records:
-                metadata_record.metadata.setdefault('relatedIdentifiers', [])
-                for child_doi in record_model.child_dois:
+
+        for child_doi, child_id in record_model.child_dois.items():
+            if child_record_model := self.snapshot.get(child_id):
+                can_publish_reasons = []
+                cannot_publish_reasons = []
+                self.evaluate_record(child_record_model, can_publish_reasons, cannot_publish_reasons)
+                is_child_published = not cannot_publish_reasons
+            else:
+                catalog_record = Session.get(CatalogRecord, (self.catalog_id, child_id))
+                is_child_published = catalog_record.published
+
+            if is_child_published:
+                for metadata_record in published_record.metadata_records:
+                    metadata_record.metadata.setdefault('relatedIdentifiers', [])
                     metadata_record.metadata['relatedIdentifiers'] += [{
                         'relatedIdentifier': child_doi,
                         'relatedIdentifierType': 'DOI',

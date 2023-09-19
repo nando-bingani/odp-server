@@ -11,7 +11,6 @@ from odp.catalog.saeon import SAEONCatalog
 from odp.const import ODPScope
 from odp.db import Session
 from odp.db.models import Catalog, Tag
-from odp.lib.cache import Cache
 from test import datacite4_example, iso19115_example
 from test.api import assert_forbidden, assert_new_timestamp, assert_not_found, assert_redirect, assert_unprocessable
 from test.factories import CatalogFactory, CollectionTagFactory, RecordFactory, RecordTagFactory, fake
@@ -119,7 +118,7 @@ def create_example_record(
         'MIMS': MIMSCatalog,
     }
     for catalog_id, catalog_cls in catalog_classes.items():
-        catalog_cls(catalog_id, Cache(__name__)).publish()
+        catalog_cls(catalog_id).publish()
 
     return record
 

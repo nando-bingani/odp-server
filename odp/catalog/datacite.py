@@ -6,7 +6,6 @@ from odp.config import config
 from odp.const import DOI_PREFIX, ODPMetadataSchema
 from odp.db import Session
 from odp.db.models import CatalogRecord, Schema, SchemaType
-from odp.lib.cache import Cache
 from odp.lib.datacite import DataciteClient, DataciteRecordIn
 from odp.lib.schema import schema_catalog
 
@@ -14,8 +13,8 @@ from odp.lib.schema import schema_catalog
 class DataCiteCatalog(Catalog):
     external = True
 
-    def __init__(self, catalog_id: str, cache: Cache) -> None:
-        super().__init__(catalog_id, cache)
+    def __init__(self, catalog_id: str) -> None:
+        super().__init__(catalog_id)
         self.datacite = DataciteClient(
             api_url=config.DATACITE.API_URL,
             username=config.DATACITE.USERNAME,

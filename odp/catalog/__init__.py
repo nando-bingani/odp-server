@@ -10,7 +10,6 @@ from odp.api.routers.record import output_record_model
 from odp.const import ODPCatalog, ODPCollectionTag, ODPMetadataSchema, ODPRecordTag
 from odp.db import Session
 from odp.db.models import CatalogRecord, CatalogRecordFacet, Collection, Provider, PublishedRecord, Record, RecordTag
-from odp.lib.cache import Cache
 
 logger = logging.getLogger(__name__)
 
@@ -35,9 +34,10 @@ class Catalog:
     max_attempts = 3
     """Maximum number of consecutive attempts at externally synchronizing a record."""
 
-    def __init__(self, catalog_id: str, cache: Cache) -> None:
+    def __init__(self, catalog_id: str) -> None:
         self.catalog_id = catalog_id
-        self.cache = cache
+        self.snapshot = {}
+        """Mapping of record UUIDs to record API output models."""
 
     @final
     def publish(self) -> None:
@@ -127,7 +127,7 @@ class Catalog:
         for record_id, _ in records:
             record = Session.get(Record, record_id)
             record_model = output_record_model(record)
-            self.cache.jset(record_id, value=record_model.dict())
+            self.snapshot[record_id] = record_model
 
     def _sync_catalog_record(self, record_id: str, timestamp: datetime) -> bool:
         """Synchronize a catalog_record entry with the current state of the
@@ -139,8 +139,7 @@ class Catalog:
         catalog_record = (Session.get(CatalogRecord, (self.catalog_id, record_id)) or
                           CatalogRecord(catalog_id=self.catalog_id, record_id=record_id))
 
-        cached_record_dict = self.cache.jget(record_id, expire=True)
-        record_model = RecordModel(**cached_record_dict)
+        record_model = self.snapshot[record_id]
 
         can_publish_reasons = []
         cannot_publish_reasons = []
@@ -416,10 +415,8 @@ def publish_all():
 
     logger.info('PUBLISHING STARTED')
     try:
-        cache = Cache(__name__)
-
         for catalog_id, catalog_cls in catalog_classes.items():
-            catalog_cls(catalog_id, cache).publish()
+            catalog_cls(catalog_id).publish()
 
         logger.info('PUBLISHING FINISHED')
 
