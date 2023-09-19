@@ -6,7 +6,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from jschon import JSON, JSONSchema
-from pydantic import UUID4, constr
+from pydantic import constr
 from sqlalchemy import and_, func, literal_column, null, or_, select, union_all
 from sqlalchemy.orm import aliased
 from starlette.status import HTTP_403_FORBIDDEN, HTTP_404_NOT_FOUND, HTTP_409_CONFLICT, HTTP_422_UNPROCESSABLE_ENTITY
@@ -147,6 +147,17 @@ def get_parent_id(metadata: dict[str, Any], schema_id: ODPMetadataSchema) -> str
         )
 
     return parent_record.id
+
+
+def touch_parent(record: Record, timestamp: datetime) -> None:
+    """Recursively update the timestamp of the given record's parent and
+     its parent(s), where such exist."""
+    if record.parent_id:
+        # load parent record explicitly; record.parent might not be up-to-date at this point
+        parent = Session.get(Record, record.parent_id)
+        parent.timestamp = timestamp
+        parent.save()
+        touch_parent(parent, timestamp)
 
 
 def get_validity(metadata: dict[str, Any], schema: JSONSchema) -> Any:
@@ -362,9 +373,7 @@ def _create_record(
 
     create_audit_record(auth, record, timestamp, AuditCommand.insert)
 
-    if record.parent_id:
-        record.parent.timestamp = timestamp
-        record.parent.save()
+    touch_parent(record, timestamp)
 
     return output_record_model(record)
 
@@ -493,21 +502,12 @@ def _set_record(
 
         parent_id = get_parent_id(record_in.metadata, record_in.schema_id)
         if record.parent_id != parent_id:
-            # timestamp old parent for child removal
-            if record.parent_id:
-                record.parent.timestamp = timestamp
-                record.parent.save()
-
+            touch_parent(record, timestamp)  # timestamp old parent for child removal
             record.parent_id = parent_id
 
-            # timestamp new parent for child addition
-            if record.parent_id:
-                # load new parent explicitly; record.parent hasn't changed at this point
-                new_parent = Session.get(Record, record.parent_id)
-                new_parent.timestamp = timestamp
-                new_parent.save()
-
         record.save()
+
+        touch_parent(record, timestamp)
 
         create_audit_record(auth, record, timestamp, AuditCommand.insert if create else AuditCommand.update)
 
@@ -561,7 +561,9 @@ def _delete_record(
             'The record has been published and cannot be deleted. Please retract the record instead.',
         )
 
-    create_audit_record(auth, record, datetime.now(timezone.utc), AuditCommand.delete)
+    touch_parent(record, timestamp := datetime.now(timezone.utc))
+
+    create_audit_record(auth, record, timestamp, AuditCommand.delete)
 
     record.delete()
 
@@ -649,6 +651,8 @@ async def tag_record(
         record.timestamp = timestamp
         record.save()
 
+        touch_parent(record, timestamp)
+
         create_tag_audit_record(auth, record_tag, timestamp, command)
 
     return output_tag_instance_model(record_tag)
@@ -702,6 +706,8 @@ def _untag_record(
 
     record.timestamp = (timestamp := datetime.now(timezone.utc))
     record.save()
+
+    touch_parent(record, timestamp)
 
     create_tag_audit_record(auth, record_tag, timestamp, AuditCommand.delete)
 
