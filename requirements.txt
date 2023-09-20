@@ -6,10 +6,11 @@
 #
 -e file:odp-core
     # via -r requirements.in
-alembic==1.11.3
+alembic==1.12.0
     # via -r requirements.in
 anyio==3.7.1
     # via
+    #   fastapi
     #   httpcore
     #   starlette
 argon2-cffi==23.1.0
@@ -41,9 +42,9 @@ click==8.1.7
     # via
     #   flask
     #   uvicorn
-coverage==7.3.0
+coverage==7.3.1
     # via -r requirements.in
-cryptography==41.0.3
+cryptography==41.0.4
     # via authlib
 dnspython==2.4.2
     # via email-validator
@@ -55,11 +56,11 @@ exceptiongroup==1.1.3
     #   pytest
 factory-boy==3.3.0
     # via -r requirements.in
-faker==19.3.1
+faker==19.6.1
     # via
     #   -r requirements.in
     #   factory-boy
-fastapi==0.103.0
+fastapi==0.103.1
     # via -r requirements.in
 flask==2.3.3
     # via
@@ -79,9 +80,9 @@ h11==0.14.0
     # via
     #   httpcore
     #   uvicorn
-httpcore==0.17.3
+httpcore==0.18.0
     # via httpx
-httpx==0.24.1
+httpx==0.25.0
     # via -r requirements.in
 idna==3.4
     # via
@@ -128,7 +129,7 @@ pydantic[dotenv]==1.10.12
     #   -r requirements.in
     #   fastapi
     #   odp
-pytest==7.4.0
+pytest==7.4.2
     # via -r requirements.in
 python-dateutil==2.8.2
     # via
@@ -155,7 +156,7 @@ sniffio==1.3.0
     #   anyio
     #   httpcore
     #   httpx
-sqlalchemy==2.0.20
+sqlalchemy==2.0.21
     # via
     #   -r requirements.in
     #   alembic
@@ -168,14 +169,14 @@ starlette==0.27.0
     #   fastapi
 tomli==2.0.1
     # via pytest
-typing-extensions==4.7.1
+typing-extensions==4.8.0
     # via
     #   alembic
     #   fastapi
     #   pydantic
     #   sqlalchemy
     #   uvicorn
-urllib3==2.0.4
+urllib3==2.0.5
     # via
     #   ory-hydra-client
     #   requests
