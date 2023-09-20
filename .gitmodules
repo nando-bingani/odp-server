@@ -1,4 +1,4 @@
 [submodule "odp-core"]
 	path = odp-core
 	url = https://github.com/SAEON/odp-core
-	branch = dev
+	branch = main
