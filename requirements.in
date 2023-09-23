@@ -1,4 +1,5 @@
--e file:odp-core
+-e file:../odp-core
+-e file:../odp-ui
 
 sqlalchemy
 psycopg2
