@@ -3,12 +3,13 @@ source =
     # odp-core
     odp.config
     odp.const
+    odp.lib.cache
+    odp.lib.client
+    odp.lib.datacite
+    odp.lib.hydra
     odp.logfile
     odp.schema
     odp.version
-    odp.lib.cache
-    odp.lib.datacite
-    odp.lib.hydra
 
     # odp-server
     odp.api
