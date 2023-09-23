@@ -53,4 +53,5 @@ jobs:
 
       - name: Upload coverage
         uses: codecov/codecov-action@v3
-        working-directory: odp-server/test
+        with:
+          directory: odp-server/test
