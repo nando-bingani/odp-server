@@ -3,7 +3,7 @@ from jschon import JSON, URI
 from odp.api.models import PublishedDataCiteRecordModel, PublishedRecordModel, RecordModel
 from odp.catalog import Catalog
 from odp.config import config
-from odp.const import DOI_PREFIX, ODPMetadataSchema
+from odp.const import DOI_PREFIX, ODPCatalog, ODPCollectionTag, ODPMetadataSchema
 from odp.db import Session
 from odp.db.models import CatalogRecord, Schema, SchemaType
 from odp.lib.datacite import DataciteClient, DataciteRecordIn
@@ -21,7 +21,7 @@ class DataCiteCatalog(Catalog):
             password=config.DATACITE.PASSWORD,
             doi_prefix=DOI_PREFIX,
         )
-        self.doi_return_url = config.DATACITE.REDIRECT_URL
+        self.catalog_api = config.ODP.API_URL + '/catalog'
 
     def evaluate_record(
             self,
@@ -56,9 +56,19 @@ class DataCiteCatalog(Catalog):
 
         return PublishedDataCiteRecordModel(
             doi=record_model.doi,
-            url=f'{self.doi_return_url}/{record_model.doi}',
+            url=self._doi_callback_url(record_model),
             metadata=datacite_metadata,
         )
+
+    def _doi_callback_url(self, record_model: RecordModel) -> str:
+        """Return the API URL for resolving a DOI to a catalog landing page."""
+        tagged_mims = any((
+            tag for tag in record_model.tags
+            if tag.tag_id == ODPCollectionTag.INFRASTRUCTURE and tag.data['infrastructure'] == 'MIMS'
+        ))
+
+        catalog_id = ODPCatalog.MIMS if tagged_mims else ODPCatalog.SAEON
+        return f'{self.catalog_api}/{catalog_id}/go/{record_model.doi}'
 
     def sync_external_record(self, record_id: str) -> None:
         """Create / update / delete a record on the DataCite platform."""
