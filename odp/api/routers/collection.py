@@ -371,7 +371,7 @@ async def get_new_doi(
     while True:
         num = randint(0, 99999999)
         doi = f'{DOI_PREFIX}/{doi_key}.{num:08}'
-        if Session.execute(select(Record).where(Record.doi == doi)).first() is None:
+        if Session.execute(select(Record).where(func.lower(Record.doi) == doi.lower())).first() is None:
             break
 
     return doi
