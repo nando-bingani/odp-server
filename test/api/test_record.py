@@ -317,9 +317,9 @@ def test_get_record(api, record_batch, scopes, collection_auth, record_ident):
     if record_ident == 'id':
         r = api(scopes, api_client_collections).get(f'/record/{record_batch[2].id}')
     elif record_ident == 'doi':
-        if not (doi := record_batch[2].doi.upper()):  # case-insensitive DOI retrieval
+        if not (doi := record_batch[2].doi):
             return
-        r = api(scopes, api_client_collections).get(f'/record/doi/{doi}')
+        r = api(scopes, api_client_collections).get(f'/record/doi/{doi.upper()}')  # case-insensitive DOI retrieval
 
     if authorized:
         assert_json_record_result(r, r.json(), record_batch[2])
