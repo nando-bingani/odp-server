@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from fastapi.responses import RedirectResponse
 from jschon import JSONPointer
 from jschon.exc import JSONPointerMalformedError, JSONPointerReferenceError
-from pydantic import Json, UUID4, constr
+from pydantic import Json
 from sqlalchemy import and_, func, or_, select, text
 from sqlalchemy.orm import aliased
 from starlette.status import HTTP_404_NOT_FOUND, HTTP_422_UNPROCESSABLE_ENTITY
@@ -376,10 +376,9 @@ async def get_external_record(
     description='Redirect to the web page for a catalog record.',
 )
 async def redirect_to(
-        catalog_id: str,
-        record_id_or_doi: UUID4 | constr(regex=DOI_REGEX),
+        catalog_record: CatalogRecord = Depends(get_catalog_record_by_id_or_doi),
 ):
-    if not (catalog := Session.get(Catalog, catalog_id)):
-        raise HTTPException(HTTP_404_NOT_FOUND)
+    url = f'{catalog_record.catalog.url}/'
+    url += catalog_record.record.doi if catalog_record.record.doi else catalog_record.record_id
 
-    return RedirectResponse(f'{catalog.url}/{record_id_or_doi}')
+    return RedirectResponse(url)

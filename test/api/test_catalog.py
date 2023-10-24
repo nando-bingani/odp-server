@@ -12,8 +12,8 @@ from odp.const import ODPScope
 from odp.db import Session
 from odp.db.models import Catalog, Tag
 from test import datacite4_example, iso19115_example
-from test.api import assert_forbidden, assert_new_timestamp, assert_not_found, assert_redirect, assert_unprocessable
-from test.factories import CatalogFactory, CollectionTagFactory, RecordFactory, RecordTagFactory, fake
+from test.api import assert_forbidden, assert_new_timestamp, assert_not_found, assert_redirect
+from test.factories import CatalogFactory, CollectionTagFactory, RecordFactory, RecordTagFactory
 
 
 @pytest.fixture
@@ -177,29 +177,34 @@ def test_get_catalog_not_found(api, catalog_batch):
     assert_db_state(catalog_batch)
 
 
-def test_redirect_to(api, catalog_batch, catalog_exists, record_id_format):
-    if catalog_exists:
-        catalog = catalog_batch[2]
-        catalog_id = catalog.id
-    else:
-        catalog_id = 'foo'
+def test_redirect_to(
+        api,
+        static_publishing_data, catalog_id,
+        tag_collection_published,
+):
+    catalog = Session.get(Catalog, catalog_id)
+    example_record = create_example_record(
+        tag_collection_published,
+        tag_collection_infrastructure='MIMS',
+        tag_record_qc=True,
+        tag_record_retracted=None,
+    )
 
-    if record_id_format == 'uuid':
-        record_id = fake.uuid4()
-    elif record_id_format == 'doi':
-        record_id = '10.12345/' + fake.word()
+    route = f'/catalog/{catalog_id}/go/'
+    target = f'{catalog.url}/'
+    if example_record.doi:
+        route += example_record.doi.swapcase()
+        target += example_record.doi
     else:
-        record_id = fake.word()
+        route += example_record.id
+        target += example_record.id
 
-    r = api([]).get(f'/catalog/{catalog_id}/go/{record_id}', follow_redirects=False)
+    r = api([]).get(route, follow_redirects=False)
 
-    if record_id_format in ('uuid', 'doi'):
-        if catalog_exists:
-            assert_redirect(r, f'{catalog.url}/{record_id}')
-        else:
-            assert_not_found(r)
+    if tag_collection_published:
+        assert_redirect(r, target)
     else:
-        assert_unprocessable(r)
+        assert_not_found(r)
 
 
 @pytest.mark.require_scope(ODPScope.CATALOG_READ)
