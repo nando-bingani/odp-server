@@ -22,16 +22,6 @@ def catalog_batch():
     return [CatalogFactory() for _ in range(randint(3, 5))]
 
 
-@pytest.fixture(params=[False, True])
-def catalog_exists(request):
-    return request.param
-
-
-@pytest.fixture(params=['uuid', 'doi', 'invalid'])
-def record_id_format(request):
-    return request.param
-
-
 @pytest.fixture(params=[None, True])
 def tag_collection_published(request):
     return request.param
