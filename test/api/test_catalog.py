@@ -242,7 +242,7 @@ def test_get_published_record(
     route = f'/catalog/{catalog_id}/records'
     resp_code = 200
     if endpoint == 'get':
-        route += f'/{example_record.doi}' if example_record.doi else f'/{example_record.id}'
+        route += f'/{example_record.doi.swapcase()}' if example_record.doi else f'/{example_record.id}'
         resp_code = 200 if published else 404
 
     r = api(scopes, create_scopes=False).get(route)
@@ -319,7 +319,7 @@ def test_get_published_metadata_value(
     )
 
     route = f'/catalog/{catalog_id}/getvalue/'
-    route += example_record.doi if example_record.doi else example_record.id
+    route += example_record.doi.swapcase() if example_record.doi else example_record.id
 
     r = api(scopes, create_scopes=False).get(route, params=dict(
         schema_id=schema_id,
@@ -351,7 +351,7 @@ def test_get_published_metadata_document(
     )
 
     route = f'/catalog/{catalog_id}/getvalue/'
-    route += example_record.doi if example_record.doi else example_record.id
+    route += example_record.doi.swapcase() if example_record.doi else example_record.id
 
     r = api(scopes, create_scopes=False).get(route, params=dict(
         schema_id=schema_id,

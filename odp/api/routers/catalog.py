@@ -22,7 +22,7 @@ from odp.api.lib.utils import output_published_record_model
 from odp.api.models import CatalogModel, PublishedDataCiteRecordModel, PublishedSAEONRecordModel, RetractedRecordModel, SearchResult
 from odp.const import DOI_REGEX, ODPCatalog, ODPScope
 from odp.db import Session
-from odp.db.models import Catalog, CatalogRecord, CatalogRecordFacet, PublishedRecord
+from odp.db.models import Catalog, CatalogRecord, CatalogRecordFacet, PublishedRecord, Record
 from odp.lib.datacite import DataciteClient, DataciteError
 
 router = APIRouter()
@@ -282,9 +282,8 @@ async def get_catalog_record_by_id_or_doi(
 
     except ValueError:
         if re.match(DOI_REGEX, record_id_or_doi):
-            stmt = stmt.where(CatalogRecord.published_record.comparator.contains({
-                'doi': record_id_or_doi
-            }))
+            stmt = stmt.join(Record)
+            stmt = stmt.where(func.lower(Record.doi) == record_id_or_doi.lower())
         else:
             raise HTTPException(HTTP_422_UNPROCESSABLE_ENTITY, 'Invalid record identifier: expecting a UUID or DOI')
 
