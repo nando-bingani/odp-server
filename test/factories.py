@@ -271,7 +271,7 @@ class RecordFactory(ODPModelFactory):
         exclude = ('identifiers', 'is_child_record', 'parent_doi', 'use_example_metadata')
 
     identifiers = factory.LazyFunction(lambda: choice(('doi', 'sid', 'both')))
-    doi = factory.LazyAttributeSequence(lambda r, n: f'10.5555/test-{n}' if r.identifiers in ('doi', 'both') else None)
+    doi = factory.LazyAttributeSequence(lambda r, n: f'10.5555/Test-{n}' if r.identifiers in ('doi', 'both') else None)
     sid = factory.LazyAttributeSequence(lambda r, n: f'test-{n}' if r.doi is None or r.identifiers in ('sid', 'both') else None)
 
     parent_doi = None

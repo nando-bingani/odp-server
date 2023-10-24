@@ -319,7 +319,7 @@ def test_get_record(api, record_batch, scopes, collection_auth, record_ident):
     elif record_ident == 'doi':
         if not (doi := record_batch[2].doi):
             return
-        r = api(scopes, api_client_collections).get(f'/record/doi/{doi.upper()}')  # case-insensitive DOI retrieval
+        r = api(scopes, api_client_collections).get(f'/record/doi/{doi.swapcase()}')  # case-insensitive DOI retrieval
 
     if authorized:
         assert_json_record_result(r, r.json(), record_batch[2])
@@ -382,9 +382,9 @@ def test_create_record(api, record_batch, admin_route, scopes, collection_tags, 
         new_record_collection = None  # new collection
 
     if with_parent == 'doi':
-        parent_doi = record_batch[0].doi.upper()  # ensure DOI ref works case-insensitively
+        parent_doi = record_batch[0].doi.swapcase()  # ensure DOI ref works case-insensitively
     elif with_parent == 'doi.org':
-        parent_doi = f'https://doi.org/{record_batch[0].doi.upper()}'
+        parent_doi = f'https://doi.org/{record_batch[0].doi.swapcase()}'
     else:
         parent_doi = None
 
@@ -440,7 +440,7 @@ def test_create_record_conflict(api, record_batch_with_ids, is_admin_route, coll
 
     if ident_conflict == 'doi':
         record = record_build(
-            doi=record_batch_with_ids[0].doi.upper(),  # check for case-insensitive DOI collision
+            doi=record_batch_with_ids[0].doi.swapcase(),  # check for case-insensitive DOI collision
             collection=new_record_collection,
         )
     elif ident_conflict == 'sid':
@@ -600,9 +600,9 @@ def test_update_record(api, record_batch, admin_route, scopes, collection_tags, 
         modified_record_collection = None  # new collection
 
     if with_parent == 'doi':
-        parent_doi = record_batch[0].doi.upper()  # ensure DOI ref works case-insensitively
+        parent_doi = record_batch[0].doi.swapcase()  # ensure DOI ref works case-insensitively
     elif with_parent == 'doi.org':
-        parent_doi = f'https://doi.org/{record_batch[0].doi.upper()}'
+        parent_doi = f'https://doi.org/{record_batch[0].doi.swapcase()}'
     else:
         parent_doi = None
 
@@ -711,7 +711,7 @@ def test_update_record_conflict(api, record_batch_with_ids, is_admin_route, coll
     if ident_conflict == 'doi':
         record = record_build(
             id=record_batch_with_ids[2].id,
-            doi=record_batch_with_ids[0].doi.upper(),  # check for case-insensitive DOI collision
+            doi=record_batch_with_ids[0].doi.swapcase(),  # check for case-insensitive DOI collision
             collection=modified_record_collection,
         )
     elif ident_conflict == 'sid':
