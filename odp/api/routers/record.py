@@ -432,36 +432,15 @@ def _set_record(
     if not create and auth.collection_ids != '*' and record.collection_id not in auth.collection_ids:
         raise HTTPException(HTTP_403_FORBIDDEN)
 
-    if not ignore_collection_tags:
-        is_frozen = Session.execute(
-            select(CollectionTag).
-            where(CollectionTag.collection_id == record_in.collection_id).
-            where(CollectionTag.tag_id == ODPCollectionTag.FROZEN)
-        ).first() is not None
-
-        is_published = Session.execute(
-            select(CollectionTag).
-            where(CollectionTag.collection_id == record_in.collection_id).
-            where(CollectionTag.tag_id == ODPCollectionTag.PUBLISHED)
-        ).first() is not None
-
-        is_harvested = Session.execute(
-            select(CollectionTag).
-            where(CollectionTag.collection_id == record_in.collection_id).
-            where(CollectionTag.tag_id == ODPCollectionTag.HARVESTED)
-        ).first() is not None
-
-        if is_frozen:
-            raise HTTPException(
-                HTTP_422_UNPROCESSABLE_ENTITY,
-                'Cannot update a record belonging to a frozen collection',
-            )
-
-        if is_published and not is_harvested:
-            raise HTTPException(
-                HTTP_422_UNPROCESSABLE_ENTITY,
-                'Cannot update a record belonging to a published collection',
-            )
+    if not ignore_collection_tags and Session.execute(
+        select(CollectionTag).
+        where(CollectionTag.collection_id == record_in.collection_id).
+        where(CollectionTag.tag_id == ODPCollectionTag.FROZEN)
+    ).first() is not None:
+        raise HTTPException(
+            HTTP_422_UNPROCESSABLE_ENTITY,
+            'Cannot update a record belonging to a frozen collection',
+        )
 
     if record_in.doi and Session.execute(
         select(Record).
@@ -548,11 +527,11 @@ def _delete_record(
     if not ignore_collection_tags and Session.execute(
         select(CollectionTag).
         where(CollectionTag.collection_id == record.collection_id).
-        where(CollectionTag.tag_id.in_((ODPCollectionTag.FROZEN, ODPCollectionTag.PUBLISHED)))
+        where(CollectionTag.tag_id == ODPCollectionTag.FROZEN)
     ).first() is not None:
         raise HTTPException(
             HTTP_422_UNPROCESSABLE_ENTITY,
-            'Cannot delete a record belonging to a published or frozen collection',
+            'Cannot delete a record belonging to a frozen collection',
         )
 
     if Session.get(PublishedRecord, record_id):

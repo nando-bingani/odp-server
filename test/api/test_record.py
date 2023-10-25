@@ -628,10 +628,6 @@ def test_update_record(api, record_batch, admin_route, scopes, collection_tags, 
             assert_unprocessable(r, 'Cannot update a record belonging to a frozen collection')
             assert_db_state(record_batch)
             assert_no_audit_log()
-        elif not admin_route and ODPCollectionTag.PUBLISHED in collection_tags and ODPCollectionTag.HARVESTED not in collection_tags:
-            assert_unprocessable(r, 'Cannot update a record belonging to a published collection')
-            assert_db_state(record_batch)
-            assert_no_audit_log()
         else:
             if record.doi and parent_doi:
                 record.parent = record_batch[0]
@@ -855,8 +851,8 @@ def test_delete_record(api, record_batch_with_ids, admin_route, scopes, collecti
     r = api(scopes, api_client_collections).delete(f'{route}{(record_id := record_batch_with_ids[2].id)}')
 
     if authorized:
-        if not admin_route and set(collection_tags) & {ODPCollectionTag.FROZEN, ODPCollectionTag.PUBLISHED}:
-            assert_unprocessable(r, 'Cannot delete a record belonging to a published or frozen collection')
+        if not admin_route and ODPCollectionTag.FROZEN in collection_tags:
+            assert_unprocessable(r, 'Cannot delete a record belonging to a frozen collection')
             assert_db_state(record_batch_with_ids)
             assert_no_audit_log()
         elif is_published_record:
