@@ -1,8 +1,8 @@
-from odp.api.models import PublishedRecordModel, PublishedSAEONRecordModel, RecordModel
+from odp.api.models import PublishedMetadataModel, PublishedRecordModel, PublishedSAEONRecordModel, RecordModel
 from odp.catalog.saeon import SAEONCatalog
-from odp.const import ODPCollectionTag, ODPMetadataSchema
+from odp.const import ODPCatalog, ODPCollectionTag, ODPMetadataSchema
 from odp.db import Session
-from odp.db.models import CatalogRecord
+from odp.db.models import Catalog, CatalogRecord, Schema, SchemaType
 
 
 class MIMSCatalog(SAEONCatalog):
@@ -51,6 +51,44 @@ class MIMSCatalog(SAEONCatalog):
                         'relatedIdentifierType': 'DOI',
                         'relationType': 'HasPart',
                     }]
+
+        mims_catalog = Session.get(Catalog, ODPCatalog.MIMS)
+        schemaorg_schema = Session.get(Schema, (ODPMetadataSchema.SCHEMAORG_DATASET, SchemaType.metadata))
+        datacite_metadata = self._get_metadata_dict(published_record, ODPMetadataSchema.SAEON_DATACITE4)
+
+        title = next(
+            (t.get('title') for t in datacite_metadata.get('titles', ())),
+            ''
+        )
+        abstract = next(
+            (d.get('description') for d in datacite_metadata.get('descriptions', ())
+             if d.get('descriptionType') == 'Abstract'),
+            ''
+        )
+        identifier = f'doi:{published_record.doi}' if published_record.doi else None
+        license = next(
+            (r.get('rightsURI') for r in datacite_metadata.get('rightsList', ())),
+            ''
+        )
+        url = (f'{mims_catalog.url}/'
+               f'{published_record.doi if published_record.doi else published_record.id}')
+
+        published_record.metadata_records += [
+            PublishedMetadataModel(
+                schema_id=schemaorg_schema.id,
+                schema_uri=schemaorg_schema.uri,
+                metadata={
+                    '@context': 'https://schema.org/',
+                    '@type': 'Dataset',
+                    'name': title,
+                    'description': abstract,
+                    'identifier': identifier,
+                    'keywords': self.create_keyword_index_data(published_record),
+                    'license': license,
+                    'url': url,
+                }
+            )
+        ]
 
         return published_record
 
