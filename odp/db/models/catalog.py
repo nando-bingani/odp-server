@@ -14,6 +14,10 @@ class Catalog(Base):
     id = Column(String, primary_key=True)
     url = Column(String, nullable=False)
 
+    # global data published for the catalog
+    data = Column(JSONB)
+    timestamp = Column(TIMESTAMP(timezone=True))
+
     _repr_ = 'id', 'url'
 
 

@@ -1,6 +1,6 @@
 import logging
-from datetime import date, datetime
-from typing import Optional, final
+from datetime import date, datetime, timezone
+from typing import Any, Optional, final
 
 from sqlalchemy import func, or_, select
 
@@ -9,7 +9,7 @@ from odp.api.models import PublishedRecordModel, RecordModel
 from odp.api.routers.record import output_record_model
 from odp.const import ODPCatalog, ODPCollectionTag, ODPMetadataSchema, ODPRecordTag
 from odp.db import Session
-from odp.db.models import CatalogRecord, CatalogRecordFacet, Collection, Provider, PublishedRecord, Record, RecordTag
+from odp.db.models import Catalog as CatalogORM, CatalogRecord, CatalogRecordFacet, Collection, Provider, PublishedRecord, Record, RecordTag
 
 logger = logging.getLogger(__name__)
 
@@ -36,22 +36,18 @@ class Catalog:
 
     def __init__(self, catalog_id: str) -> None:
         self.catalog_id = catalog_id
-        self.snapshot = {}
-        """Mapping of record UUIDs to record API output models."""
+        self.snapshot: dict[str, tuple[RecordModel, datetime]] = {}
+        """Mapping of record UUIDs to tuples of (record_model, timestamp)."""
 
     @final
     def publish(self) -> None:
+        """Fully update the public state of a catalog."""
         records = self._select_records()
         logger.info(f'{self.catalog_id} catalog: {(total := len(records))} records selected for evaluation')
 
         if total:
             self._create_snapshot(records)
-
-            logger.debug(f'{self.catalog_id} catalog: Synchronizing catalog records...')
-            published = 0
-            for record_id, timestamp in records:
-                published += self._sync_catalog_record(record_id, timestamp)
-
+            published = self._sync_catalog()
             logger.info(f'{self.catalog_id} catalog: {published} records published; {total - published} records hidden')
 
         if self.external:
@@ -124,12 +120,30 @@ class Catalog:
         of 'REPEATABLE READ'.
         """
         logger.debug(f'{self.catalog_id} catalog: Creating snapshot...')
-        for record_id, _ in records:
+        for record_id, timestamp in records:
             record = Session.get(Record, record_id)
             record_model = output_record_model(record)
-            self.snapshot[record_id] = record_model
+            self.snapshot[record_id] = (record_model, timestamp)
 
-    def _sync_catalog_record(self, record_id: str, timestamp: datetime) -> bool:
+    def _sync_catalog(self) -> int:
+        """Update the catalog from the snapshot, and return the number of
+        records published."""
+        logger.debug(f'{self.catalog_id} catalog: Synchronizing catalog records...')
+
+        published = 0
+        for record_id in self.snapshot:
+            published += self._sync_catalog_record(record_id)
+
+        catalog = Session.get(CatalogORM, self.catalog_id)
+        catalog.data = self.create_global_data()
+        catalog.timestamp = datetime.now(timezone.utc)
+        catalog.save()
+
+        Session.commit()
+
+        return published
+
+    def _sync_catalog_record(self, record_id: str) -> bool:
         """Synchronize a catalog_record entry with the current state of the
         corresponding record.
 
@@ -139,7 +153,7 @@ class Catalog:
         catalog_record = (Session.get(CatalogRecord, (self.catalog_id, record_id)) or
                           CatalogRecord(catalog_id=self.catalog_id, record_id=record_id))
 
-        record_model = self.snapshot[record_id]
+        record_model, timestamp = self.snapshot[record_id]
 
         can_publish_reasons = []
         cannot_publish_reasons = []
@@ -326,6 +340,7 @@ class Catalog:
 
     def sync_external_record(self, record_id: str) -> None:
         """Create / update / delete a record on an external catalog."""
+        raise NotImplementedError
 
     def _index_catalog_record(self, catalog_record: CatalogRecord) -> None:
         """Compute and store search data for a catalog record."""
@@ -380,26 +395,35 @@ class Catalog:
             self, published_record: PublishedRecordModel
     ) -> str:
         """Create a string from metadata field values to be indexed for full text search."""
+        raise NotImplementedError
 
     def create_keyword_index_data(
             self, published_record: PublishedRecordModel
     ) -> list[str]:
         """Create an array of metadata keywords to be indexed for keyword search."""
+        raise NotImplementedError
 
     def create_facet_index_data(
             self, published_record: PublishedRecordModel
     ) -> dict[str, list[str]]:
         """Create a mapping of facet names to values to be indexed for faceted search."""
+        raise NotImplementedError
 
     def create_spatial_index_data(
             self, published_record: PublishedRecordModel
     ) -> tuple[Optional[float], Optional[float], Optional[float], Optional[float]]:
         """Create a N-E-S-W tuple of the spatial extent to be indexed for spatial search."""
+        raise NotImplementedError
 
     def create_temporal_index_data(
             self, published_record: PublishedRecordModel
     ) -> tuple[Optional[datetime], Optional[datetime]]:
         """Create a start-end tuple of the temporal extent to be indexed for temporal search."""
+        raise NotImplementedError
+
+    def create_global_data(self) -> Any:
+        """Create a JSON-compatible object to be published as global data for the catalog."""
+        return None
 
 
 def publish_all():

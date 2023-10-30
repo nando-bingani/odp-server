@@ -1,3 +1,5 @@
+from typing import Any
+
 from odp.api.models import PublishedMetadataModel, PublishedRecordModel, PublishedSAEONRecordModel, RecordModel
 from odp.catalog.saeon import SAEONCatalog
 from odp.const import ODPCatalog, ODPCollectionTag, ODPMetadataSchema
@@ -34,7 +36,8 @@ class MIMSCatalog(SAEONCatalog):
         published_record: PublishedSAEONRecordModel = super().create_published_record(record_model)
 
         for child_doi, child_id in record_model.child_dois.items():
-            if child_record_model := self.snapshot.get(child_id):
+            if child_snapshot := self.snapshot.get(child_id):
+                child_record_model, _ = child_snapshot
                 can_publish_reasons = []
                 cannot_publish_reasons = []
                 self.evaluate_record(child_record_model, can_publish_reasons, cannot_publish_reasons)
@@ -115,3 +118,6 @@ class MIMSCatalog(SAEONCatalog):
                     facets[iso19115_facets[keyword_type]] += [keyword_obj.get('keyword', '')]
 
         return facets
+
+    def create_global_data(self) -> Any:
+        """Create a JSON-compatible object to be published as global data for the catalog."""
