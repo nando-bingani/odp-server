@@ -46,7 +46,12 @@ class SAEONCatalog(Catalog):
 
             iso19115_jsonschema = schema_catalog.get_schema(URI(iso19115_schemaobj.uri))
             result = iso19115_jsonschema.evaluate(JSON(record_model.metadata))
-            datacite_metadata = result.output('translation', scheme='saeon/datacite4', ignore_validity=True)
+            datacite_metadata = result.output(
+                'translation',
+                scheme='saeon/datacite4',
+                ignore_validity=True,
+                clear_empties=True,
+            )
 
             published_metadata += [
                 PublishedMetadataModel(

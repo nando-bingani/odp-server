@@ -11,7 +11,7 @@ from odp.catalog.saeon import SAEONCatalog
 from odp.const import ODPScope
 from odp.db import Session
 from odp.db.models import Catalog, Tag
-from test import datacite4_example, iso19115_example
+from test import datacite4_example, isequal, iso19115_example
 from test.api import assert_forbidden, assert_new_timestamp, assert_not_found, assert_redirect
 from test.factories import CatalogFactory, CollectionTagFactory, RecordFactory, RecordTagFactory
 
@@ -197,6 +197,29 @@ def test_redirect_to(
         assert_not_found(r)
 
 
+schema_uris = {
+    'SAEON.DataCite4': 'https://odp.saeon.ac.za/schema/metadata/saeon/datacite4',
+    'SAEON.ISO19115': 'https://odp.saeon.ac.za/schema/metadata/saeon/iso19115',
+    'SchemaOrg.Dataset': 'https://odp.saeon.ac.za/schema/metadata/schema.org/dataset',
+}
+metadata_examples = {
+    'SAEON.DataCite4': datacite4_example(),
+    'SAEON.ISO19115': iso19115_example(),
+}
+metadata_examples |= {
+    'SchemaOrg.Dataset': {
+        '@context': 'https://schema.org/',
+        '@type': 'Dataset',
+        'name': metadata_examples['SAEON.ISO19115']['title'],
+        'description': metadata_examples['SAEON.ISO19115']['abstract'],
+        'license': metadata_examples['SAEON.ISO19115']['constraints'][0]['rightsURI'],
+        # 'identifier': dynamic,
+        # 'keywords': dynamic,
+        # 'url': dynamic,
+    },
+}
+
+
 @pytest.mark.require_scope(ODPScope.CATALOG_READ)
 def test_get_published_record(
         api, scopes,
@@ -204,28 +227,38 @@ def test_get_published_record(
         tag_collection_published, tag_collection_infrastructure,
         tag_record_qc, tag_record_retracted,
 ):
-    def check_metadata_record(schema_id, deep=True):
+    def assert_metadata_record(schema_id):
+        # select the actual metadata record from the API result
         metadata_record = next(filter(
             lambda m: m['schema_id'] == schema_id, result['metadata_records']
         ))
-        uri_id = schema_id.split('.')[1].lower()
-        assert metadata_record['schema_uri'] == f'https://odp.saeon.ac.za/schema/metadata/saeon/{uri_id}'
+        assert metadata_record['schema_uri'] == schema_uris[schema_id]
 
-        if deep:
-            expected_metadata = datacite4_example() if schema_id == 'SAEON.DataCite4' else iso19115_example()
-            if example_record.doi:
-                expected_metadata |= dict(doi=example_record.doi)
+        # construct the expected metadata
+        expected_metadata = metadata_examples[schema_id]
+        if schema_id == 'SchemaOrg.Dataset':
+            expected_metadata['identifier'] = f'doi:{example_record.doi}' if example_record.doi else None
+            if has_iso19115:
+                expected_metadata['keywords'] = [
+                    dk['keyword'] for dk in metadata_examples['SAEON.ISO19115']['descriptiveKeywords']
+                    if dk['keywordType'] in ('general', 'place', 'stratum')
+                ]
             else:
-                expected_metadata.pop('doi')
-            assert metadata_record['metadata'] == expected_metadata
+                expected_metadata['keywords'] = [
+                    s['subject'] for s in metadata_examples['SAEON.DataCite4']['subjects']
+                ]
+            expected_metadata['url'] = ('http://odp.catalog/mims/'
+                                        f'{example_record.doi if example_record.doi else example_record.id}')
+        else:
+            if example_record.doi:
+                expected_metadata |= {'doi': example_record.doi}
+            else:
+                expected_metadata.pop('doi', None)
+
+        # deep-compare actual vs expected
+        assert isequal(metadata_record['metadata'], expected_metadata)
 
     authorized = ODPScope.CATALOG_READ in scopes
-    example_record = create_example_record(
-        tag_collection_published,
-        tag_collection_infrastructure,
-        tag_record_qc,
-        tag_record_retracted,
-    )
     published = (
             tag_collection_published is True and
             tag_record_qc is True and
@@ -233,6 +266,13 @@ def test_get_published_record(
     )
     if catalog_id == 'MIMS':
         published = published and tag_collection_infrastructure == 'MIMS'
+
+    example_record = create_example_record(
+        tag_collection_published,
+        tag_collection_infrastructure,
+        tag_record_qc,
+        tag_record_retracted,
+    )
 
     route = f'/catalog/{catalog_id}/records'
     resp_code = 200
@@ -269,19 +309,20 @@ def test_get_published_record(
     assert result['searchable'] is True
     assert_new_timestamp(datetime.fromisoformat(result['timestamp']))
 
-    if example_record.schema_id == 'SAEON.DataCite4':
-        assert len(result['metadata_records']) == 1
-        check_metadata_record('SAEON.DataCite4')
+    has_datacite = True
+    has_iso19115 = example_record.schema_id == 'SAEON.ISO19115'
+    has_jsonld = catalog_id == 'MIMS'
 
-    elif example_record.schema_id == 'SAEON.ISO19115':
-        assert len(result['metadata_records']) == 2
-        check_metadata_record('SAEON.ISO19115')
-        # TODO: check why the example translated record does not
-        #  exactly match the dynamically translated one here
-        check_metadata_record('SAEON.DataCite4', deep=False)
+    assert len(result['metadata_records']) == has_datacite + has_iso19115 + has_jsonld
 
-    else:
-        assert False
+    if has_datacite:
+        assert_metadata_record('SAEON.DataCite4')
+
+    if has_iso19115:
+        assert_metadata_record('SAEON.ISO19115')
+
+    if has_jsonld:
+        assert_metadata_record('SchemaOrg.Dataset')
 
 
 @pytest.mark.parametrize('schema_id, json_pointer, expected_value', [
