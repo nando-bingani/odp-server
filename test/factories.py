@@ -143,6 +143,8 @@ class CatalogFactory(ODPModelFactory):
 
     id = factory.Sequence(lambda n: f'{fake.slug()}.{n}')
     url = factory.Faker('url')
+    data = factory.Sequence(lambda n: dict(foo=f'{fake.catch_phrase()}.{n}'))
+    timestamp = factory.LazyFunction(lambda: datetime.now(timezone.utc))
 
 
 class ProviderFactory(ODPModelFactory):

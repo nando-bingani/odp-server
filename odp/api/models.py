@@ -33,7 +33,12 @@ class TagInstanceModelIn(BaseModel):
 class CatalogModel(BaseModel):
     id: str
     url: str
+    timestamp: str
     record_count: int
+
+
+class CatalogModelWithData(CatalogModel):
+    data: Optional[dict[str, Any]]
 
 
 class PublishedMetadataModel(BaseModel):

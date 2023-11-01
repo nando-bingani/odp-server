@@ -117,15 +117,23 @@ def assert_db_state(catalogs):
     """Verify that the DB catalog table contains the given catalog batch."""
     Session.expire_all()
     result = Session.execute(select(Catalog)).scalars().all()
-    assert set((row.id, row.url) for row in result) \
-           == set((catalog.id, catalog.url) for catalog in catalogs)
+    result.sort(key=lambda r: r.id)
+    catalogs.sort(key=lambda c: c.id)
+    for n, row in enumerate(result):
+        assert row.id == catalogs[n].id
+        assert row.url == catalogs[n].url
+        assert row.data == catalogs[n].data
+        assert row.timestamp == catalogs[n].timestamp
 
 
-def assert_json_result(response, json, catalog):
+def assert_json_result(response, json, catalog, withdata):
     """Verify that the API result matches the given catalog object."""
     assert response.status_code == 200
     assert json['id'] == catalog.id
     assert json['url'] == catalog.url
+    assert datetime.fromisoformat(json['timestamp']) == catalog.timestamp
+    if withdata:
+        assert json['data'] == catalog.data
 
 
 def assert_json_results(response, json, catalogs):
@@ -135,7 +143,7 @@ def assert_json_results(response, json, catalogs):
     items.sort(key=lambda i: i['id'])
     catalogs.sort(key=lambda c: c.id)
     for n, catalog in enumerate(catalogs):
-        assert_json_result(response, items[n], catalog)
+        assert_json_result(response, items[n], catalog, withdata=False)
 
 
 @pytest.mark.require_scope(ODPScope.CATALOG_READ)
@@ -154,7 +162,7 @@ def test_get_catalog(api, catalog_batch, scopes):
     authorized = ODPScope.CATALOG_READ in scopes
     r = api(scopes).get(f'/catalog/{catalog_batch[2].id}')
     if authorized:
-        assert_json_result(r, r.json(), catalog_batch[2])
+        assert_json_result(r, r.json(), catalog_batch[2], withdata=True)
     else:
         assert_forbidden(r)
     assert_db_state(catalog_batch)

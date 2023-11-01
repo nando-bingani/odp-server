@@ -46,7 +46,8 @@ def test_db_setup():
 def test_create_catalog():
     catalog = CatalogFactory()
     result = Session.execute(select(Catalog)).scalar_one()
-    assert (result.id, result.url) == (catalog.id, catalog.url)
+    assert (result.id, result.url, result.data, result.timestamp) \
+           == (catalog.id, catalog.url, catalog.data, catalog.timestamp)
 
 
 def test_create_client():

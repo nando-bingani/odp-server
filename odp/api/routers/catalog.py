@@ -12,14 +12,15 @@ from jschon import JSONPointer
 from jschon.exc import JSONPointerMalformedError, JSONPointerReferenceError
 from pydantic import Json
 from sqlalchemy import and_, func, or_, select, text
-from sqlalchemy.orm import aliased
+from sqlalchemy.orm import aliased, load_only
 from starlette.status import HTTP_404_NOT_FOUND, HTTP_422_UNPROCESSABLE_ENTITY
 
 from odp.api.lib.auth import Authorize
 from odp.api.lib.datacite import get_datacite_client
 from odp.api.lib.paging import Page, Paginator
 from odp.api.lib.utils import output_published_record_model
-from odp.api.models import CatalogModel, PublishedDataCiteRecordModel, PublishedSAEONRecordModel, RetractedRecordModel, SearchResult
+from odp.api.models import (CatalogModel, CatalogModelWithData, PublishedDataCiteRecordModel, PublishedSAEONRecordModel, RetractedRecordModel,
+                            SearchResult)
 from odp.const import DOI_REGEX, ODPCatalog, ODPScope
 from odp.db import Session
 from odp.db.models import Catalog, CatalogRecord, CatalogRecordFacet, PublishedRecord, Record
@@ -43,6 +44,7 @@ async def list_catalogs(
 ):
     stmt = (
         select(Catalog, func.count(CatalogRecord.catalog_id)).
+        options(load_only(Catalog.id, Catalog.url, Catalog.timestamp)).
         outerjoin(CatalogRecord, and_(Catalog.id == CatalogRecord.catalog_id, CatalogRecord.published)).
         group_by(Catalog)
     )
@@ -52,6 +54,7 @@ async def list_catalogs(
         lambda row: CatalogModel(
             id=row.Catalog.id,
             url=row.Catalog.url,
+            timestamp=row.Catalog.timestamp.isoformat(),
             record_count=row.count,
         )
     )
@@ -59,7 +62,7 @@ async def list_catalogs(
 
 @router.get(
     '/{catalog_id}',
-    response_model=CatalogModel,
+    response_model=CatalogModelWithData,
     dependencies=[Depends(Authorize(ODPScope.CATALOG_READ))],
 )
 async def get_catalog(
@@ -75,9 +78,11 @@ async def get_catalog(
     if not (result := Session.execute(stmt).one_or_none()):
         raise HTTPException(HTTP_404_NOT_FOUND)
 
-    return CatalogModel(
+    return CatalogModelWithData(
         id=result.Catalog.id,
         url=result.Catalog.url,
+        data=result.Catalog.data,
+        timestamp=result.Catalog.timestamp.isoformat(),
         record_count=result.count,
     )
 

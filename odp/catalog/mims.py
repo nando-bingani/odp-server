@@ -1,8 +1,10 @@
-from typing import Any
+from typing import Any, Iterator
+
+from sqlalchemy import select
 
 from odp.api.models import PublishedMetadataModel, PublishedRecordModel, PublishedSAEONRecordModel, RecordModel
 from odp.catalog.saeon import SAEONCatalog
-from odp.const import ODPCatalog, ODPCollectionTag, ODPMetadataSchema
+from odp.const import ODPCollectionTag, ODPMetadataSchema
 from odp.db import Session
 from odp.db.models import Catalog, CatalogRecord, Schema, SchemaType
 
@@ -55,7 +57,7 @@ class MIMSCatalog(SAEONCatalog):
                         'relationType': 'HasPart',
                     }]
 
-        mims_catalog = Session.get(Catalog, ODPCatalog.MIMS)
+        mims_catalog = Session.get(Catalog, self.catalog_id)
         schemaorg_schema = Session.get(Schema, (ODPMetadataSchema.SCHEMAORG_DATASET, SchemaType.metadata))
         datacite_metadata = self._get_metadata_dict(published_record, ODPMetadataSchema.SAEON_DATACITE4)
 
@@ -121,3 +123,30 @@ class MIMSCatalog(SAEONCatalog):
 
     def create_global_data(self) -> Any:
         """Create a JSON-compatible object to be published as global data for the catalog."""
+        return {
+            'sitemap.xml': self._create_sitemap_xml()
+        }
+
+    def _create_sitemap_xml(self) -> str:
+        return f'''<?xml version="1.0" encoding="UTF-8"?>
+        <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+            {''.join(self._iter_sitemap_urls())}
+        </urlset>'''
+
+    def _iter_sitemap_urls(self) -> Iterator[str]:
+        for row in Session.execute(
+                select(
+                    Catalog.url,
+                    CatalogRecord.published_record['doi'].label('doi'),
+                    CatalogRecord.record_id,
+                    CatalogRecord.timestamp,
+                )
+                .join(CatalogRecord)
+                .where(CatalogRecord.catalog_id == self.catalog_id)
+                .where(CatalogRecord.published)
+                .where(CatalogRecord.searchable)
+        ):
+            yield f'''<url>
+                <loc>{row.url}/{row.doi if row.doi else row.record_id}</loc>
+                <lastmod>{row.timestamp}</lastmod>
+            </url>'''
