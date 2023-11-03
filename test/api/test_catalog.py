@@ -131,9 +131,9 @@ def assert_json_result(response, json, catalog, withdata):
     assert response.status_code == 200
     assert json['id'] == catalog.id
     assert json['url'] == catalog.url
-    assert datetime.fromisoformat(json['timestamp']) == catalog.timestamp
     if withdata:
         assert json['data'] == catalog.data
+        assert datetime.fromisoformat(json['timestamp']) == catalog.timestamp
 
 
 def assert_json_results(response, json, catalogs):

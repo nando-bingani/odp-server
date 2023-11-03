@@ -44,7 +44,7 @@ async def list_catalogs(
 ):
     stmt = (
         select(Catalog, func.count(CatalogRecord.catalog_id)).
-        options(load_only(Catalog.id, Catalog.url, Catalog.timestamp)).
+        options(load_only(Catalog.id, Catalog.url)).
         outerjoin(CatalogRecord, and_(Catalog.id == CatalogRecord.catalog_id, CatalogRecord.published)).
         group_by(Catalog)
     )
@@ -54,7 +54,6 @@ async def list_catalogs(
         lambda row: CatalogModel(
             id=row.Catalog.id,
             url=row.Catalog.url,
-            timestamp=row.Catalog.timestamp.isoformat(),
             record_count=row.count,
         )
     )
@@ -82,7 +81,7 @@ async def get_catalog(
         id=result.Catalog.id,
         url=result.Catalog.url,
         data=result.Catalog.data,
-        timestamp=result.Catalog.timestamp.isoformat(),
+        timestamp=result.Catalog.timestamp.isoformat() if result.Catalog.timestamp else None,
         record_count=result.count,
     )
 
