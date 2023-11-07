@@ -85,6 +85,7 @@ class MIMSCatalog(SAEONCatalog):
                 metadata={
                     '@context': 'https://schema.org/',
                     '@type': 'Dataset',
+                    '@id': url,
                     'name': title,
                     'description': abstract,
                     'identifier': identifier,

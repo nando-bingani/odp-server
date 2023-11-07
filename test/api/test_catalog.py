@@ -218,6 +218,7 @@ metadata_examples |= {
     'SchemaOrg.Dataset': {
         '@context': 'https://schema.org/',
         '@type': 'Dataset',
+        # '@id': dynamic,
         'name': metadata_examples['SAEON.ISO19115']['title'],
         'description': metadata_examples['SAEON.ISO19115']['abstract'],
         'license': metadata_examples['SAEON.ISO19115']['constraints'][0]['rightsURI'],
@@ -255,8 +256,10 @@ def test_get_published_record(
                 expected_metadata['keywords'] = [
                     s['subject'] for s in metadata_examples['SAEON.DataCite4']['subjects']
                 ]
-            expected_metadata['url'] = ('http://odp.catalog/mims/'
-                                        f'{example_record.doi if example_record.doi else example_record.id}')
+            expected_metadata['@id'] = expected_metadata['url'] = (
+                'http://odp.catalog/mims/'
+                f'{example_record.doi if example_record.doi else example_record.id}'
+            )
         else:
             if example_record.doi:
                 expected_metadata |= {'doi': example_record.doi}
