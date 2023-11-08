@@ -37,6 +37,8 @@ class MIMSCatalog(SAEONCatalog):
     def create_published_record(self, record_model: RecordModel) -> PublishedRecordModel:
         published_record: PublishedSAEONRecordModel = super().create_published_record(record_model)
 
+        # add related identifiers for published child records to
+        # the DataCite and ISO19115 metadata records
         for child_doi, child_id in record_model.child_dois.items():
             if child_snapshot := self.snapshot.get(child_id):
                 child_record_model, _ = child_snapshot
@@ -57,46 +59,79 @@ class MIMSCatalog(SAEONCatalog):
                         'relationType': 'HasPart',
                     }]
 
-        mims_catalog = Session.get(Catalog, self.catalog_id)
+        # add a JSON-LD metadata record
         schemaorg_schema = Session.get(Schema, (ODPMetadataSchema.SCHEMAORG_DATASET, SchemaType.metadata))
-        datacite_metadata = self._get_metadata_dict(published_record, ODPMetadataSchema.SAEON_DATACITE4)
-
-        title = next(
-            (t.get('title') for t in datacite_metadata.get('titles', ())),
-            ''
-        )
-        abstract = next(
-            (d.get('description') for d in datacite_metadata.get('descriptions', ())
-             if d.get('descriptionType') == 'Abstract'),
-            ''
-        )
-        identifier = f'doi:{published_record.doi}' if published_record.doi else None
-        license = next(
-            (r.get('rightsURI') for r in datacite_metadata.get('rightsList', ())),
-            ''
-        )
-        url = (f'{mims_catalog.url}/'
-               f'{published_record.doi if published_record.doi else published_record.id}')
-
         published_record.metadata_records += [
             PublishedMetadataModel(
                 schema_id=schemaorg_schema.id,
                 schema_uri=schemaorg_schema.uri,
-                metadata={
-                    '@context': 'https://schema.org/',
-                    '@type': 'Dataset',
-                    '@id': url,
-                    'name': title,
-                    'description': abstract,
-                    'identifier': identifier,
-                    'keywords': self.create_keyword_index_data(published_record),
-                    'license': license,
-                    'url': url,
-                }
+                metadata=self._create_jsonld_metadata(published_record)
             )
         ]
 
         return published_record
+
+    def _create_jsonld_metadata(
+            self, published_record: PublishedSAEONRecordModel
+    ) -> dict[str, Any]:
+        mims_catalog = Session.get(Catalog, self.catalog_id)
+        datacite_metadata = self._get_metadata_dict(published_record, ODPMetadataSchema.SAEON_DATACITE4)
+
+        title = next(
+            (t.get('title') for t in datacite_metadata.get('titles', ())),
+            None
+        )
+        abstract = next(
+            (d.get('description') for d in datacite_metadata.get('descriptions', ())
+             if d.get('descriptionType') == 'Abstract'),
+            None
+        )
+        identifier = (
+            f'doi:{published_record.doi}' if published_record.doi else None
+        )
+        license = next(
+            (r.get('rightsURI') for r in datacite_metadata.get('rightsList', ())),
+            None
+        )
+        url = (
+            f'{mims_catalog.url}/'
+            f'{published_record.doi if published_record.doi else published_record.id}'
+        )
+
+        jsonld_metadata = {
+            "@context": "https://schema.org/",
+            "@type": "Dataset",
+            "@id": url,
+            "name": title,
+            "description": abstract,
+            "identifier": identifier,
+            "keywords": self.create_keyword_index_data(published_record),
+            "license": license,
+            "url": url,
+        }
+
+        if box := next(
+                (g.get('geoLocationBox') for g in datacite_metadata.get('geoLocations', ())),
+                None
+        ):
+            polygon = (
+                f'{box["southBoundLatitude"]},{box["westBoundLongitude"]} '
+                f'{box["southBoundLatitude"]},{box["eastBoundLongitude"]} '
+                f'{box["northBoundLatitude"]},{box["eastBoundLongitude"]} '
+                f'{box["northBoundLatitude"]},{box["westBoundLongitude"]} '
+                f'{box["southBoundLatitude"]},{box["westBoundLongitude"]}'
+            )
+            jsonld_metadata |= {
+                "spatialCoverage": {
+                    "@type": "Place",
+                    "geo": {
+                        "@type": "GeoShape",
+                        "polygon": polygon
+                    },
+                },
+            }
+
+        return jsonld_metadata
 
     def create_facet_index_data(
             self, published_record: PublishedSAEONRecordModel

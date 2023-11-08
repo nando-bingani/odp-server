@@ -219,12 +219,19 @@ metadata_examples |= {
         '@context': 'https://schema.org/',
         '@type': 'Dataset',
         # '@id': dynamic,
-        'name': metadata_examples['SAEON.ISO19115']['title'],
-        'description': metadata_examples['SAEON.ISO19115']['abstract'],
-        'license': metadata_examples['SAEON.ISO19115']['constraints'][0]['rightsURI'],
+        'name': 'Example Metadata Record: ISO19115 - SAEON Profile',
+        'description': "Concerning things that'd like to be under the sea, in an octopus's garden, in the shade.",
+        'license': 'https://creativecommons.org/licenses/by/4.0/',
         # 'identifier': dynamic,
         # 'keywords': dynamic,
         # 'url': dynamic,
+        'spatialCoverage': {
+            '@type': 'Place',
+            'geo': {
+                '@type': 'GeoShape',
+                'polygon': '-34.4,17.9 -34.4,18.3 -34.0,18.3 -34.0,17.9 -34.4,17.9'
+            }
+        }
     },
 }
 
