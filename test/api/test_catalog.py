@@ -213,8 +213,6 @@ schema_uris = {
 metadata_examples = {
     'SAEON.DataCite4': datacite4_example(),
     'SAEON.ISO19115': iso19115_example(),
-}
-metadata_examples |= {
     'SchemaOrg.Dataset': {
         '@context': 'https://schema.org/',
         '@type': 'Dataset',
@@ -229,7 +227,7 @@ metadata_examples |= {
             '@type': 'Place',
             'geo': {
                 '@type': 'GeoShape',
-                'polygon': '-34.4,17.9 -34.4,18.3 -34.0,18.3 -34.0,17.9 -34.4,17.9'
+                'box': '-34.4 17.9 -34.0 18.3',
             }
         }
     },

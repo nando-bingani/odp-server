@@ -35,6 +35,7 @@ class MIMSCatalog(SAEONCatalog):
             cannot_publish_reasons += ['not a MIMS collection']
 
     def create_published_record(self, record_model: RecordModel) -> PublishedRecordModel:
+        """Create the published form of a record."""
         published_record: PublishedSAEONRecordModel = super().create_published_record(record_model)
 
         # add related identifiers for published child records to
@@ -74,6 +75,7 @@ class MIMSCatalog(SAEONCatalog):
     def _create_jsonld_metadata(
             self, published_record: PublishedSAEONRecordModel
     ) -> dict[str, Any]:
+        """Create a JSON-LD metadata dictionary, using the schema.org vocabulary."""
         mims_catalog = Session.get(Catalog, self.catalog_id)
         datacite_metadata = self._get_metadata_dict(published_record, ODPMetadataSchema.SAEON_DATACITE4)
 
@@ -110,23 +112,25 @@ class MIMSCatalog(SAEONCatalog):
             "url": url,
         }
 
-        if box := next(
+        # Create a GeoShape box from DataCite geoLocationBox, because currently
+        # we only use bounding boxes in our metadata. If in future we ever use
+        # geoLocationPolygons, then this code will need to be adapted.
+        if geolocation_box := next(
                 (g.get('geoLocationBox') for g in datacite_metadata.get('geoLocations', ())),
                 None
         ):
-            polygon = (
-                f'{box["southBoundLatitude"]},{box["westBoundLongitude"]} '
-                f'{box["southBoundLatitude"]},{box["eastBoundLongitude"]} '
-                f'{box["northBoundLatitude"]},{box["eastBoundLongitude"]} '
-                f'{box["northBoundLatitude"]},{box["westBoundLongitude"]} '
-                f'{box["southBoundLatitude"]},{box["westBoundLongitude"]}'
+            box = (
+                f'{geolocation_box["southBoundLatitude"]} '
+                f'{geolocation_box["westBoundLongitude"]} '
+                f'{geolocation_box["northBoundLatitude"]} '
+                f'{geolocation_box["eastBoundLongitude"]}'
             )
             jsonld_metadata |= {
                 "spatialCoverage": {
                     "@type": "Place",
                     "geo": {
                         "@type": "GeoShape",
-                        "polygon": polygon
+                        "box": box,
                     },
                 },
             }
