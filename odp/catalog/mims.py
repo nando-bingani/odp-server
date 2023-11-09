@@ -99,6 +99,11 @@ class MIMSCatalog(SAEONCatalog):
             f'{mims_catalog.url}/'
             f'{published_record.doi if published_record.doi else published_record.id}'
         )
+        temporal_cov = next(
+            (d.get('date') for d in datacite_metadata.get('dates', ())
+             if d.get('dateType') == 'Valid'),
+            None
+        )
 
         jsonld_metadata = {
             "@context": "https://schema.org/",
@@ -110,6 +115,7 @@ class MIMSCatalog(SAEONCatalog):
             "keywords": self.create_keyword_index_data(published_record),
             "license": license,
             "url": url,
+            "temporalCoverage": temporal_cov,
         }
 
         # Create a GeoShape box from DataCite geoLocationBox, because currently
