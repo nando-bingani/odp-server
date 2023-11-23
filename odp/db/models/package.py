@@ -21,10 +21,13 @@ class Package(Base):
     metadata_ = Column(JSONB)
     timestamp = Column(TIMESTAMP(timezone=True), nullable=False)
 
+    provider_id = Column(String, ForeignKey('provider.id', ondelete='CASCADE'), nullable=False)
+    provider = relationship('Provider')
+
     record_id = Column(String, ForeignKey('record.id', ondelete='SET NULL'))
     record = relationship('Record')
 
-    _repr_ = 'id', 'record_id',
+    _repr_ = 'id', 'provider_id', 'record_id',
 
 
 class PackageResource(Base):
