@@ -1,0 +1,8 @@
+SAEON.Observations:
+  url_env: SAEON_OBSERVATIONS_URL
+
+SAEON.Repository:
+  url_env: SAEON_REPOSITORY_URL
+
+MIMS.Archive:
+  url_env: MIMS_ARCHIVE_URL
