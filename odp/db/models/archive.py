@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import Column, ForeignKey, Integer, String, TIMESTAMP, UniqueConstraint
+from sqlalchemy import BigInteger, Column, ForeignKey, String, TIMESTAMP, UniqueConstraint
 from sqlalchemy.orm import relationship
 
 from odp.db import Base
@@ -39,7 +39,7 @@ class ArchiveResource(Base):
     path = Column(String)
     name = Column(String)
     type = Column(String)
-    size = Column(Integer)
+    size = Column(BigInteger)
     md5 = Column(String)
     timestamp = Column(TIMESTAMP(timezone=True))
 
