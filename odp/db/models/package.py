@@ -32,12 +32,15 @@ class Package(Base):
 
 class PackageResource(Base):
     """Model of a many-to-many package-resource association,
-    representing the set of archived resources constituting a package."""
+    representing the set of resources constituting a package.
+
+    A resource cannot be deleted if it is part of a package.
+    """
 
     __tablename__ = 'package_resource'
 
     package_id = Column(String, ForeignKey('package.id', ondelete='CASCADE'), primary_key=True)
-    resource_id = Column(String, ForeignKey('archive_resource.id', ondelete='RESTRICT'), primary_key=True)
+    resource_id = Column(String, ForeignKey('resource.id', ondelete='RESTRICT'), primary_key=True)
 
     package = relationship('Package', viewonly=True)
-    resource = relationship('ArchiveResource', viewonly=True)
+    resource = relationship('Resource', viewonly=True)
