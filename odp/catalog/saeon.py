@@ -29,8 +29,7 @@ class SAEONCatalog(Catalog):
             timestamp=record_model.timestamp,
         )
 
-    @staticmethod
-    def _create_published_metadata(record_model: RecordModel) -> list[PublishedMetadataModel]:
+    def _create_published_metadata(self, record_model: RecordModel) -> list[PublishedMetadataModel]:
         """Create the published metadata outputs for a record."""
         published_metadata = [
             PublishedMetadataModel(
@@ -40,7 +39,10 @@ class SAEONCatalog(Catalog):
             )
         ]
 
-        if record_model.schema_id == ODPMetadataSchema.SAEON_ISO19115:
+        if record_model.schema_id == ODPMetadataSchema.SAEON_DATACITE4:
+            datacite_metadata = record_model.metadata
+
+        elif record_model.schema_id == ODPMetadataSchema.SAEON_ISO19115:
             iso19115_schemaobj = Session.get(Schema, (ODPMetadataSchema.SAEON_ISO19115, SchemaType.metadata))
             datacite_schemaobj = Session.get(Schema, (ODPMetadataSchema.SAEON_DATACITE4, SchemaType.metadata))
 
@@ -61,7 +63,23 @@ class SAEONCatalog(Catalog):
                 )
             ]
 
+        # add an RIS citation record
+        ris_schema = Session.get(Schema, (ODPMetadataSchema.RIS_CITATION, SchemaType.metadata))
+        published_metadata += [
+            PublishedMetadataModel(
+                schema_id=ris_schema.id,
+                schema_uri=ris_schema.uri,
+                metadata={'ris': self._create_ris_citation(datacite_metadata)}
+            )
+        ]
+
         return published_metadata
+
+    @staticmethod
+    def _create_ris_citation(datacite_metadata: dict) -> str:
+        """Create an RIS citation from the DataCite metadata for a record."""
+        return '''
+        '''
 
     @staticmethod
     def _create_published_tags(record_model: RecordModel) -> list[PublishedTagInstanceModel]:
