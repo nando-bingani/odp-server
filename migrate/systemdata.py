@@ -34,8 +34,8 @@ def initialize():
         init_standard_scopes()
         init_system_roles()
         init_schemas()
-        init_tags()
         init_vocabularies()
+        init_tags()
         init_catalogs()
         init_clients()
 
