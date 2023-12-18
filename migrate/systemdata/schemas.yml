@@ -14,6 +14,10 @@ SchemaOrg.Dataset:
   type: metadata
   uri: https://odp.saeon.ac.za/schema/metadata/schema.org/dataset
 
+RIS.Citation:
+  type: metadata
+  uri: https://odp.saeon.ac.za/schema/metadata/ris/citation
+
 Tag.Collection.Infrastructure:
   type: tag
   uri: https://odp.saeon.ac.za/schema/tag/collection/infrastructure

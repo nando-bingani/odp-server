@@ -70,6 +70,16 @@ class MIMSCatalog(SAEONCatalog):
             )
         ]
 
+        # add an RIS citation record
+        ris_schema = Session.get(Schema, (ODPMetadataSchema.RIS_CITATION, SchemaType.metadata))
+        published_record.metadata_records += [
+            PublishedMetadataModel(
+                schema_id=ris_schema.id,
+                schema_uri=ris_schema.uri,
+                metadata=self._create_ris_metadata(published_record)
+            )
+        ]
+
         return published_record
 
     def _create_jsonld_metadata(
@@ -142,6 +152,15 @@ class MIMSCatalog(SAEONCatalog):
             }
 
         return jsonld_metadata
+
+    def _create_ris_metadata(
+            self, published_record: PublishedSAEONRecordModel
+    ) -> dict[str, Any]:
+        """Create a metadata dictionary consisting of a single "ris" text
+        property with an RIS-format citation."""
+        return dict(
+            ris=''
+        )
 
     def create_facet_index_data(
             self, published_record: PublishedSAEONRecordModel

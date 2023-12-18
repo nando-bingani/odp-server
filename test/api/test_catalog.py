@@ -329,8 +329,9 @@ def test_get_published_record(
     has_datacite = True
     has_iso19115 = example_record.schema_id == 'SAEON.ISO19115'
     has_jsonld = catalog_id == 'MIMS'
+    has_ris = catalog_id == 'MIMS'
 
-    assert len(result['metadata_records']) == has_datacite + has_iso19115 + has_jsonld
+    assert len(result['metadata_records']) == has_datacite + has_iso19115 + has_jsonld + has_ris
 
     if has_datacite:
         assert_metadata_record('SAEON.DataCite4')
@@ -340,6 +341,11 @@ def test_get_published_record(
 
     if has_jsonld:
         assert_metadata_record('SchemaOrg.Dataset')
+
+    if has_ris:
+        pass
+        # todo:
+        #  assert_metadata_record('RIS.Citation')
 
 
 @pytest.mark.parametrize('schema_id, json_pointer, expected_value', [
