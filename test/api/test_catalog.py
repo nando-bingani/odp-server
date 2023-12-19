@@ -209,6 +209,7 @@ schema_uris = {
     'SAEON.DataCite4': 'https://odp.saeon.ac.za/schema/metadata/saeon/datacite4',
     'SAEON.ISO19115': 'https://odp.saeon.ac.za/schema/metadata/saeon/iso19115',
     'SchemaOrg.Dataset': 'https://odp.saeon.ac.za/schema/metadata/schema.org/dataset',
+    'RIS.Citation': 'https://odp.saeon.ac.za/schema/metadata/ris/citation'
 }
 metadata_examples = {
     'SAEON.DataCite4': datacite4_example(),
@@ -232,6 +233,12 @@ metadata_examples = {
         },
         'temporalCoverage': '2019-11-01T00:00:00+02:00/2019-12-01T00:00:00+02:00',
     },
+    'RIS.Citation': {
+        'schema_id': 'RIS.Citation', 'schema_uri': 'https://odp.saeon.ac.za/schema/metadata/ris/citation',
+        'metadata': {
+            'ris': "TY - DATA\nDO - 10.5555/Test-100\nT1 - Example Metadata Record: ISO19115 - SAEON Profile\nAB - Concerning things that'd like to be under the sea, in an octopus's garden, in the shade.\nPB - Reef Community\nA1 - Ophelia the Octopus\nKW - seabed\nKW - underwater\nER -\n"
+        }
+    }
 }
 
 
@@ -335,17 +342,19 @@ def test_get_published_record(
 
     if has_datacite:
         assert_metadata_record('SAEON.DataCite4')
+        pass
 
     if has_iso19115:
         assert_metadata_record('SAEON.ISO19115')
+        pass
 
     if has_jsonld:
         assert_metadata_record('SchemaOrg.Dataset')
+        pass
 
     if has_ris:
+        assert_metadata_record('RIS.Citation')
         pass
-        # todo:
-        #  assert_metadata_record('RIS.Citation')
 
 
 @pytest.mark.parametrize('schema_id, json_pointer, expected_value', [

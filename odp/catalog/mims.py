@@ -159,8 +159,85 @@ class MIMSCatalog(SAEONCatalog):
     ) -> dict[str, Any]:
         """Create a metadata dictionary consisting of a single "ris" text
         property with an RIS-format citation."""
+
+        def handle_resource_type(resource_type) -> str:
+            meta_resource_type: str = resource_type.get('resourceTypeGeneral')
+            # Set the mapped resource type to GEN (Generic) by default
+            mapped_resource_type: str = resource_type_mapping.get(meta_resource_type, 'GEN')
+            return f"TY - {mapped_resource_type}\n"
+
+        def handle_titles(titles) -> str:
+            titles_section: str = ''
+            for index, title in enumerate(titles):
+                titles_section += f"T{index + 1} - {title.get('title')}\n"
+            return titles_section
+
+        def handle_creators(creators) -> str:
+            creators_section: str = ''
+            for index, creator in enumerate(creators):
+                creators_section += f"A{index + 1} - {creator.get('name')}\n"
+            return creators_section
+
+        def handle_abstract(descriptions) -> str:
+            for description in descriptions:
+                if description.get('descriptionType') == 'Abstract':
+                    return f"AB - {description.get('description')}\n"
+            return ''
+
+        resource_type_mapping: dict = {
+            'Audiovisual': 'ADVS',
+            'Collection': 'CTLG',
+            'DataPaper': 'DATA',
+            'Dataset': 'DATA',
+            'Event': 'GEN',
+            'Image': 'FIGURE',
+            'InteractiveResource': 'MULTI',
+            'Model': 'DATA',
+            'PhysicalObject': 'GEN',
+            'Service': 'GEN',
+            'Software': 'COMP',
+            'Sound': 'SOUND',
+            'Text': 'GEN',
+            'Workflow': 'GEN',
+            'Other': 'STD'
+        }
+
+        meta_key_functions: dict = {
+            # TODO: Include contributors, SN(ISBN) & UR(Web URL).
+            'titles': handle_titles,
+            'creators': handle_creators,
+            'descriptions': handle_abstract,
+            'doi': lambda doi: f"DO - {doi}\n",
+            'publisher': lambda publisher: f"PB - {publisher}\n",
+            'publishYear': lambda publish_year: f"PY - {publish_year}\n",
+            'language': lambda language: f"LA - {language}\n",
+        }
+
+        ris_citation: str = ''
+
+        # The resource type is the first tag that must be added.
+        key_words: list[str] = self.create_keyword_index_data(published_record)
+
+        datacite_metadata: dict = {}
+        for metadata_record in published_record.metadata_records:
+            if metadata_record.schema_id == ODPMetadataSchema.SAEON_DATACITE4:
+                datacite_metadata = metadata_record.metadata
+                break
+
+        ris_citation += handle_resource_type(datacite_metadata.get('types'))
+
+        for meta_key, meta_value in datacite_metadata.items():
+            if handler_function := meta_key_functions.get(meta_key):
+                ris_citation += handler_function(meta_value)
+
+        for key_word in key_words:
+            ris_citation += f"KW - {key_word}\n"
+
+        ris_citation += 'ER -\n'
+
+        # return ris_citation
         return dict(
-            ris=''
+            ris=ris_citation
         )
 
     def create_facet_index_data(
