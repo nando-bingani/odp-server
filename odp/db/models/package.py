@@ -11,8 +11,7 @@ class Package(Base):
     """A package represents a set of resources that constitute
     a digital object.
 
-    A package may include non-authoritative metadata, which can
-    be used when creating/updating the linked record.
+    A package may include non-authoritative metadata.
     """
 
     __tablename__ = 'package'
@@ -23,9 +22,6 @@ class Package(Base):
 
     provider_id = Column(String, ForeignKey('provider.id', ondelete='CASCADE'), nullable=False)
     provider = relationship('Provider')
-
-    record_id = Column(String, ForeignKey('record.id', ondelete='SET NULL'))
-    record = relationship('Record')
 
     _repr_ = 'id', 'provider_id', 'record_id',
 
