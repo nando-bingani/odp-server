@@ -1,8 +1,8 @@
 """Create archive, resource and package entities
 
-Revision ID: 2dfd11afb155
+Revision ID: aafca5cd1ec0
 Revises: df57d06e1ee5
-Create Date: 2023-12-21 14:38:02.307330
+Create Date: 2023-12-22 11:30:17.092518
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision = '2dfd11afb155'
+revision = 'aafca5cd1ec0'
 down_revision = 'df57d06e1ee5'
 branch_labels = None
 depends_on = None
@@ -33,8 +33,8 @@ def upgrade():
                     sa.Column('timestamp', sa.TIMESTAMP(timezone=True), nullable=True),
                     sa.Column('archive_id', sa.String(), nullable=False),
                     sa.Column('provider_id', sa.String(), nullable=False),
-                    sa.ForeignKeyConstraint(['archive_id'], ['archive.id'], ondelete='CASCADE'),
-                    sa.ForeignKeyConstraint(['provider_id'], ['provider.id'], ondelete='CASCADE'),
+                    sa.ForeignKeyConstraint(['archive_id'], ['archive.id'], ondelete='RESTRICT'),
+                    sa.ForeignKeyConstraint(['provider_id'], ['provider.id'], ondelete='RESTRICT'),
                     sa.PrimaryKeyConstraint('id')
                     )
     op.create_table('package',
