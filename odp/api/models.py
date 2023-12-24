@@ -30,6 +30,11 @@ class TagInstanceModelIn(BaseModel):
     data: dict[str, Any]
 
 
+class ArchiveModel(BaseModel):
+    id: str
+    url: str
+
+
 class CatalogModel(BaseModel):
     id: str
     url: str
@@ -257,6 +262,56 @@ class RecordModelIn(BaseModel):
             pass  # ignore: doi and/or metadata field validation already failed
 
         return values
+
+
+class ResourceModel(BaseModel):
+    id: str
+    provider_id: str
+    provider_key: str
+    archive_id: str
+    path: str
+    type: ResourceType
+    name: Optional[str]
+    size: Optional[int]
+    md5: Optional[str]
+    timestamp: str
+
+
+class ResourceModelIn(BaseModel):
+    provider_id: str
+    archive_id: str
+    path: str
+    type: ResourceType
+    name: Optional[str]
+    size: Optional[int]
+    md5: Optional[str]
+    timestamp: Optional[str]
+    text_data: Optional[str]
+    binary_data: Optional[bytes]
+
+    @validator('path')
+    def validate_path(cls, path: str):
+        if not path.startswith('/'):
+            raise ValueError("path must start with '/'")
+
+        return path
+
+
+class PackageModel(BaseModel):
+    id: str
+    provider_id: str
+    provider_key: str
+    record_id: Optional[str]
+    metadata: Optional[dict[str, Any]]
+    timestamp: str
+    resources: list[ResourceModel]
+
+
+class PackageModelIn(BaseModel):
+    provider_id: str
+    metadata: Optional[dict[str, Any]]
+    resource_ids: list[str]  # existing
+    resources: list[ResourceModelIn]  # new
 
 
 class RoleModel(BaseModel):
