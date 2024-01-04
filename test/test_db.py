@@ -4,9 +4,10 @@ from sqlalchemy import select
 
 import migrate.systemdata
 from odp.const import ODPScope, ODPSystemRole
+from odp.const.db import ScopeType
 from odp.db import Session
 from odp.db.models import (Catalog, Client, ClientCollection, ClientScope, Collection, CollectionTag, Provider, Record, RecordTag, Role,
-                           RoleCollection, RoleScope, Schema, Scope, ScopeType, Tag, User, UserRole, Vocabulary, VocabularyTerm)
+                           RoleCollection, RoleScope, Schema, Scope, Tag, User, UserRole, Vocabulary, VocabularyTerm)
 from test.factories import (CatalogFactory, ClientFactory, CollectionFactory, CollectionTagFactory, ProviderFactory, RecordFactory,
                             RecordTagFactory, RoleFactory, SchemaFactory, ScopeFactory, TagFactory, UserFactory, VocabularyFactory)
 

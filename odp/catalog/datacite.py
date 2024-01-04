@@ -4,8 +4,9 @@ from odp.api.models import PublishedDataCiteRecordModel, PublishedRecordModel, R
 from odp.catalog import Catalog
 from odp.config import config
 from odp.const import DOI_PREFIX, ODPCatalog, ODPCollectionTag, ODPMetadataSchema
+from odp.const.db import SchemaType
 from odp.db import Session
-from odp.db.models import CatalogRecord, Schema, SchemaType
+from odp.db.models import CatalogRecord, Schema
 from odp.lib.datacite import DataciteClient, DataciteRecordIn
 from odp.lib.schema import schema_catalog
 

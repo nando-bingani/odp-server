@@ -1,8 +1,8 @@
 from sqlalchemy import Boolean, CheckConstraint, Column, Enum, ForeignKey, ForeignKeyConstraint, String
 from sqlalchemy.orm import relationship
 
+from odp.const.db import SchemaType, ScopeType, TagCardinality, TagType
 from odp.db import Base
-from odp.db.models.types import SchemaType, ScopeType, TagCardinality, TagType
 
 
 class Tag(Base):

@@ -5,8 +5,9 @@ from sqlalchemy import select
 from odp.api.models import PublishedMetadataModel, PublishedRecordModel, PublishedSAEONRecordModel, RecordModel
 from odp.catalog.saeon import SAEONCatalog
 from odp.const import ODPCollectionTag, ODPMetadataSchema
+from odp.const.db import SchemaType
 from odp.db import Session
-from odp.db.models import Catalog, CatalogRecord, Schema, SchemaType
+from odp.db.models import Catalog, CatalogRecord, Schema
 
 
 class MIMSCatalog(SAEONCatalog):

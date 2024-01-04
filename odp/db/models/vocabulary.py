@@ -2,8 +2,8 @@ from sqlalchemy import Boolean, CheckConstraint, Column, Enum, ForeignKey, Forei
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 
+from odp.const.db import AuditCommand, SchemaType, ScopeType
 from odp.db import Base
-from odp.db.models.types import AuditCommand, SchemaType, ScopeType
 
 
 class Vocabulary(Base):

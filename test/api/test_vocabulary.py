@@ -4,8 +4,9 @@ import pytest
 from sqlalchemy import select
 
 from odp.const import ODPScope
+from odp.const.db import SchemaType, ScopeType
 from odp.db import Session
-from odp.db.models import SchemaType, Scope, ScopeType, Vocabulary, VocabularyTerm, VocabularyTermAudit
+from odp.db.models import Scope, Vocabulary, VocabularyTerm, VocabularyTermAudit
 from test.api import (assert_conflict, assert_empty_result, assert_forbidden, assert_new_timestamp,
                       assert_not_found, assert_unprocessable)
 from test.factories import SchemaFactory, VocabularyFactory, VocabularyTermFactory, fake

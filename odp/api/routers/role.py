@@ -6,8 +6,9 @@ from odp.api.lib.auth import Authorize, Authorized, select_scopes
 from odp.api.lib.paging import Page, Paginator
 from odp.api.models import RoleModel, RoleModelIn
 from odp.const import ODPScope
+from odp.const.db import ScopeType
 from odp.db import Session
-from odp.db.models import Collection, Role, ScopeType
+from odp.db.models import Collection, Role
 
 router = APIRouter()
 

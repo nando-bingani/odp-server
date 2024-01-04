@@ -12,8 +12,9 @@ from starlette.status import HTTP_401_UNAUTHORIZED, HTTP_403_FORBIDDEN, HTTP_404
 from odp.api.models import TagInstanceModelIn
 from odp.config import config
 from odp.const import ODPScope
+from odp.const.db import ScopeType, TagType
 from odp.db import Session
-from odp.db.models import CollectionTag, RecordTag, Scope, ScopeType, Tag, TagType, Vocabulary
+from odp.db.models import CollectionTag, RecordTag, Scope, Tag, Vocabulary
 from odp.lib.auth import get_client_permissions, get_user_permissions
 from odp.lib.hydra import HydraAdminAPI, OAuth2TokenIntrospection
 

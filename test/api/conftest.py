@@ -5,8 +5,9 @@ from starlette.testclient import TestClient
 import odp.api
 from odp.config import config
 from odp.const import ODPScope
+from odp.const.db import TagCardinality
 from odp.db import Session
-from odp.db.models import Scope, TagCardinality
+from odp.db.models import Scope
 from odp.lib.hydra import HydraAdminAPI
 from test.api import CollectionAuth, all_scopes, all_scopes_excluding
 from test.factories import ClientFactory, ScopeFactory

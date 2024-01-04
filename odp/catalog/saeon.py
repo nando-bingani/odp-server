@@ -6,8 +6,9 @@ from jschon import JSON, URI
 from odp.api.models import PublishedMetadataModel, PublishedRecordModel, PublishedSAEONRecordModel, PublishedTagInstanceModel, RecordModel
 from odp.catalog import Catalog
 from odp.const import ODPCollectionTag, ODPMetadataSchema
+from odp.const.db import SchemaType
 from odp.db import Session
-from odp.db.models import Schema, SchemaType
+from odp.db.models import Schema
 from odp.lib.schema import schema_catalog
 
 
