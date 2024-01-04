@@ -9,8 +9,9 @@ from odp.api.lib.auth import Authorize, Authorized
 from odp.api.lib.paging import Page, Paginator
 from odp.api.models import IdentityAuditModel, UserModel, UserModelIn
 from odp.const import ODPScope
+from odp.const.db import IdentityCommand
 from odp.db import Session
-from odp.db.models import IdentityAudit, IdentityCommand, Role, User
+from odp.db.models import IdentityAudit, Role, User
 
 router = APIRouter()
 

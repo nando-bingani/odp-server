@@ -7,6 +7,5 @@ from .role import Role, RoleCollection, RoleScope
 from .schema import Schema
 from .scope import Scope
 from .tag import Tag
-from .types import AuditCommand, IdentityCommand, SchemaType, ScopeType, TagCardinality, TagType
 from .user import IdentityAudit, User, UserRole
 from .vocabulary import Vocabulary, VocabularyTerm, VocabularyTermAudit

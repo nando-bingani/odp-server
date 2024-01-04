@@ -5,8 +5,9 @@ from argon2.exceptions import VerifyMismatchError
 from sqlalchemy import select
 
 from odp.const import ODPSystemRole, SAEON_EMAIL_DOMAINS
+from odp.const.db import IdentityCommand
 from odp.db import Session
-from odp.db.models import Client, IdentityAudit, IdentityCommand, User, UserRole
+from odp.db.models import Client, IdentityAudit, User, UserRole
 from odp.lib import exceptions as x
 
 ph = argon2.PasswordHasher()

@@ -16,8 +16,9 @@ from odp.api.lib.utils import output_tag_instance_model
 from odp.api.models import (AuditModel, CollectionAuditModel, CollectionModel, CollectionModelIn, CollectionTagAuditModel, TagInstanceModel,
                             TagInstanceModelIn)
 from odp.const import DOI_PREFIX, ODPScope
+from odp.const.db import AuditCommand, TagCardinality, TagType
 from odp.db import Session
-from odp.db.models import AuditCommand, Collection, CollectionAudit, CollectionTag, CollectionTagAudit, Record, Tag, TagCardinality, TagType, User
+from odp.db.models import Collection, CollectionAudit, CollectionTag, CollectionTagAudit, Record, Tag, User
 
 router = APIRouter()
 

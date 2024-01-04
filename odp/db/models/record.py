@@ -5,8 +5,8 @@ from sqlalchemy import CheckConstraint, Column, Enum, ForeignKey, ForeignKeyCons
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 
+from odp.const.db import AuditCommand, SchemaType, TagType
 from odp.db import Base
-from odp.db.models.types import AuditCommand, SchemaType, TagType
 
 
 class Record(Base):

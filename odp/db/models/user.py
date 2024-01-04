@@ -5,8 +5,8 @@ from sqlalchemy import ARRAY, Boolean, Column, Enum, ForeignKey, Identity, Integ
 from sqlalchemy.ext.associationproxy import association_proxy
 from sqlalchemy.orm import relationship
 
+from odp.const.db import IdentityCommand
 from odp.db import Base
-from odp.db.models.types import IdentityCommand
 
 
 class User(Base):

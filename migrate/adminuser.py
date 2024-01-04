@@ -3,8 +3,9 @@ from getpass import getpass
 import argon2
 
 from odp.const import ODPSystemRole
+from odp.const.db import IdentityCommand
 from odp.db import Session
-from odp.db.models import IdentityAudit, IdentityCommand, User, UserRole
+from odp.db.models import IdentityAudit, User, UserRole
 
 
 def create_admin_user():

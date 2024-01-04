@@ -1,7 +1,7 @@
 from sqlalchemy import Column, Enum, String, TIMESTAMP
 
+from odp.const.db import SchemaType
 from odp.db import Base
-from odp.db.models.types import SchemaType
 
 
 class Schema(Base):

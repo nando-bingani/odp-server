@@ -6,8 +6,9 @@ import pytest
 from sqlalchemy import select
 
 from odp.const import ODPCollectionTag, ODPScope
+from odp.const.db import ScopeType
 from odp.db import Session
-from odp.db.models import CollectionTag, PublishedRecord, Record, RecordAudit, RecordTag, RecordTagAudit, Scope, ScopeType
+from odp.db.models import CollectionTag, PublishedRecord, Record, RecordAudit, RecordTag, RecordTagAudit, Scope
 from test.api import (CollectionAuth, all_scopes, all_scopes_excluding, assert_conflict, assert_empty_result, assert_forbidden, assert_new_timestamp,
                       assert_not_found, assert_unprocessable)
 from test.factories import (CollectionFactory, CollectionTagFactory, RecordFactory, RecordTagFactory, SchemaFactory, TagFactory, VocabularyFactory,

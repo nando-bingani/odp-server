@@ -5,8 +5,8 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.associationproxy import association_proxy
 from sqlalchemy.orm import relationship
 
+from odp.const.db import AuditCommand, TagType
 from odp.db import Base
-from odp.db.models.types import AuditCommand, TagType
 
 
 class Collection(Base):

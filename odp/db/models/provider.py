@@ -3,8 +3,8 @@ import uuid
 from sqlalchemy import Column, Enum, Identity, Integer, String, TIMESTAMP
 from sqlalchemy.orm import relationship
 
+from odp.const.db import AuditCommand
 from odp.db import Base
-from odp.db.models.types import AuditCommand
 
 
 class Provider(Base):

@@ -10,11 +10,21 @@ from dotenv import load_dotenv
 from sqlalchemy import delete, select, text
 from sqlalchemy.exc import ProgrammingError
 
-from odp.const import (ODPCatalog, ODPCollectionTag, ODPMetadataSchema, ODPRecordTag, ODPScope, ODPSystemRole, ODPTagSchema, ODPVocabulary,
-                       ODPVocabularySchema)
+from odp.const import (
+    ODPCatalog,
+    ODPCollectionTag,
+    ODPMetadataSchema,
+    ODPRecordTag,
+    ODPScope,
+    ODPSystemRole,
+    ODPTagSchema,
+    ODPVocabulary,
+    ODPVocabularySchema,
+)
+from odp.const.db import SchemaType, ScopeType
 from odp.const.hydra import GrantType, HydraScope
 from odp.db import Base, Session, engine
-from odp.db.models import Catalog, Client, Collection, Role, Schema, SchemaType, Scope, ScopeType, Tag, Vocabulary, VocabularyTerm
+from odp.db.models import Catalog, Client, Collection, Role, Schema, Scope, Tag, Vocabulary, VocabularyTerm
 from odp.lib.hydra import HydraAdminAPI
 from odp.lib.schema import schema_md5
 

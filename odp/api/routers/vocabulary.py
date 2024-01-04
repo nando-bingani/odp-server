@@ -11,8 +11,9 @@ from odp.api.lib.paging import Page, Paginator
 from odp.api.lib.schema import get_vocabulary_schema
 from odp.api.models import VocabularyModel, VocabularyTermAuditModel, VocabularyTermModel, VocabularyTermModelIn
 from odp.const import ODPScope
+from odp.const.db import AuditCommand
 from odp.db import Session
-from odp.db.models import AuditCommand, User, Vocabulary, VocabularyTerm, VocabularyTermAudit
+from odp.db.models import User, Vocabulary, VocabularyTerm, VocabularyTermAudit
 from odp.lib.schema import schema_catalog
 
 router = APIRouter()

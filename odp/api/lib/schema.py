@@ -4,8 +4,9 @@ from sqlalchemy import select
 from starlette.status import HTTP_422_UNPROCESSABLE_ENTITY
 
 from odp.api.models import RecordModelIn, TagInstanceModelIn
+from odp.const.db import SchemaType
 from odp.db import Session
-from odp.db.models import Schema, SchemaType, Tag, Vocabulary
+from odp.db.models import Schema, Tag, Vocabulary
 from odp.lib.schema import schema_catalog
 
 

@@ -2,8 +2,8 @@ from sqlalchemy import Boolean, Column, Enum, ForeignKey, ForeignKeyConstraint, 
 from sqlalchemy.ext.associationproxy import association_proxy
 from sqlalchemy.orm import relationship
 
+from odp.const.db import ScopeType
 from odp.db import Base
-from odp.db.models.types import ScopeType
 
 
 class Client(Base):
