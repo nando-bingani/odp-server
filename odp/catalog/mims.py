@@ -203,7 +203,6 @@ class MIMSCatalog(SAEONCatalog):
         }
 
         meta_key_functions: dict = {
-            # TODO: Include contributors, SN(ISBN) & UR(Web URL).
             'titles': handle_titles,
             'creators': handle_creators,
             'descriptions': handle_abstract,
