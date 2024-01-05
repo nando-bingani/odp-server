@@ -234,12 +234,18 @@ metadata_examples = {
         'temporalCoverage': '2019-11-01T00:00:00+02:00/2019-12-01T00:00:00+02:00',
     },
     'RIS.Citation': {
-        'schema_id': 'RIS.Citation', 'schema_uri': 'https://odp.saeon.ac.za/schema/metadata/ris/citation',
-        'metadata': {
-            'ris': "TY - DATA\nDO - 10.5555/Test-100\nT1 - Example Metadata Record: ISO19115 - SAEON Profile\nAB - Concerning things that'd like to be under the sea, in an octopus's garden, in the shade.\nPB - Reef Community\nA1 - Ophelia the Octopus\nKW - seabed\nKW - underwater\nER -\n"
-        }
+        'ris': "TY - DATA\nDO - 10.5555/Test-100\nT1 - Example Metadata Record: ISO19115 - SAEON Profile\nAB - Concerning things that'd like to be under the sea, in an octopus's garden, in the shade.\nPB - Reef Community\nA1 - Ophelia the Octopus\nKW - seabed\nKW - underwater\nER -\n"
     }
 }
+
+iso_keywords = [
+    dk['keyword'] for dk in metadata_examples['SAEON.ISO19115']['descriptiveKeywords']
+    if dk['keywordType'] in ('general', 'place', 'stratum')
+]
+
+generic_keywords = [
+    s['subject'] for s in metadata_examples['SAEON.DataCite4']['subjects']
+]
 
 
 @pytest.mark.require_scope(ODPScope.CATALOG_READ)
@@ -260,19 +266,30 @@ def test_get_published_record(
         expected_metadata = metadata_examples[schema_id]
         if schema_id == 'SchemaOrg.Dataset':
             expected_metadata['identifier'] = f'doi:{example_record.doi}' if example_record.doi else None
-            if has_iso19115:
-                expected_metadata['keywords'] = [
-                    dk['keyword'] for dk in metadata_examples['SAEON.ISO19115']['descriptiveKeywords']
-                    if dk['keywordType'] in ('general', 'place', 'stratum')
-                ]
-            else:
-                expected_metadata['keywords'] = [
-                    s['subject'] for s in metadata_examples['SAEON.DataCite4']['subjects']
-                ]
+            expected_metadata['keywords'] = iso_keywords if has_iso19115 else generic_keywords
             expected_metadata['@id'] = expected_metadata['url'] = (
                 'http://odp.catalog/mims/'
                 f'{example_record.doi if example_record.doi else example_record.id}'
             )
+        elif schema_id == 'RIS.Citation':
+            expected_metadata['ris'] = expected_metadata['ris'].split('\n')
+            metadata_record['metadata']['ris'] = metadata_record['metadata']['ris'].split('\n')
+
+            test_doi = "DO - 10.5555/Test-100"
+            for item in metadata_record['metadata']['ris']:
+                if "DO -" in item:
+                    metadata_record['metadata']['ris'].remove(item)
+                    break
+
+            metadata_record['metadata']['ris'].append(test_doi)
+
+            expected_metadata['ris'] = [element for element in expected_metadata['ris'] if "KW" not in element]
+            replacement_keywords = iso_keywords if has_iso19115 else generic_keywords
+            for keyword in replacement_keywords:
+                expected_metadata['ris'].append(f"KW - {keyword}")
+
+            expected_metadata['ris'] = '\n'.join(sorted(expected_metadata['ris']))
+            metadata_record['metadata']['ris'] = '\n'.join(sorted(metadata_record['metadata']['ris']))
         else:
             if example_record.doi:
                 expected_metadata |= {'doi': example_record.doi}
