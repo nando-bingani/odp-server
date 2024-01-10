@@ -238,7 +238,6 @@ class MIMSCatalog(SAEONCatalog):
 
         ris_citation += 'ER -\n'
 
-        # return ris_citation
         return dict(
             ris=ris_citation
         )
