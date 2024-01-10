@@ -1,4 +1,5 @@
 import os
+from copy import deepcopy
 from datetime import datetime
 from random import randint
 
@@ -11,7 +12,7 @@ from odp.catalog.saeon import SAEONCatalog
 from odp.const import ODPScope
 from odp.db import Session
 from odp.db.models import Catalog, Tag
-from test import datacite4_example, isequal, iso19115_example
+from test import datacite4_example, isequal, iso19115_example, ris_example
 from test.api import assert_forbidden, assert_new_timestamp, assert_not_found, assert_redirect
 from test.factories import CatalogFactory, CollectionTagFactory, RecordFactory, RecordTagFactory
 
@@ -233,9 +234,7 @@ metadata_examples = {
         },
         'temporalCoverage': '2019-11-01T00:00:00+02:00/2019-12-01T00:00:00+02:00',
     },
-    'RIS.Citation': {
-        'ris': "TY - DATA\nDO - 10.5555/Test-100\nT1 - Example Metadata Record: ISO19115 - SAEON Profile\nAB - Concerning things that'd like to be under the sea, in an octopus's garden, in the shade.\nPB - Reef Community\nA1 - Ophelia the Octopus\nKW - seabed\nKW - underwater\nER -\n"
-    }
+    'RIS.Citation': ris_example()
 }
 
 iso_keywords = [
@@ -263,7 +262,7 @@ def test_get_published_record(
         assert metadata_record['schema_uri'] == schema_uris[schema_id]
 
         # construct the expected metadata
-        expected_metadata = metadata_examples[schema_id]
+        expected_metadata = deepcopy(metadata_examples[schema_id])
         if schema_id == 'SchemaOrg.Dataset':
             expected_metadata['identifier'] = f'doi:{example_record.doi}' if example_record.doi else None
             expected_metadata['keywords'] = iso_keywords if has_iso19115 else generic_keywords
@@ -275,13 +274,24 @@ def test_get_published_record(
             expected_metadata['ris'] = expected_metadata['ris'].split('\n')
             metadata_record['metadata']['ris'] = metadata_record['metadata']['ris'].split('\n')
 
-            test_doi = "DO - 10.5555/Test-100"
+            metadata_record_doi = None
+            metadata_record_url = None
             for item in metadata_record['metadata']['ris']:
                 if "DO -" in item:
-                    metadata_record['metadata']['ris'].remove(item)
-                    break
+                    metadata_record_doi = item
+                elif "UR -" in item:
+                    metadata_record_url = item
 
-            metadata_record['metadata']['ris'].append(test_doi)
+            for item in expected_metadata['ris']:
+                if "DO -" in item:
+                    expected_metadata['ris'].remove(item)
+                    if metadata_record_doi:
+                        expected_metadata['ris'].append(metadata_record_doi)
+
+                if "UR -" in item:
+                    expected_metadata['ris'].remove(item)
+                    if metadata_record_url:
+                        expected_metadata['ris'].append(metadata_record_url)
 
             expected_metadata['ris'] = [element for element in expected_metadata['ris'] if "KW" not in element]
             replacement_keywords = iso_keywords if has_iso19115 else generic_keywords
@@ -359,19 +369,15 @@ def test_get_published_record(
 
     if has_datacite:
         assert_metadata_record('SAEON.DataCite4')
-        pass
 
     if has_iso19115:
         assert_metadata_record('SAEON.ISO19115')
-        pass
 
     if has_jsonld:
         assert_metadata_record('SchemaOrg.Dataset')
-        pass
 
     if has_ris:
         assert_metadata_record('RIS.Citation')
-        pass
 
 
 @pytest.mark.parametrize('schema_id, json_pointer, expected_value', [

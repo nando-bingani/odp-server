@@ -19,6 +19,12 @@ def iso19115_example():
         return json.load(f)
 
 
+def ris_example():
+    example_file = schema_dir / 'metadata' / 'saeon' / 'ris-example.json'
+    with open(example_file) as f:
+        return json.load(f)
+
+
 def isequal(x, y):
     """Perform a deep comparison, useful for comparing metadata records.
     Lists are compared as if they were sets."""

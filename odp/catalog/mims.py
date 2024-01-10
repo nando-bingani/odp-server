@@ -61,13 +61,15 @@ class MIMSCatalog(SAEONCatalog):
                         'relationType': 'HasPart',
                     }]
 
+        mims_catalog = Session.get(Catalog, self.catalog_id)
+
         # add a JSON-LD metadata record
         schemaorg_schema = Session.get(Schema, (ODPMetadataSchema.SCHEMAORG_DATASET, SchemaType.metadata))
         published_record.metadata_records += [
             PublishedMetadataModel(
                 schema_id=schemaorg_schema.id,
                 schema_uri=schemaorg_schema.uri,
-                metadata=self._create_jsonld_metadata(published_record)
+                metadata=self._create_jsonld_metadata(published_record, mims_catalog)
             )
         ]
 
@@ -77,17 +79,16 @@ class MIMSCatalog(SAEONCatalog):
             PublishedMetadataModel(
                 schema_id=ris_schema.id,
                 schema_uri=ris_schema.uri,
-                metadata=self._create_ris_metadata(published_record)
+                metadata=self._create_ris_metadata(published_record, mims_catalog)
             )
         ]
 
         return published_record
 
     def _create_jsonld_metadata(
-            self, published_record: PublishedSAEONRecordModel
+            self, published_record: PublishedSAEONRecordModel, mims_catalog
     ) -> dict[str, Any]:
         """Create a JSON-LD metadata dictionary, using the schema.org vocabulary."""
-        mims_catalog = Session.get(Catalog, self.catalog_id)
         datacite_metadata = self._get_metadata_dict(published_record, ODPMetadataSchema.SAEON_DATACITE4)
 
         title = next(
@@ -155,7 +156,7 @@ class MIMSCatalog(SAEONCatalog):
         return jsonld_metadata
 
     def _create_ris_metadata(
-            self, published_record: PublishedSAEONRecordModel
+            self, published_record: PublishedSAEONRecordModel, mims_catalog
     ) -> dict[str, Any]:
         """Create a metadata dictionary consisting of a single "ris" text
         property with an RIS-format citation."""
@@ -208,20 +209,21 @@ class MIMSCatalog(SAEONCatalog):
             'descriptions': handle_abstract,
             'doi': lambda doi: f"DO - {doi}\n",
             'publisher': lambda publisher: f"PB - {publisher}\n",
-            'publishYear': lambda publish_year: f"PY - {publish_year}\n",
+            'publicationYear': lambda publish_year: f"PY - {publish_year}\n",
             'language': lambda language: f"LA - {language}\n",
         }
 
         ris_citation: str = ''
 
+        url = (
+            f'{mims_catalog.url}/'
+            f'{published_record.doi if published_record.doi else published_record.id}'
+        )
+
         # The resource type is the first tag that must be added.
         key_words: list[str] = self.create_keyword_index_data(published_record)
 
-        datacite_metadata: dict = {}
-        for metadata_record in published_record.metadata_records:
-            if metadata_record.schema_id == ODPMetadataSchema.SAEON_DATACITE4:
-                datacite_metadata = metadata_record.metadata
-                break
+        datacite_metadata = self._get_metadata_dict(published_record, ODPMetadataSchema.SAEON_DATACITE4)
 
         ris_citation += handle_resource_type(datacite_metadata.get('types'))
 
@@ -231,6 +233,8 @@ class MIMSCatalog(SAEONCatalog):
 
         for key_word in key_words:
             ris_citation += f"KW - {key_word}\n"
+
+        ris_citation += f"UR - {url}\n"
 
         ris_citation += 'ER -\n'
 
