@@ -20,7 +20,7 @@ def iso19115_example():
 
 
 def ris_example():
-    example_file = schema_dir / 'metadata' / 'saeon' / 'ris-example.json'
+    example_file = schema_dir / 'metadata' / 'ris' / 'citation-example.json'
     with open(example_file) as f:
         return json.load(f)
 
