@@ -61,13 +61,15 @@ class MIMSCatalog(SAEONCatalog):
                         'relationType': 'HasPart',
                     }]
 
+        mims_catalog = Session.get(Catalog, self.catalog_id)
+
         # add a JSON-LD metadata record
         schemaorg_schema = Session.get(Schema, (ODPMetadataSchema.SCHEMAORG_DATASET, SchemaType.metadata))
         published_record.metadata_records += [
             PublishedMetadataModel(
                 schema_id=schemaorg_schema.id,
                 schema_uri=schemaorg_schema.uri,
-                metadata=self._create_jsonld_metadata(published_record)
+                metadata=self._create_jsonld_metadata(published_record, mims_catalog)
             )
         ]
 
@@ -77,17 +79,16 @@ class MIMSCatalog(SAEONCatalog):
             PublishedMetadataModel(
                 schema_id=ris_schema.id,
                 schema_uri=ris_schema.uri,
-                metadata=self._create_ris_metadata(published_record)
+                metadata=self._create_ris_metadata(published_record, mims_catalog)
             )
         ]
 
         return published_record
 
     def _create_jsonld_metadata(
-            self, published_record: PublishedSAEONRecordModel
+            self, published_record: PublishedSAEONRecordModel, mims_catalog
     ) -> dict[str, Any]:
         """Create a JSON-LD metadata dictionary, using the schema.org vocabulary."""
-        mims_catalog = Session.get(Catalog, self.catalog_id)
         datacite_metadata = self._get_metadata_dict(published_record, ODPMetadataSchema.SAEON_DATACITE4)
 
         title = next(
@@ -155,12 +156,90 @@ class MIMSCatalog(SAEONCatalog):
         return jsonld_metadata
 
     def _create_ris_metadata(
-            self, published_record: PublishedSAEONRecordModel
+            self, published_record: PublishedSAEONRecordModel, mims_catalog
     ) -> dict[str, Any]:
         """Create a metadata dictionary consisting of a single "ris" text
         property with an RIS-format citation."""
+
+        def handle_resource_type(resource_type) -> str:
+            meta_resource_type: str = resource_type.get('resourceTypeGeneral')
+            # Set the mapped resource type to GEN (Generic) by default
+            mapped_resource_type: str = resource_type_mapping.get(meta_resource_type, 'GEN')
+            return f"TY  - {mapped_resource_type}\n"
+
+        def handle_titles(titles) -> str:
+            titles_section: str = ''
+            for index, title in enumerate(titles):
+                titles_section += f"T{index + 1}  - {title.get('title')}\n"
+            return titles_section
+
+        def handle_creators(creators) -> str:
+            creators_section: str = ''
+            for index, creator in enumerate(creators):
+                creators_section += f"A{index + 1}  - {creator.get('name')}\n"
+            return creators_section
+
+        def handle_abstract(descriptions) -> str:
+            for description in descriptions:
+                if description.get('descriptionType') == 'Abstract':
+                    return f"AB  - {description.get('description')}\n"
+            return ''
+
+        resource_type_mapping: dict = {
+            'Audiovisual': 'ADVS',
+            'Collection': 'CTLG',
+            'DataPaper': 'DATA',
+            'Dataset': 'DATA',
+            'Event': 'GEN',
+            'Image': 'FIGURE',
+            'InteractiveResource': 'MULTI',
+            'Model': 'DATA',
+            'PhysicalObject': 'GEN',
+            'Service': 'GEN',
+            'Software': 'COMP',
+            'Sound': 'SOUND',
+            'Text': 'GEN',
+            'Workflow': 'GEN',
+            'Other': 'STD'
+        }
+
+        meta_key_functions: dict = {
+            'titles': handle_titles,
+            'creators': handle_creators,
+            'descriptions': handle_abstract,
+            'doi': lambda doi: f"DO  - {doi}\n",
+            'publisher': lambda publisher: f"PB  - {publisher}\n",
+            'publicationYear': lambda publish_year: f"PY  - {publish_year}\n",
+            'language': lambda language: f"LA  - {language}\n",
+        }
+
+        ris_citation: str = ''
+
+        url = (
+            f'{mims_catalog.url}/'
+            f'{published_record.doi if published_record.doi else published_record.id}'
+        )
+
+        # The resource type is the first tag that must be added.
+        key_words: list[str] = self.create_keyword_index_data(published_record)
+
+        datacite_metadata = self._get_metadata_dict(published_record, ODPMetadataSchema.SAEON_DATACITE4)
+
+        ris_citation += handle_resource_type(datacite_metadata.get('types'))
+
+        for meta_key, meta_value in datacite_metadata.items():
+            if handler_function := meta_key_functions.get(meta_key):
+                ris_citation += handler_function(meta_value)
+
+        for key_word in key_words:
+            ris_citation += f"KW  - {key_word}\n"
+
+        ris_citation += f"UR  - {url}\n"
+
+        ris_citation += 'ER  -\n'
+
         return dict(
-            ris=''
+            ris=ris_citation
         )
 
     def create_facet_index_data(
