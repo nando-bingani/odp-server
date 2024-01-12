@@ -1,5 +1,5 @@
 import os
-from copy import deepcopy
+from copy import deepcopy, copy
 from datetime import datetime
 from random import randint
 
@@ -274,29 +274,25 @@ def test_get_published_record(
             expected_metadata['ris'] = expected_metadata['ris'].split('\n')
             metadata_record['metadata']['ris'] = metadata_record['metadata']['ris'].split('\n')
 
-            metadata_record_doi = None
-            metadata_record_url = None
-            for item in metadata_record['metadata']['ris']:
-                if "DO -" in item:
-                    metadata_record_doi = item
-                elif "UR -" in item:
-                    metadata_record_url = item
+            url = (
+                'http://odp.catalog/mims/'
+                f'{example_record.doi if example_record.doi else example_record.id}'
+            )
 
-            for item in expected_metadata['ris']:
-                if "DO -" in item:
+            for item in copy(expected_metadata['ris']):
+                if "DO  - " in item:
                     expected_metadata['ris'].remove(item)
-                    if metadata_record_doi:
-                        expected_metadata['ris'].append(metadata_record_doi)
+                    if example_record.doi:
+                        expected_metadata['ris'].append(f"DO  - {example_record.doi}")
 
-                if "UR -" in item:
+                if "UR  - " in item:
                     expected_metadata['ris'].remove(item)
-                    if metadata_record_url:
-                        expected_metadata['ris'].append(metadata_record_url)
+                    expected_metadata['ris'].append(f"UR  - {url}")
 
-            expected_metadata['ris'] = [element for element in expected_metadata['ris'] if "KW" not in element]
+            expected_metadata['ris'] = [element for element in expected_metadata['ris'] if "KW  -" not in element]
             replacement_keywords = iso_keywords if has_iso19115 else generic_keywords
             for keyword in replacement_keywords:
-                expected_metadata['ris'].append(f"KW - {keyword}")
+                expected_metadata['ris'].append(f"KW  - {keyword}")
 
             expected_metadata['ris'] = '\n'.join(sorted(expected_metadata['ris']))
             metadata_record['metadata']['ris'] = '\n'.join(sorted(metadata_record['metadata']['ris']))

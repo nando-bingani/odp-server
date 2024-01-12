@@ -165,24 +165,24 @@ class MIMSCatalog(SAEONCatalog):
             meta_resource_type: str = resource_type.get('resourceTypeGeneral')
             # Set the mapped resource type to GEN (Generic) by default
             mapped_resource_type: str = resource_type_mapping.get(meta_resource_type, 'GEN')
-            return f"TY - {mapped_resource_type}\n"
+            return f"TY  - {mapped_resource_type}\n"
 
         def handle_titles(titles) -> str:
             titles_section: str = ''
             for index, title in enumerate(titles):
-                titles_section += f"T{index + 1} - {title.get('title')}\n"
+                titles_section += f"T{index + 1}  - {title.get('title')}\n"
             return titles_section
 
         def handle_creators(creators) -> str:
             creators_section: str = ''
             for index, creator in enumerate(creators):
-                creators_section += f"A{index + 1} - {creator.get('name')}\n"
+                creators_section += f"A{index + 1}  - {creator.get('name')}\n"
             return creators_section
 
         def handle_abstract(descriptions) -> str:
             for description in descriptions:
                 if description.get('descriptionType') == 'Abstract':
-                    return f"AB - {description.get('description')}\n"
+                    return f"AB  - {description.get('description')}\n"
             return ''
 
         resource_type_mapping: dict = {
@@ -207,10 +207,10 @@ class MIMSCatalog(SAEONCatalog):
             'titles': handle_titles,
             'creators': handle_creators,
             'descriptions': handle_abstract,
-            'doi': lambda doi: f"DO - {doi}\n",
-            'publisher': lambda publisher: f"PB - {publisher}\n",
-            'publicationYear': lambda publish_year: f"PY - {publish_year}\n",
-            'language': lambda language: f"LA - {language}\n",
+            'doi': lambda doi: f"DO  - {doi}\n",
+            'publisher': lambda publisher: f"PB  - {publisher}\n",
+            'publicationYear': lambda publish_year: f"PY  - {publish_year}\n",
+            'language': lambda language: f"LA  - {language}\n",
         }
 
         ris_citation: str = ''
@@ -232,11 +232,11 @@ class MIMSCatalog(SAEONCatalog):
                 ris_citation += handler_function(meta_value)
 
         for key_word in key_words:
-            ris_citation += f"KW - {key_word}\n"
+            ris_citation += f"KW  - {key_word}\n"
 
-        ris_citation += f"UR - {url}\n"
+        ris_citation += f"UR  - {url}\n"
 
-        ris_citation += 'ER -\n'
+        ris_citation += 'ER  -\n'
 
         return dict(
             ris=ris_citation
