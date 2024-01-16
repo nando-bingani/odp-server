@@ -1,6 +1,7 @@
 [run]
 source =
     # odp-core
+    odp.api.models
     odp.config
     odp.const
     odp.lib.cache
@@ -12,7 +13,9 @@ source =
     odp.version
 
     # odp-server
-    odp.api
+    odp.api.lib
+    odp.api.main
+    odp.api.routers
     odp.catalog
     odp.db
     odp.identity
