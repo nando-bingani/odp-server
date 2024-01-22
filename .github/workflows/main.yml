@@ -7,14 +7,6 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Get branch name
-        id: branch-name
-        uses: tj-actions/branch-names@v7
-
-      - name: Echo branch name
-        run: |
-          echo "Running on branch: ${{ steps.branch-name.outputs.current_branch }}"
-
       - name: Check out odp-server
         uses: actions/checkout@v4
         with:
@@ -25,14 +17,12 @@ jobs:
         with:
           repository: SAEON/odp-core
           path: odp-core
-          ref: ${{ steps.branch-name.outputs.current_branch }}
 
       - name: Check out odp-ui
         uses: actions/checkout@v4
         with:
           repository: SAEON/odp-ui
           path: odp-ui
-          ref: ${{ steps.branch-name.outputs.current_branch }}
 
       - name: Set up Python
         uses: actions/setup-python@v4
