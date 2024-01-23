@@ -1,8 +1,8 @@
 """Archive integration
 
-Revision ID: ca716e289ee6
+Revision ID: 3e8b15503875
 Revises: df57d06e1ee5
-Create Date: 2024-01-09 12:03:42.721298
+Create Date: 2024-01-23 08:34:04.514967
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision = 'ca716e289ee6'
+revision = '3e8b15503875'
 down_revision = 'df57d06e1ee5'
 branch_labels = None
 depends_on = None
@@ -33,10 +33,12 @@ def upgrade():
                     )
     op.create_table('resource',
                     sa.Column('id', sa.String(), nullable=False),
-                    sa.Column('name', sa.String(), nullable=False),
+                    sa.Column('title', sa.String(), nullable=False),
+                    sa.Column('description', sa.String(), nullable=True),
+                    sa.Column('filename', sa.String(), nullable=True),
+                    sa.Column('mimetype', sa.String(), nullable=True),
                     sa.Column('size', sa.BigInteger(), nullable=True),
                     sa.Column('md5', sa.String(), nullable=True),
-                    sa.Column('metadata_', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
                     sa.Column('timestamp', sa.TIMESTAMP(timezone=True), nullable=False),
                     sa.Column('provider_id', sa.String(), nullable=False),
                     sa.ForeignKeyConstraint(['provider_id'], ['provider.id'], ondelete='RESTRICT'),

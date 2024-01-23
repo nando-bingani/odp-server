@@ -8,8 +8,9 @@ from odp.api.lib.auth import Authorize, Authorized
 from odp.api.lib.paging import Page, Paginator
 from odp.api.models import ResourceModel, ResourceModelIn
 from odp.const import ODPScope
+from odp.const.db import AuditCommand
 from odp.db import Session
-from odp.db.models import Resource, AuditCommand
+from odp.db.models import ArchiveResource, Resource
 
 router = APIRouter()
 
@@ -17,15 +18,19 @@ router = APIRouter()
 def output_resource_model(resource: Resource) -> ResourceModel:
     return ResourceModel(
         id=resource.id,
-        provider_id=resource.provider_id,
-        provider_key=resource.provider.key,
-        archive_id=resource.archive_id,
-        path=resource.path,
-        type=resource.type,
-        name=resource.name,
+        title=resource.title,
+        description=resource.description,
+        filename=resource.filename,
+        mimetype=resource.mimetype,
         size=resource.size,
         md5=resource.md5,
         timestamp=resource.timestamp.isoformat(),
+        provider_id=resource.provider_id,
+        provider_key=resource.provider.key,
+        urls={
+            ar.archive_id: ar.archive.url + ar.path
+            for ar in resource.archive_resources
+        }
     )
 
 
@@ -61,7 +66,9 @@ async def get_resource(
         resource_id: str,
 ):
     if not (resource := Session.get(Resource, resource_id)):
-        raise HTTPException(HTTP_404_NOT_FOUND)
+        raise HTTPException(
+            HTTP_404_NOT_FOUND, 'Unknown resource id'
+        )
 
     return output_resource_model(resource)
 
@@ -75,25 +82,33 @@ async def create_resource(
         auth: Authorized = Depends(Authorize(ODPScope.RESOURCE_WRITE)),
 ):
     if Session.execute(
-            select(Resource)
-            .where(Resource.archive_id == resource_in.archive_id)
-            .where(Resource.path == resource_in.path)
+            select(ArchiveResource).
+            where(ArchiveResource.archive_id == resource_in.archive_id).
+            where(ArchiveResource.path == resource_in.archive_path)
     ).first() is not None:
-        raise HTTPException(HTTP_409_CONFLICT, 'path already exists in archive')
+        raise HTTPException(
+            HTTP_409_CONFLICT, 'path already exists in archive'
+        )
 
     resource = Resource(
-        provider_id=resource_in.provider_id,
-        archive_id=resource_in.archive_id,
-        path=resource_in.path,
-        type=resource_in.type,
-        name=resource_in.name,
+        title=resource_in.title,
+        description=resource_in.description,
+        filename=resource_in.filename,
+        mimetype=resource_in.mimetype,
         size=resource_in.size,
         md5=resource_in.md5,
-        timestamp=(timestamp := resource_in.timestamp or datetime.now(timezone.utc)),
-        text_data=resource_in.text_data,
-        binary_data=resource_in.binary_data,
+        timestamp=(timestamp := datetime.now(timezone.utc)),
+        provider_id=resource_in.provider_id,
     )
     resource.save()
+
+    archive_resource = ArchiveResource(
+        archive_id=resource_in.archive_id,
+        resource_id=resource.id,
+        path=resource_in.archive_path,
+        timestamp=timestamp,
+    )
+    archive_resource.save()
 
     create_audit_record(auth, resource, timestamp, AuditCommand.insert)
 

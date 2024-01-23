@@ -1,4 +1,4 @@
-from .archive import Archive
+from .archive import Archive, ArchiveResource
 from .catalog import Catalog, CatalogRecord, CatalogRecordFacet
 from .client import Client, ClientCollection, ClientScope
 from .collection import Collection, CollectionAudit, CollectionTag, CollectionTagAudit
