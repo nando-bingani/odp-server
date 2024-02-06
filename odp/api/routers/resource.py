@@ -50,9 +50,15 @@ def create_audit_record(
 )
 async def list_resources(
         paginator: Paginator = Depends(),
+        archive_id: str = None,
 ):
+    stmt = select(Resource)
+    if archive_id:
+        stmt = stmt.join(ArchiveResource)
+        stmt = stmt.where(ArchiveResource.archive_id == archive_id)
+
     return paginator.paginate(
-        select(Resource),
+        stmt,
         lambda row: output_resource_model(row.Resource),
     )
 

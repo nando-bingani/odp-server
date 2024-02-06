@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import func, select
 from starlette.status import HTTP_404_NOT_FOUND
 
 from odp.api.lib.auth import Authorize
@@ -7,9 +7,17 @@ from odp.api.lib.paging import Page, Paginator
 from odp.api.models import ArchiveModel
 from odp.const import ODPScope
 from odp.db import Session
-from odp.db.models import Archive
+from odp.db.models import Archive, ArchiveResource
 
 router = APIRouter()
+
+
+def output_archive_model(result) -> ArchiveModel:
+    return ArchiveModel(
+        id=result.Archive.id,
+        url=result.Archive.url,
+        resource_count=result.count,
+    )
 
 
 @router.get(
@@ -20,12 +28,16 @@ router = APIRouter()
 async def list_archives(
         paginator: Paginator = Depends(),
 ):
+    stmt = (
+        select(Archive, func.count(ArchiveResource.archive_id)).
+        outerjoin(ArchiveResource).
+        group_by(Archive)
+    )
+
     return paginator.paginate(
-        select(Archive),
-        lambda row: ArchiveModel(
-            id=row.Archive.id,
-            url=row.Archive.url,
-        )
+        stmt,
+        lambda row: output_archive_model(row),
+        sort_model=Archive,
     )
 
 
@@ -37,15 +49,14 @@ async def list_archives(
 async def get_archive(
         archive_id: str,
 ):
-    archive = Session.execute(
-        select(Archive).
+    stmt = (
+        select(Archive, func.count(ArchiveResource.archive_id)).
+        outerjoin(ArchiveResource).
+        group_by(Archive).
         where(Archive.id == archive_id)
-    ).scalar_one_or_none()
+    )
 
-    if not archive:
+    if not (result := Session.execute(stmt).one_or_none()):
         raise HTTPException(HTTP_404_NOT_FOUND)
 
-    return ArchiveModel(
-        id=archive.id,
-        url=archive.url,
-    )
+    return output_archive_model(result)
