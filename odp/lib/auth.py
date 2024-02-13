@@ -1,28 +1,7 @@
-from dataclasses import dataclass
-from typing import Dict, List, Literal, Optional
-
+from odp.api.models.auth import Permissions, UserInfo
 from odp.db import Session
 from odp.db.models import Client, User
 from odp.lib import exceptions as x
-
-Permissions = Dict[str, Literal['*'] | List[str]]
-"""The effective set of permissions for a user or a client. A dictionary of
-scope ids (OAuth2 scope identifiers), where the value for each id is either:
-
-- '*' if the scope is applicable across all relevant platform entities; or
-- a set of collection ids to which the scope's usage is limited (implemented
-  as a list for JSON serialization)
-"""
-
-
-@dataclass
-class UserInfo:
-    sub: str
-    email: str
-    email_verified: bool
-    name: Optional[str]
-    picture: Optional[str]
-    roles: List[str]
 
 
 def get_client_permissions(client_id: str) -> Permissions:

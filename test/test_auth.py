@@ -1,4 +1,5 @@
-from odp.lib.auth import Permissions, UserInfo, get_client_permissions, get_user_info, get_user_permissions
+from odp.api.models.auth import Permissions, UserInfo
+from odp.lib.auth import get_client_permissions, get_user_info, get_user_permissions
 from test.factories import ClientFactory, CollectionFactory, RoleFactory, ScopeFactory, UserFactory
 
 
