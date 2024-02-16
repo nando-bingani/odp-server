@@ -92,20 +92,10 @@ def get_user_permissions(user_id: str, client_id: str) -> Permissions:
     return user_permissions
 
 
-def get_user_info(user_id: str, client_id: str) -> UserInfo:
-    """Return user profile info, which may be linked with a user's
-    ID token for a given client application.
-
-    TODO: we should limit the returned info based on the claims
-     allowed for the client
-    """
-    user = Session.get(User, user_id)
-    if not user:
+def get_user_info(user_id: str) -> UserInfo:
+    """Return user profile info, which may be linked with a user's ID token."""
+    if not (user := Session.get(User, user_id)):
         raise x.ODPUserNotFound
-
-    client = Session.get(Client, client_id)
-    if not client:
-        raise x.ODPClientNotFound
 
     return UserInfo(
         sub=user_id,
@@ -113,9 +103,5 @@ def get_user_info(user_id: str, client_id: str) -> UserInfo:
         email_verified=user.verified,
         name=user.name,
         picture=user.picture,
-        roles=[
-            role.id for role in user.roles
-            if (not role.collection_specific or not client.collection_specific
-                or set(c.id for c in role.collections).intersection(c.id for c in client.collections))
-        ],
+        roles=[role.id for role in user.roles],
     )

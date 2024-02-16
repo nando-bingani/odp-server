@@ -246,6 +246,7 @@ class UserFactory(ODPModelFactory):
     email = factory.Sequence(lambda n: f'{fake.email()}.{n}')
     active = factory.LazyFunction(lambda: randint(0, 1))
     verified = factory.LazyFunction(lambda: randint(0, 1))
+    picture = factory.Faker('image_url')
 
     @factory.post_generation
     def roles(obj, create, roles):

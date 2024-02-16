@@ -328,51 +328,12 @@ def test_collection_specific_client_with_unconstrained_and_collection_specific_r
 
 
 def test_user_info():
-    """Test user info result with non-collection-specific client and roles."""
-    client = ClientFactory(collection_specific=False, collections=[CollectionFactory()])
-    role1 = RoleFactory(collection_specific=False, collections=[CollectionFactory()])
-    role2 = RoleFactory(collection_specific=False, collections=[CollectionFactory()])
-    user = UserFactory(roles=(role1, role2))
+    """Test user info response.
 
-    actual_user_info = get_user_info(user.id, client.id)
-    expected_user_info = UserInfo(
-        sub=user.id,
-        email=user.email,
-        email_verified=user.verified,
-        name=user.name,
-        picture=None,
-        roles=[role1.id, role2.id],
-    )
-    assert expected_user_info == actual_user_info
-
-
-def test_user_info_collection_roles():
-    """Test user info result with a non-collection-specific client and a mix
-    of platform and collection-specific roles."""
-    client = ClientFactory(collection_specific=False, collections=[CollectionFactory()])
-    role1 = RoleFactory(collection_specific=False, collections=[CollectionFactory()])
-    role2 = RoleFactory(collection_specific=True, collections=CollectionFactory.create_batch(3))
-    role3 = RoleFactory(collection_specific=True, collections=CollectionFactory.create_batch(3))
-    user = UserFactory(roles=(role1, role2, role3))
-
-    actual_user_info = get_user_info(user.id, client.id)
-    expected_user_info = UserInfo(
-        sub=user.id,
-        email=user.email,
-        email_verified=user.verified,
-        name=user.name,
-        picture=None,
-        roles=[role1.id, role2.id, role3.id],
-    )
-    assert expected_user_info == actual_user_info
-
-
-def test_user_info_collection_roles_and_client():
-    """Test user info result with a collection-specific client and a mix
-    of platform and collection-specific roles.
-
-    Collection-specific roles that do not share any collections with the
-    client should not appear in the user's role list.
+    Note that all of a user's roles should be returned regardless of
+    how they are configured or whether collection-constrainable scopes
+    overlap with those of the client or not (user info no longer depends
+    on the client).
     """
     client = ClientFactory(collection_specific=True, collections=CollectionFactory.create_batch(3))
     role1 = RoleFactory(collection_specific=False, collections=[CollectionFactory()])
@@ -381,13 +342,13 @@ def test_user_info_collection_roles_and_client():
     role4 = RoleFactory(collection_specific=True, collections=CollectionFactory.create_batch(3))
     user = UserFactory(roles=(role1, role2, role3, role4))
 
-    actual_user_info = get_user_info(user.id, client.id)
+    actual_user_info = get_user_info(user.id)
     expected_user_info = UserInfo(
         sub=user.id,
         email=user.email,
         email_verified=user.verified,
         name=user.name,
-        picture=None,
-        roles=[role1.id, role2.id, role3.id],
+        picture=user.picture,
+        roles=[role1.id, role2.id, role3.id, role4.id],
     )
-    assert expected_user_info == actual_user_info
+    assert actual_user_info == expected_user_info
