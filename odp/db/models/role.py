@@ -62,6 +62,8 @@ class RoleCollection(Base):
     role = relationship('Role', viewonly=True)
     collection = relationship('Collection')
 
+    _repr_ = 'role_id', 'collection_id'
+
 
 class RoleScope(Base):
     """Model of a many-to-many role-scope association."""
@@ -85,3 +87,5 @@ class RoleScope(Base):
 
     role = relationship('Role', viewonly=True)
     scope = relationship('Scope')
+
+    _repr_ = 'role_id', 'scope_id'

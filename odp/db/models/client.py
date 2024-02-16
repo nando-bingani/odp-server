@@ -47,6 +47,8 @@ class ClientCollection(Base):
     client = relationship('Client', viewonly=True)
     collection = relationship('Collection')
 
+    _repr_ = 'client_id', 'collection_id'
+
 
 class ClientScope(Base):
     """Model of a many-to-many client-scope association,
@@ -68,3 +70,5 @@ class ClientScope(Base):
 
     client = relationship('Client', viewonly=True)
     scope = relationship('Scope')
+
+    _repr_ = 'client_id', 'scope_id'
