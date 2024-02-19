@@ -243,8 +243,8 @@ async def list_records(
         select(Record).
         join(Collection)
     )
-    if auth.collection_ids != '*':
-        stmt = stmt.where(Collection.id.in_(auth.collection_ids))
+    if auth.object_ids != '*':
+        stmt = stmt.where(Collection.id.in_(auth.object_ids))
 
     if collection_id:
         stmt = stmt.where(Collection.id.in_(collection_id))
@@ -300,8 +300,7 @@ async def get_record(
     if not (record := Session.get(Record, record_id)):
         raise HTTPException(HTTP_404_NOT_FOUND)
 
-    if auth.collection_ids != '*' and record.collection_id not in auth.collection_ids:
-        raise HTTPException(HTTP_403_FORBIDDEN)
+    auth.enforce_constraint([record.collection_id])
 
     return output_record_model(record)
 
@@ -320,8 +319,7 @@ async def get_record_by_doi(
     ).scalar_one_or_none()):
         raise HTTPException(HTTP_404_NOT_FOUND)
 
-    if auth.collection_ids != '*' and record.collection_id not in auth.collection_ids:
-        raise HTTPException(HTTP_403_FORBIDDEN)
+    auth.enforce_constraint([record.collection_id])
 
     return output_record_model(record)
 
@@ -356,8 +354,7 @@ def _create_record(
         auth: Authorized,
         ignore_collection_tags: bool = False,
 ) -> RecordModel:
-    if auth.collection_ids != '*' and record_in.collection_id not in auth.collection_ids:
-        raise HTTPException(HTTP_403_FORBIDDEN)
+    auth.enforce_constraint([record_in.collection_id])
 
     if not ignore_collection_tags and Session.execute(
         select(CollectionTag).
@@ -408,8 +405,7 @@ async def update_record(
         metadata_schema: JSONSchema = Depends(get_metadata_schema),
         auth: Authorized = Depends(Authorize(ODPScope.RECORD_WRITE)),
 ):
-    if auth.collection_ids != '*' and record_in.collection_id not in auth.collection_ids:
-        raise HTTPException(HTTP_403_FORBIDDEN)
+    auth.enforce_constraint([record_in.collection_id])
 
     if not (record := Session.get(Record, record_id)):
         raise HTTPException(HTTP_404_NOT_FOUND)
@@ -429,8 +425,7 @@ async def admin_set_record(
         metadata_schema: JSONSchema = Depends(get_metadata_schema),
         auth: Authorized = Depends(Authorize(ODPScope.RECORD_ADMIN)),
 ):
-    if auth.collection_ids != '*' and record_in.collection_id not in auth.collection_ids:
-        raise HTTPException(HTTP_403_FORBIDDEN)
+    auth.enforce_constraint([record_in.collection_id])
 
     create = False
     record = Session.get(Record, str(record_id))
@@ -449,8 +444,8 @@ def _set_record(
         auth: Authorized,
         ignore_collection_tags: bool = False,
 ) -> RecordModel:
-    if not create and auth.collection_ids != '*' and record.collection_id not in auth.collection_ids:
-        raise HTTPException(HTTP_403_FORBIDDEN)
+    if not create:
+        auth.enforce_constraint([record.collection_id])
 
     if not ignore_collection_tags and Session.execute(
         select(CollectionTag).
@@ -541,8 +536,7 @@ def _delete_record(
     if not (record := Session.get(Record, record_id)):
         raise HTTPException(HTTP_404_NOT_FOUND)
 
-    if auth.collection_ids != '*' and record.collection_id not in auth.collection_ids:
-        raise HTTPException(HTTP_403_FORBIDDEN)
+    auth.enforce_constraint([record.collection_id])
 
     if not ignore_collection_tags and Session.execute(
         select(CollectionTag).
@@ -580,8 +574,7 @@ async def tag_record(
     if not (record := Session.get(Record, record_id)):
         raise HTTPException(HTTP_404_NOT_FOUND)
 
-    if auth.collection_ids != '*' and record.collection_id not in auth.collection_ids:
-        raise HTTPException(HTTP_403_FORBIDDEN)
+    auth.enforce_constraint([record.collection_id])
 
     if not (tag := Session.get(Tag, (tag_instance_in.tag_id, TagType.record))):
         raise HTTPException(HTTP_404_NOT_FOUND)
@@ -688,8 +681,7 @@ def _untag_record(
     if not (record := Session.get(Record, record_id)):
         raise HTTPException(HTTP_404_NOT_FOUND)
 
-    if auth.collection_ids != '*' and record.collection_id not in auth.collection_ids:
-        raise HTTPException(HTTP_403_FORBIDDEN)
+    auth.enforce_constraint([record.collection_id])
 
     if not (record_tag := Session.execute(
         select(RecordTag).
@@ -723,8 +715,7 @@ async def list_catalog_records(
     if not (record := Session.get(Record, record_id)):
         raise HTTPException(HTTP_404_NOT_FOUND)
 
-    if auth.collection_ids != '*' and record.collection_id not in auth.collection_ids:
-        raise HTTPException(HTTP_403_FORBIDDEN)
+    auth.enforce_constraint([record.collection_id])
 
     stmt = (
         select(CatalogRecord).
@@ -749,8 +740,7 @@ async def get_catalog_record(
     if not (catalog_record := Session.get(CatalogRecord, (catalog_id, record_id))):
         raise HTTPException(HTTP_404_NOT_FOUND)
 
-    if auth.collection_ids != '*' and catalog_record.record.collection_id not in auth.collection_ids:
-        raise HTTPException(HTTP_403_FORBIDDEN)
+    auth.enforce_constraint([catalog_record.record.collection_id])
 
     return output_catalog_record_model(catalog_record)
 
@@ -766,12 +756,11 @@ async def get_record_audit_log(
 ):
     # allow retrieving the audit log for a deleted record,
     # except if auth is collection-specific
-    if auth.collection_ids != '*':
+    if auth.object_ids != '*':
         if not (record := Session.get(Record, record_id)):
             raise HTTPException(HTTP_404_NOT_FOUND)
 
-        if record.collection_id not in auth.collection_ids:
-            raise HTTPException(HTTP_403_FORBIDDEN)
+        auth.enforce_constraint([record.collection_id])
 
     audit_subq = union_all(
         select(
@@ -825,12 +814,11 @@ async def get_record_audit_detail(
 ):
     # allow retrieving the audit detail for a deleted record,
     # except if auth is collection-specific
-    if auth.collection_ids != '*':
+    if auth.object_ids != '*':
         if not (record := Session.get(Record, record_id)):
             raise HTTPException(HTTP_404_NOT_FOUND)
 
-        if record.collection_id not in auth.collection_ids:
-            raise HTTPException(HTTP_403_FORBIDDEN)
+        auth.enforce_constraint([record.collection_id])
 
     if not (row := Session.execute(
         select(RecordAudit, User.name.label('user_name')).
@@ -870,12 +858,11 @@ async def get_record_tag_audit_detail(
 ):
     # allow retrieving the audit detail for a deleted record,
     # except if auth is collection-specific
-    if auth.collection_ids != '*':
+    if auth.object_ids != '*':
         if not (record := Session.get(Record, record_id)):
             raise HTTPException(HTTP_404_NOT_FOUND)
 
-        if record.collection_id not in auth.collection_ids:
-            raise HTTPException(HTTP_403_FORBIDDEN)
+        auth.enforce_constraint([record.collection_id])
 
     audit_user_alias = aliased(User)
     tag_user_alias = aliased(User)

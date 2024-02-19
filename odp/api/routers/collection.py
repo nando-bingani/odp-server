@@ -13,8 +13,15 @@ from odp.api.lib.auth import Authorize, Authorized, TagAuthorize, UntagAuthorize
 from odp.api.lib.paging import Page, Paginator
 from odp.api.lib.schema import get_tag_schema
 from odp.api.lib.utils import output_tag_instance_model
-from odp.api.models import (AuditModel, CollectionAuditModel, CollectionModel, CollectionModelIn, CollectionTagAuditModel, TagInstanceModel,
-                            TagInstanceModelIn)
+from odp.api.models import (
+    AuditModel,
+    CollectionAuditModel,
+    CollectionModel,
+    CollectionModelIn,
+    CollectionTagAuditModel,
+    TagInstanceModel,
+    TagInstanceModelIn,
+)
 from odp.const import DOI_PREFIX, ODPScope
 from odp.const.db import AuditCommand, TagCardinality, TagType
 from odp.db import Session
@@ -93,8 +100,8 @@ async def list_collections(
         outerjoin(Record).
         group_by(Collection)
     )
-    if auth.collection_ids != '*':
-        stmt = stmt.where(Collection.id.in_(auth.collection_ids))
+    if auth.object_ids != '*':
+        stmt = stmt.where(Collection.id.in_(auth.object_ids))
 
     return paginator.paginate(
         stmt,
@@ -111,8 +118,7 @@ async def get_collection(
         collection_id: str,
         auth: Authorized = Depends(Authorize(ODPScope.COLLECTION_READ)),
 ):
-    if auth.collection_ids != '*' and collection_id not in auth.collection_ids:
-        raise HTTPException(HTTP_403_FORBIDDEN)
+    auth.enforce_constraint([collection_id])
 
     stmt = (
         select(Collection, func.count(Record.id)).
@@ -135,8 +141,7 @@ async def create_collection(
         collection_in: CollectionModelIn,
         auth: Authorized = Depends(Authorize(ODPScope.COLLECTION_ADMIN)),
 ):
-    if auth.collection_ids != '*':
-        raise HTTPException(HTTP_403_FORBIDDEN)
+    auth.enforce_constraint('*')
 
     if Session.execute(
             select(Collection).
@@ -172,8 +177,7 @@ async def update_collection(
         collection_in: CollectionModelIn,
         auth: Authorized = Depends(Authorize(ODPScope.COLLECTION_ADMIN)),
 ):
-    if auth.collection_ids != '*' and collection_id not in auth.collection_ids:
-        raise HTTPException(HTTP_403_FORBIDDEN)
+    auth.enforce_constraint([collection_id])
 
     if not (collection := Session.get(Collection, collection_id)):
         raise HTTPException(HTTP_404_NOT_FOUND)
@@ -207,8 +211,7 @@ async def delete_collection(
         collection_id: str,
         auth: Authorized = Depends(Authorize(ODPScope.COLLECTION_ADMIN)),
 ):
-    if auth.collection_ids != '*' and collection_id not in auth.collection_ids:
-        raise HTTPException(HTTP_403_FORBIDDEN)
+    auth.enforce_constraint([collection_id])
 
     if not (collection := Session.get(Collection, collection_id)):
         raise HTTPException(HTTP_404_NOT_FOUND)
@@ -231,8 +234,7 @@ async def tag_collection(
         tag_schema: JSONSchema = Depends(get_tag_schema),
         auth: Authorized = Depends(TagAuthorize()),
 ):
-    if auth.collection_ids != '*' and collection_id not in auth.collection_ids:
-        raise HTTPException(HTTP_403_FORBIDDEN)
+    auth.enforce_constraint([collection_id])
 
     if not (collection := Session.get(Collection, collection_id)):
         raise HTTPException(HTTP_404_NOT_FOUND)
@@ -328,8 +330,7 @@ def _untag_collection(
         auth: Authorized,
         ignore_user_id: bool = False,
 ) -> None:
-    if auth.collection_ids != '*' and collection_id not in auth.collection_ids:
-        raise HTTPException(HTTP_403_FORBIDDEN)
+    auth.enforce_constraint([collection_id])
 
     if not (collection := Session.get(Collection, collection_id)):
         raise HTTPException(HTTP_404_NOT_FOUND)
@@ -360,8 +361,7 @@ async def get_new_doi(
         collection_id: str,
         auth: Authorized = Depends(Authorize(ODPScope.COLLECTION_READ)),
 ):
-    if auth.collection_ids != '*' and collection_id not in auth.collection_ids:
-        raise HTTPException(HTTP_403_FORBIDDEN)
+    auth.enforce_constraint([collection_id])
 
     if not (collection := Session.get(Collection, collection_id)):
         raise HTTPException(HTTP_404_NOT_FOUND)
@@ -387,8 +387,7 @@ async def get_collection_audit_log(
         auth: Authorized = Depends(Authorize(ODPScope.COLLECTION_READ)),
         paginator: Paginator = Depends(partial(Paginator, sort='timestamp')),
 ):
-    if auth.collection_ids != '*' and collection_id not in auth.collection_ids:
-        raise HTTPException(HTTP_403_FORBIDDEN)
+    auth.enforce_constraint([collection_id])
 
     audit_subq = union_all(
         select(
@@ -440,8 +439,7 @@ async def get_collection_audit_detail(
         collection_audit_id: int,
         auth: Authorized = Depends(Authorize(ODPScope.COLLECTION_READ)),
 ):
-    if auth.collection_ids != '*' and collection_id not in auth.collection_ids:
-        raise HTTPException(HTTP_403_FORBIDDEN)
+    auth.enforce_constraint([collection_id])
 
     if not (row := Session.execute(
         select(CollectionAudit, User.name.label('user_name')).
@@ -477,8 +475,7 @@ async def get_collection_tag_audit_detail(
         collection_tag_audit_id: int,
         auth: Authorized = Depends(Authorize(ODPScope.COLLECTION_READ)),
 ):
-    if auth.collection_ids != '*' and collection_id not in auth.collection_ids:
-        raise HTTPException(HTTP_403_FORBIDDEN)
+    auth.enforce_constraint([collection_id])
 
     audit_user_alias = aliased(User)
     tag_user_alias = aliased(User)
