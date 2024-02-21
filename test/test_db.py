@@ -12,6 +12,10 @@ from test.factories import (CatalogFactory, ClientFactory, CollectionFactory, Co
                             RecordTagFactory, RoleFactory, SchemaFactory, ScopeFactory, TagFactory, UserFactory, VocabularyFactory)
 
 
+def sorted_tuples(rows):
+    return sorted(rows, key=lambda row: ''.join(str(val) for val in row))
+
+
 def test_db_setup():
     migrate.systemdata.init_system_scopes()
     Session.commit()
@@ -61,16 +65,16 @@ def test_create_client_with_collections():
     collections = CollectionFactory.create_batch(5)
     client = ClientFactory(collections=collections)
     result = Session.execute(select(ClientCollection)).scalars()
-    assert [(row.client_id, row.collection_id) for row in result] \
-           == [(client.id, collection.id) for collection in collections]
+    assert sorted_tuples((row.client_id, row.collection_id) for row in result) \
+           == sorted_tuples((client.id, collection.id) for collection in collections)
 
 
 def test_create_client_with_scopes():
     scopes = ScopeFactory.create_batch(5)
     client = ClientFactory(scopes=scopes)
     result = Session.execute(select(ClientScope)).scalars()
-    assert [(row.client_id, row.scope_id, row.scope_type) for row in result] \
-           == [(client.id, scope.id, scope.type) for scope in scopes]
+    assert sorted_tuples((row.client_id, row.scope_id, row.scope_type) for row in result) \
+           == sorted_tuples((client.id, scope.id, scope.type) for scope in scopes)
 
 
 def test_create_collection():
@@ -145,16 +149,16 @@ def test_create_role_with_collections():
     collections = CollectionFactory.create_batch(5)
     role = RoleFactory(collections=collections)
     result = Session.execute(select(RoleCollection)).scalars()
-    assert [(row.role_id, row.collection_id) for row in result] \
-           == [(role.id, collection.id) for collection in collections]
+    assert sorted_tuples((row.role_id, row.collection_id) for row in result) \
+           == sorted_tuples((role.id, collection.id) for collection in collections)
 
 
 def test_create_role_with_scopes():
     scopes = ScopeFactory.create_batch(5, type='odp') + ScopeFactory.create_batch(5, type='client')
     role = RoleFactory(scopes=scopes)
     result = Session.execute(select(RoleScope)).scalars()
-    assert [(row.role_id, row.scope_id, row.scope_type) for row in result] \
-           == [(role.id, scope.id, scope.type) for scope in scopes]
+    assert sorted_tuples((row.role_id, row.scope_id, row.scope_type) for row in result) \
+           == sorted_tuples((role.id, scope.id, scope.type) for scope in scopes)
 
 
 def test_create_schema():
@@ -207,31 +211,32 @@ def test_create_user_with_roles():
     roles = RoleFactory.create_batch(5)
     user = UserFactory(roles=roles)
     result = Session.execute(select(UserRole)).scalars()
-    assert [(row.user_id, row.role_id) for row in result] \
-           == [(user.id, role.id) for role in roles]
+    assert sorted_tuples((row.user_id, row.role_id) for row in result) \
+           == sorted_tuples((user.id, role.id) for role in roles)
 
 
 def test_create_vocabulary():
     vocabulary = VocabularyFactory()
     result = Session.execute(select(Vocabulary, VocabularyTerm).join(VocabularyTerm))
-    assert [(
-        row.Vocabulary.id,
-        row.Vocabulary.scope_id,
-        row.Vocabulary.scope_type,
-        row.Vocabulary.schema_id,
-        row.Vocabulary.schema_type,
-        row.Vocabulary.static,
-        row.VocabularyTerm.vocabulary_id,
-        row.VocabularyTerm.term_id,
-        row.VocabularyTerm.data
-    ) for row in result] == [(
-        vocabulary.id,
-        vocabulary.scope_id,
-        'odp',
-        vocabulary.schema_id,
-        'vocabulary',
-        vocabulary.static,
-        term.vocabulary_id,
-        term.term_id,
-        term.data,
-    ) for term in vocabulary.terms]
+    assert sorted_tuples((
+                             row.Vocabulary.id,
+                             row.Vocabulary.scope_id,
+                             row.Vocabulary.scope_type,
+                             row.Vocabulary.schema_id,
+                             row.Vocabulary.schema_type,
+                             row.Vocabulary.static,
+                             row.VocabularyTerm.vocabulary_id,
+                             row.VocabularyTerm.term_id,
+                             row.VocabularyTerm.data
+                         ) for row in result) \
+           == sorted_tuples((
+                                vocabulary.id,
+                                vocabulary.scope_id,
+                                'odp',
+                                vocabulary.schema_id,
+                                'vocabulary',
+                                vocabulary.static,
+                                term.vocabulary_id,
+                                term.term_id,
+                                term.data,
+                            ) for term in vocabulary.terms)
