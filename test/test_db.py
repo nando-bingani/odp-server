@@ -20,7 +20,7 @@ def test_db_setup():
     migrate.systemdata.init_system_scopes()
     Session.commit()
     result = Session.execute(select(Scope)).scalars()
-    assert [row.id for row in result] == [s.value for s in ODPScope]
+    assert sorted(row.id for row in result) == sorted(s.value for s in ODPScope)
 
     # create a batch of arbitrary scopes; these should not be assigned to
     # any predefined system roles by init_system_roles()
@@ -29,14 +29,15 @@ def test_db_setup():
     migrate.systemdata.init_system_roles()
     Session.commit()
     result = Session.execute(select(Role)).scalars()
-    assert [(row.id, row.collection_specific) for row in result] == [(r.value, False) for r in ODPSystemRole]
+    assert sorted_tuples((row.id, row.collection_specific) for row in result) \
+           == sorted_tuples((r.value, False) for r in ODPSystemRole)
 
     result = Session.execute(
         select(RoleScope).
         where(RoleScope.role_id == ODPSystemRole.ODP_ADMIN)
     ).scalars()
-    assert [(row.scope_id, row.scope_type) for row in result] \
-           == [(s.value, ScopeType.odp) for s in ODPScope]
+    assert sorted_tuples((row.scope_id, row.scope_type) for row in result) \
+           == sorted_tuples((s.value, ScopeType.odp) for s in ODPScope)
 
     result = Session.execute(
         select(RoleScope).
