@@ -7,8 +7,8 @@ from factory.alchemy import SQLAlchemyModelFactory
 from faker import Faker
 
 from odp.db import Session
-from odp.db.models import (Catalog, Client, Collection, CollectionTag, Provider, Record, RecordTag, Role, Schema, Scope, Tag, User,
-                           Vocabulary, VocabularyTerm)
+from odp.db.models import (Archive, Catalog, Client, Collection, CollectionTag, Provider, Record,
+                           RecordTag, Role, Schema, Scope, Tag, User, Vocabulary, VocabularyTerm)
 from test import datacite4_example, iso19115_example
 
 fake = Faker()
@@ -246,6 +246,7 @@ class UserFactory(ODPModelFactory):
     email = factory.Sequence(lambda n: f'{fake.email()}.{n}')
     active = factory.LazyFunction(lambda: randint(0, 1))
     verified = factory.LazyFunction(lambda: randint(0, 1))
+    picture = factory.Faker('image_url')
 
     @factory.post_generation
     def roles(obj, create, roles):
@@ -329,3 +330,11 @@ class RoleFactory(ODPModelFactory):
                 obj.collections.append(collection)
             if create:
                 Session.commit()
+
+
+class ArchiveFactory(ODPModelFactory):
+    class Meta:
+        model = Archive
+
+    id = factory.Sequence(lambda n: f'{fake.slug()}.{n}')
+    url = factory.Faker('url')

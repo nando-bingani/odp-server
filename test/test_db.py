@@ -6,9 +6,9 @@ import migrate.systemdata
 from odp.const import ODPScope, ODPSystemRole
 from odp.const.db import ScopeType
 from odp.db import Session
-from odp.db.models import (Catalog, Client, ClientCollection, ClientScope, Collection, CollectionTag, Provider, Record, RecordTag, Role,
+from odp.db.models import (Archive, Catalog, Client, ClientCollection, ClientScope, Collection, CollectionTag, Provider, Record, RecordTag, Role,
                            RoleCollection, RoleScope, Schema, Scope, Tag, User, UserRole, Vocabulary, VocabularyTerm)
-from test.factories import (CatalogFactory, ClientFactory, CollectionFactory, CollectionTagFactory, ProviderFactory, RecordFactory,
+from test.factories import (ArchiveFactory, CatalogFactory, ClientFactory, CollectionFactory, CollectionTagFactory, ProviderFactory, RecordFactory,
                             RecordTagFactory, RoleFactory, SchemaFactory, ScopeFactory, TagFactory, UserFactory, VocabularyFactory)
 
 
@@ -47,6 +47,12 @@ def test_db_setup():
         row.scope_id not in (s.id for s in scopes) and row.scope_type == ScopeType.odp
         for row in result
     )
+
+
+def test_create_archive():
+    archive = ArchiveFactory()
+    result = Session.execute(select(Archive)).scalar_one()
+    assert (result.id, result.url) == (archive.id, archive.url)
 
 
 def test_create_catalog():

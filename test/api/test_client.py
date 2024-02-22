@@ -130,8 +130,16 @@ def test_get_client_not_found(api, client_batch):
 
 @pytest.mark.require_scope(ODPScope.CLIENT_ADMIN)
 def test_create_client(api, client_batch, scopes, collection_auth):
-    authorized = ODPScope.CLIENT_ADMIN in scopes and \
-                 collection_auth in (CollectionAuth.NONE, CollectionAuth.MATCH)
+    """
+    Note: we retain older test code that checked for (mis)matches
+    between collections associated with the test client and
+    collections associated with the client under construction.
+    Now, mismatches do not matter (the API does not check for them),
+    because in reality we'll never grant client admin access to a
+    collection-specific client or role.
+    """
+    authorized = ODPScope.CLIENT_ADMIN in scopes# and \
+                 #collection_auth in (CollectionAuth.NONE, CollectionAuth.MATCH)
 
     if collection_auth == CollectionAuth.MATCH:
         api_client_collections = client_batch[2].collections
@@ -173,8 +181,11 @@ def test_create_client(api, client_batch, scopes, collection_auth):
 
 
 def test_create_client_conflict(api, client_batch, collection_auth):
+    """
+    See docstring for test_create_client
+    """
     scopes = [ODPScope.CLIENT_ADMIN]
-    authorized = collection_auth in (CollectionAuth.NONE, CollectionAuth.MATCH)
+    authorized = True  # collection_auth in (CollectionAuth.NONE, CollectionAuth.MATCH)
 
     if collection_auth == CollectionAuth.MATCH:
         api_client_collections = client_batch[2].collections
@@ -218,8 +229,11 @@ def test_create_client_conflict(api, client_batch, collection_auth):
 
 @pytest.mark.require_scope(ODPScope.CLIENT_ADMIN)
 def test_update_client(api, client_batch, scopes, collection_auth):
-    authorized = ODPScope.CLIENT_ADMIN in scopes and \
-                 collection_auth in (CollectionAuth.NONE, CollectionAuth.MATCH)
+    """
+    See docstring for test_create_client
+    """
+    authorized = ODPScope.CLIENT_ADMIN in scopes #and \
+                 #collection_auth in (CollectionAuth.NONE, CollectionAuth.MATCH)
 
     if collection_auth == CollectionAuth.MATCH:
         api_client_collections = client_batch[2].collections
@@ -263,8 +277,11 @@ def test_update_client(api, client_batch, scopes, collection_auth):
 
 
 def test_update_client_not_found(api, client_batch, collection_auth):
+    """
+    See docstring for test_create_client
+    """
     scopes = [ODPScope.CLIENT_ADMIN]
-    authorized = collection_auth in (CollectionAuth.NONE, CollectionAuth.MATCH)
+    authorized = True  # collection_auth in (CollectionAuth.NONE, CollectionAuth.MATCH)
 
     if collection_auth == CollectionAuth.MATCH:
         api_client_collections = client_batch[2].collections
@@ -308,8 +325,11 @@ def test_update_client_not_found(api, client_batch, collection_auth):
 
 @pytest.mark.require_scope(ODPScope.CLIENT_ADMIN)
 def test_delete_client(api, client_batch, scopes, collection_auth):
-    authorized = ODPScope.CLIENT_ADMIN in scopes and \
-                 collection_auth in (CollectionAuth.NONE, CollectionAuth.MATCH)
+    """
+    See docstring for test_create_client
+    """
+    authorized = ODPScope.CLIENT_ADMIN in scopes #and \
+                 #collection_auth in (CollectionAuth.NONE, CollectionAuth.MATCH)
 
     if collection_auth == CollectionAuth.MATCH:
         api_client_collections = client_batch[2].collections

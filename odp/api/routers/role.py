@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
-from starlette.status import HTTP_403_FORBIDDEN, HTTP_404_NOT_FOUND, HTTP_409_CONFLICT
+from starlette.status import HTTP_404_NOT_FOUND, HTTP_409_CONFLICT
 
-from odp.api.lib.auth import Authorize, Authorized, select_scopes
+from odp.api.lib.auth import Authorize, select_scopes
 from odp.api.lib.paging import Page, Paginator
 from odp.api.models import RoleModel, RoleModelIn
 from odp.const import ODPScope
@@ -53,14 +53,11 @@ async def get_role(
 
 @router.post(
     '/',
+    dependencies=[Depends(Authorize(ODPScope.ROLE_ADMIN))],
 )
 async def create_role(
         role_in: RoleModelIn,
-        auth: Authorized = Depends(Authorize(ODPScope.ROLE_ADMIN)),
 ):
-    if auth.collection_ids != '*' and not set(role_in.collection_ids).issubset(auth.collection_ids):
-        raise HTTPException(HTTP_403_FORBIDDEN)
-
     if Session.get(Role, role_in.id):
         raise HTTPException(HTTP_409_CONFLICT, 'Role id is already in use')
 
@@ -78,19 +75,13 @@ async def create_role(
 
 @router.put(
     '/',
+    dependencies=[Depends(Authorize(ODPScope.ROLE_ADMIN))],
 )
 async def update_role(
         role_in: RoleModelIn,
-        auth: Authorized = Depends(Authorize(ODPScope.ROLE_ADMIN)),
 ):
-    if auth.collection_ids != '*' and not set(role_in.collection_ids).issubset(auth.collection_ids):
-        raise HTTPException(HTTP_403_FORBIDDEN)
-
     if not (role := Session.get(Role, role_in.id)):
         raise HTTPException(HTTP_404_NOT_FOUND)
-
-    if auth.collection_ids != '*' and not set(c.id for c in role.collections).issubset(auth.collection_ids):
-        raise HTTPException(HTTP_403_FORBIDDEN)
 
     role.scopes = select_scopes(role_in.scope_ids, [ScopeType.odp, ScopeType.client])
     role.collection_specific = role_in.collection_specific
@@ -103,15 +94,12 @@ async def update_role(
 
 @router.delete(
     '/{role_id}',
+    dependencies=[Depends(Authorize(ODPScope.ROLE_ADMIN))],
 )
 async def delete_role(
         role_id: str,
-        auth: Authorized = Depends(Authorize(ODPScope.ROLE_ADMIN)),
 ):
     if not (role := Session.get(Role, role_id)):
         raise HTTPException(HTTP_404_NOT_FOUND)
-
-    if auth.collection_ids != '*' and not set(c.id for c in role.collections).issubset(auth.collection_ids):
-        raise HTTPException(HTTP_403_FORBIDDEN)
 
     role.delete()

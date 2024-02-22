@@ -10,9 +10,7 @@ from odp.db import Base
 class Provider(Base):
     """A data provider.
 
-    This model represents the person, group or organization considered
-    to be the originating party of a digital object identified by an
-    ODP record.
+    An originating party for data (resources) and metadata (packages).
     """
 
     __tablename__ = 'provider'
@@ -24,6 +22,9 @@ class Provider(Base):
 
     # view of associated collections (one-to-many)
     collections = relationship('Collection', viewonly=True)
+
+    # view of associated roles (one-to-many)
+    roles = relationship('Role', viewonly=True)
 
     _repr_ = 'id', 'key', 'name'
 

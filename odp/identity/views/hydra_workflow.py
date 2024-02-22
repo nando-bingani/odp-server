@@ -77,7 +77,7 @@ def consent():
     client_id = consent_request['client']['client_id']
     try:
         user_permissions = get_user_permissions(user_id, client_id)
-        user_info = get_user_info(user_id, client_id)
+        user_info = get_user_info(user_id)
 
         redirect_to = hydra_admin_api.accept_consent_request(
             challenge,

@@ -14,6 +14,11 @@ class ODPClientNotFound(ODPIdentityError):
     error_description = "Unknown client id."
 
 
+class ODPRoleNotFound(ODPIdentityError):
+    error_code = 'role_not_found'
+    error_description = "Unknown role id."
+
+
 class ODPEmailNotVerified(ODPIdentityError):
     error_code = 'email_not_verified'
     error_description = "The user's email address has not been verified."

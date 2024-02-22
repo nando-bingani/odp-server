@@ -1,109 +1,101 @@
-from dataclasses import dataclass
-from typing import Dict, List, Literal, Optional
-
+from odp.api.models.auth import Permission, Permissions, UserInfo
+from odp.const import ODPScope
 from odp.db import Session
-from odp.db.models import Client, User
+from odp.db.models import Client, Role, User
 from odp.lib import exceptions as x
-
-Permissions = Dict[str, Literal['*'] | List[str]]
-"""The effective set of permissions for a user or a client. A dictionary of
-scope ids (OAuth2 scope identifiers), where the value for each id is either:
-
-- '*' if the scope is applicable across all relevant platform entities; or
-- a set of collection ids to which the scope's usage is limited (implemented
-  as a list for JSON serialization)
-"""
-
-
-@dataclass
-class UserInfo:
-    sub: str
-    email: str
-    email_verified: bool
-    name: Optional[str]
-    picture: Optional[str]
-    roles: List[str]
 
 
 def get_client_permissions(client_id: str) -> Permissions:
     """Return effective client permissions."""
-    client = Session.get(Client, client_id)
-    if not client:
+
+    def permission(scope_id: str) -> Permission:
+        if client.collection_specific and ODPScope(scope_id).constrainable_by == 'collection':
+            return [collection.id for collection in client.collections]
+        return '*'
+
+    if not (client := Session.get(Client, client_id)):
         raise x.ODPClientNotFound
 
-    scope_applicability = ('*' if not client.collection_specific
-                           else [collection.id for collection in client.collections])
     return {
-        scope.id: scope_applicability
+        scope.id: permission(scope.id)
         for scope in client.scopes
+    }
+
+
+def get_role_permissions(role_id: str) -> Permissions:
+    """Return effective role permissions."""
+
+    def permission(scope_id: str) -> Permission:
+        if role.collection_specific and ODPScope(scope_id).constrainable_by == 'collection':
+            return [collection.id for collection in role.collections]
+        if role.provider_id and ODPScope(scope_id).constrainable_by == 'provider':
+            return [role.provider_id]
+        return '*'
+
+    if not (role := Session.get(Role, role_id)):
+        raise x.ODPRoleNotFound
+
+    return {
+        scope.id: permission(scope.id)
+        for scope in role.scopes
     }
 
 
 def get_user_permissions(user_id: str, client_id: str) -> Permissions:
     """Return effective user permissions, which may be linked with
     a user's access token for a given client application."""
-    user = Session.get(User, user_id)
-    if not user:
+    if not (user := Session.get(User, user_id)):
         raise x.ODPUserNotFound
 
-    client = Session.get(Client, client_id)
-    if not client:
-        raise x.ODPClientNotFound
+    client_permissions = get_client_permissions(client_id)
 
-    platform_scopes = set()
-    if not client.collection_specific:
-        for role in user.roles:
-            if not role.collection_specific:
-                platform_scopes |= {
-                    scope.id for scope in role.scopes
-                    if scope in client.scopes
-                }
-
-    collection_scopes = {}
+    role_permissions = {}
     for role in user.roles:
-        if role.collection_specific and client.collection_specific:
-            collection_ids = set(c.id for c in role.collections).intersection(c.id for c in client.collections)
-        elif role.collection_specific:
-            collection_ids = set(c.id for c in role.collections)
-        elif client.collection_specific:
-            collection_ids = set(c.id for c in client.collections)
-        else:
-            continue
+        for scope_id, role_permission in get_role_permissions(role.id).items():
 
-        if not collection_ids:
-            continue
-
-        for scope in role.scopes:
-            if scope.id in platform_scopes:
-                continue
-            if scope not in client.scopes:
+            # we cannot grant a scope that is not available to the client
+            if scope_id not in client_permissions:
                 continue
 
-            collection_scopes.setdefault(scope.id, set())
-            collection_scopes[scope.id] |= collection_ids
+            # add the scope granted by the role
+            if (base_permission := role_permissions.get(scope_id)) is None:
+                role_permissions[scope_id] = role_permission
 
-    collection_scopes = {
-        scope: list(collections)
-        for scope, collections in collection_scopes.items()
-    }
+            # the user already has the widest possible access to the scope
+            elif base_permission == '*':
+                pass
 
-    return {scope: '*' for scope in platform_scopes} | collection_scopes
+            # widen the user's access to the scope
+            elif role_permission == '*':
+                role_permissions[scope_id] = '*'
+
+            # union the scope access granted by the user's roles
+            else:
+                role_permissions[scope_id] = list(set(base_permission) | set(role_permission))
+
+    user_permissions = {}
+    for scope_id, role_permission in role_permissions.items():
+
+        # client allows any access to the scope; take that given by the roles
+        if (client_permission := client_permissions[scope_id]) == '*':
+            user_permissions[scope_id] = role_permission
+
+        # roles allow any access to the scope; take that given by the client
+        elif role_permission == '*':
+            user_permissions[scope_id] = client_permission
+
+        # intersect the scope access granted by the client and the roles
+        # only grant the scope if the intersection is non-empty
+        elif intersection := list(set(client_permission) & set(role_permission)):
+            user_permissions[scope_id] = intersection
+
+    return user_permissions
 
 
-def get_user_info(user_id: str, client_id: str) -> UserInfo:
-    """Return user profile info, which may be linked with a user's
-    ID token for a given client application.
-
-    TODO: we should limit the returned info based on the claims
-     allowed for the client
-    """
-    user = Session.get(User, user_id)
-    if not user:
+def get_user_info(user_id: str) -> UserInfo:
+    """Return user profile info, which may be linked with a user's ID token."""
+    if not (user := Session.get(User, user_id)):
         raise x.ODPUserNotFound
-
-    client = Session.get(Client, client_id)
-    if not client:
-        raise x.ODPClientNotFound
 
     return UserInfo(
         sub=user_id,
@@ -111,9 +103,5 @@ def get_user_info(user_id: str, client_id: str) -> UserInfo:
         email_verified=user.verified,
         name=user.name,
         picture=user.picture,
-        roles=[
-            role.id for role in user.roles
-            if (not role.collection_specific or not client.collection_specific
-                or set(c.id for c in role.collections).intersection(c.id for c in client.collections))
-        ],
+        roles=[role.id for role in user.roles],
     )

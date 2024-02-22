@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Literal, Optional, Set
+from typing import Optional
 
 from fastapi import HTTPException
 from fastapi.openapi.models import OAuth2, OAuthFlowClientCredentials, OAuthFlows
@@ -10,6 +10,7 @@ from starlette.requests import Request
 from starlette.status import HTTP_401_UNAUTHORIZED, HTTP_403_FORBIDDEN, HTTP_404_NOT_FOUND, HTTP_422_UNPROCESSABLE_ENTITY
 
 from odp.api.models import TagInstanceModelIn
+from odp.api.models.auth import Permission
 from odp.config import config
 from odp.const import ODPScope
 from odp.const.db import ScopeType, TagType
@@ -24,12 +25,41 @@ hydra_public_url = config.HYDRA.PUBLIC.URL
 
 @dataclass
 class Authorized:
+    """An Authorized object represents a statement that permission is
+    granted for usage of the requested scope by the specified client
+    and (if a user-initiated API call) the specified user. If such
+    permission is denied, an HTTP 403 error is raised instead.
+
+    Usage of the scope MAY be constrained to a set of grouping objects
+    (providers or collections), if the scope is constrainable by such
+    an object. Note that it is up to the API route handler to enforce any
+    such constraint that might apply, by calling `enforce_constraint()`.
+    """
     client_id: str
     user_id: Optional[str]
-    collection_ids: Set[str] | Literal['*']
+    scope: ODPScope
+    object_ids: Permission
+
+    def enforce_constraint(self, object_ids: Permission) -> None:
+        """For a constrainable scope, check whether access is allowed
+        to the specified object ids, and raise an HTTP 403 error if not.
+
+        The object type is given by `self.scope.constrainable_by`.
+
+        Call `enforce_constraint('*')` if the API function requires
+        the granted scope to be unconstrained.
+        """
+        if self.object_ids == '*':
+            return
+
+        if object_ids == '*':
+            raise HTTPException(HTTP_403_FORBIDDEN)
+
+        if not set(object_ids) <= set(self.object_ids):
+            raise HTTPException(HTTP_403_FORBIDDEN)
 
 
-def _authorize_request(request: Request, required_scope_id: str) -> Authorized:
+def _authorize_request(request: Request, required_scope: ODPScope) -> Authorized:
     auth_header = request.headers.get('Authorization')
     scheme, access_token = get_authorization_scheme_param(auth_header)
     if not auth_header or scheme.lower() != 'bearer':
@@ -39,7 +69,7 @@ def _authorize_request(request: Request, required_scope_id: str) -> Authorized:
         )
 
     token: OAuth2TokenIntrospection = hydra_admin_api.introspect_token(
-        access_token, [required_scope_id],
+        access_token, [required_scope.value],
     )
     if not token.active:
         raise HTTPException(HTTP_403_FORBIDDEN)
@@ -48,24 +78,26 @@ def _authorize_request(request: Request, required_scope_id: str) -> Authorized:
     # using a client credentials grant
     if token.sub == token.client_id:
         client_permissions = get_client_permissions(token.client_id)
-        if required_scope_id not in client_permissions:
+        if required_scope not in client_permissions:
             raise HTTPException(HTTP_403_FORBIDDEN)
 
         return Authorized(
             client_id=token.client_id,
             user_id=None,
-            collection_ids=client_permissions[required_scope_id],
+            scope=required_scope,
+            object_ids=client_permissions[required_scope],
         )
 
     # user-initiated API call
     user_permissions = get_user_permissions(token.sub, token.client_id)
-    if required_scope_id not in user_permissions:
+    if required_scope not in user_permissions:
         raise HTTPException(HTTP_403_FORBIDDEN)
 
     return Authorized(
         client_id=token.client_id,
         user_id=token.sub,
-        collection_ids=user_permissions[required_scope_id],
+        scope=required_scope,
+        object_ids=user_permissions[required_scope],
     )
 
 
@@ -79,14 +111,20 @@ class BaseAuthorize(SecurityBase):
             scopes={s.value: s.value for s in ODPScope},
         )))
 
+    def __repr__(self):
+        return f'{self.__class__.__name__}()'
+
 
 class Authorize(BaseAuthorize):
     def __init__(self, scope: ODPScope):
         super().__init__()
-        self.scope_id = scope.value
+        self.scope = scope
+
+    def __repr__(self):
+        return f'{self.__class__.__name__}(scope={self.scope.value!r})'
 
     async def __call__(self, request: Request) -> Authorized:
-        return _authorize_request(request, self.scope_id)
+        return _authorize_request(request, self.scope)
 
 
 class TagAuthorize(BaseAuthorize):
@@ -97,13 +135,16 @@ class TagAuthorize(BaseAuthorize):
         ).scalar_one_or_none()):
             raise HTTPException(HTTP_404_NOT_FOUND)
 
-        return _authorize_request(request, tag_scope_id)
+        return _authorize_request(request, ODPScope(tag_scope_id))
 
 
 class UntagAuthorize(BaseAuthorize):
     def __init__(self, tag_type: TagType):
         super().__init__()
         self.tag_type = tag_type
+
+    def __repr__(self):
+        return f'{self.__class__.__name__}(tag_type={self.tag_type.value!r})'
 
     async def __call__(self, request: Request, tag_instance_id: str) -> Authorized:
         if self.tag_type == TagType.record:
@@ -124,7 +165,7 @@ class UntagAuthorize(BaseAuthorize):
         if not (tag_scope_id := Session.execute(stmt).scalar_one_or_none()):
             raise HTTPException(HTTP_404_NOT_FOUND)
 
-        return _authorize_request(request, tag_scope_id)
+        return _authorize_request(request, ODPScope(tag_scope_id))
 
 
 class VocabularyAuthorize(BaseAuthorize):
@@ -135,7 +176,7 @@ class VocabularyAuthorize(BaseAuthorize):
         ).scalar_one_or_none()):
             raise HTTPException(HTTP_404_NOT_FOUND)
 
-        return _authorize_request(request, vocabulary_scope_id)
+        return _authorize_request(request, ODPScope(vocabulary_scope_id))
 
 
 def select_scopes(

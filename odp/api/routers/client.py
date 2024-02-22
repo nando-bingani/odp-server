@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
-from starlette.status import HTTP_403_FORBIDDEN, HTTP_404_NOT_FOUND, HTTP_409_CONFLICT, HTTP_422_UNPROCESSABLE_ENTITY
+from starlette.status import HTTP_404_NOT_FOUND, HTTP_409_CONFLICT, HTTP_422_UNPROCESSABLE_ENTITY
 
-from odp.api.lib.auth import Authorize, Authorized, hydra_admin_api, select_scopes
+from odp.api.lib.auth import Authorize, hydra_admin_api, select_scopes
 from odp.api.lib.paging import Page, Paginator
 from odp.api.models import ClientModel, ClientModelIn
 from odp.const import ODPScope
@@ -77,14 +77,11 @@ async def get_client(
 
 @router.post(
     '/',
+    dependencies=[Depends(Authorize(ODPScope.CLIENT_ADMIN))],
 )
 async def create_client(
         client_in: ClientModelIn,
-        auth: Authorized = Depends(Authorize(ODPScope.CLIENT_ADMIN)),
 ):
-    if auth.collection_ids != '*' and not set(client_in.collection_ids).issubset(auth.collection_ids):
-        raise HTTPException(HTTP_403_FORBIDDEN)
-
     if Session.get(Client, client_in.id):
         raise HTTPException(HTTP_409_CONFLICT, 'Client id is already in use')
 
@@ -106,19 +103,13 @@ async def create_client(
 
 @router.put(
     '/',
+    dependencies=[Depends(Authorize(ODPScope.CLIENT_ADMIN))],
 )
 async def update_client(
         client_in: ClientModelIn,
-        auth: Authorized = Depends(Authorize(ODPScope.CLIENT_ADMIN)),
 ):
-    if auth.collection_ids != '*' and not set(client_in.collection_ids).issubset(auth.collection_ids):
-        raise HTTPException(HTTP_403_FORBIDDEN)
-
     if not (client := Session.get(Client, client_in.id)):
         raise HTTPException(HTTP_404_NOT_FOUND)
-
-    if auth.collection_ids != '*' and not set(c.id for c in client.collections).issubset(auth.collection_ids):
-        raise HTTPException(HTTP_403_FORBIDDEN)
 
     client.scopes = select_scopes(client_in.scope_ids)
     client.collection_specific = client_in.collection_specific
@@ -132,16 +123,13 @@ async def update_client(
 
 @router.delete(
     '/{client_id}',
+    dependencies=[Depends(Authorize(ODPScope.CLIENT_ADMIN))],
 )
 async def delete_client(
         client_id: str,
-        auth: Authorized = Depends(Authorize(ODPScope.CLIENT_ADMIN)),
 ):
     if not (client := Session.get(Client, client_id)):
         raise HTTPException(HTTP_404_NOT_FOUND)
-
-    if auth.collection_ids != '*' and not set(c.id for c in client.collections).issubset(auth.collection_ids):
-        raise HTTPException(HTTP_403_FORBIDDEN)
 
     client.delete()
     hydra_admin_api.delete_client(client_id)

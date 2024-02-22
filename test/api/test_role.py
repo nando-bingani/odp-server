@@ -106,8 +106,16 @@ def test_get_role_not_found(api, role_batch):
 
 @pytest.mark.require_scope(ODPScope.ROLE_ADMIN)
 def test_create_role(api, role_batch, scopes, collection_auth):
-    authorized = ODPScope.ROLE_ADMIN in scopes and \
-                 collection_auth in (CollectionAuth.NONE, CollectionAuth.MATCH)
+    """
+    Note: we retain older test code that checked for (mis)matches
+    between collections associated with the test client and
+    collections associated with the role under construction.
+    Now, mismatches do not matter (the API does not check for them),
+    because in reality we'll never grant role admin access to a
+    collection-specific client or role.
+    """
+    authorized = ODPScope.ROLE_ADMIN in scopes #and \
+                 #collection_auth in (CollectionAuth.NONE, CollectionAuth.MATCH)
 
     if collection_auth == CollectionAuth.MATCH:
         api_client_collections = role_batch[2].collections
@@ -141,8 +149,11 @@ def test_create_role(api, role_batch, scopes, collection_auth):
 
 
 def test_create_role_conflict(api, role_batch, collection_auth):
+    """
+    See docstring for test_create_role
+    """
     scopes = [ODPScope.ROLE_ADMIN]
-    authorized = collection_auth in (CollectionAuth.NONE, CollectionAuth.MATCH)
+    authorized = True  # collection_auth in (CollectionAuth.NONE, CollectionAuth.MATCH)
 
     if collection_auth == CollectionAuth.MATCH:
         api_client_collections = role_batch[2].collections
@@ -178,8 +189,11 @@ def test_create_role_conflict(api, role_batch, collection_auth):
 
 @pytest.mark.require_scope(ODPScope.ROLE_ADMIN)
 def test_update_role(api, role_batch, scopes, collection_auth):
-    authorized = ODPScope.ROLE_ADMIN in scopes and \
-                 collection_auth in (CollectionAuth.NONE, CollectionAuth.MATCH)
+    """
+    See docstring for test_create_role
+    """
+    authorized = ODPScope.ROLE_ADMIN in scopes #and \
+                 #collection_auth in (CollectionAuth.NONE, CollectionAuth.MATCH)
 
     if collection_auth == CollectionAuth.MATCH:
         api_client_collections = role_batch[2].collections
@@ -215,8 +229,11 @@ def test_update_role(api, role_batch, scopes, collection_auth):
 
 
 def test_update_role_not_found(api, role_batch, collection_auth):
+    """
+    See docstring for test_create_role
+    """
     scopes = [ODPScope.ROLE_ADMIN]
-    authorized = collection_auth in (CollectionAuth.NONE, CollectionAuth.MATCH)
+    authorized = True  # collection_auth in (CollectionAuth.NONE, CollectionAuth.MATCH)
 
     if collection_auth == CollectionAuth.MATCH:
         api_client_collections = role_batch[2].collections
@@ -252,8 +269,11 @@ def test_update_role_not_found(api, role_batch, collection_auth):
 
 @pytest.mark.require_scope(ODPScope.ROLE_ADMIN)
 def test_delete_role(api, role_batch, scopes, collection_auth):
-    authorized = ODPScope.ROLE_ADMIN in scopes and \
-                 collection_auth in (CollectionAuth.NONE, CollectionAuth.MATCH)
+    """
+    See docstring for test_create_role
+    """
+    authorized = ODPScope.ROLE_ADMIN in scopes #and \
+                 #collection_auth in (CollectionAuth.NONE, CollectionAuth.MATCH)
 
     if collection_auth == CollectionAuth.MATCH:
         api_client_collections = role_batch[2].collections

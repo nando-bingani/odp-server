@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy import CheckConstraint, Column, Enum, ForeignKey, ForeignKeyConstraint, Identity, Index, Integer, String, TIMESTAMP, text
 from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.ext.associationproxy import association_proxy
 from sqlalchemy.orm import relationship
 
 from odp.const.db import AuditCommand, SchemaType, TagType
@@ -56,6 +57,11 @@ class Record(Base):
     parent = relationship('Record', remote_side=id)
     children = relationship('Record', viewonly=True)
 
+    # one-to-many record_package entities are persisted by
+    # assigning/removing Package instances to/from packages
+    record_packages = relationship('RecordPackage', cascade='all, delete-orphan', passive_deletes=True)
+    packages = association_proxy('record_packages', 'package', creator=lambda p: RecordPackage(package=p))
+
     # view of associated tags (one-to-many)
     tags = relationship('RecordTag', viewonly=True)
 
@@ -83,6 +89,22 @@ class RecordAudit(Base):
     _collection_id = Column(String, nullable=False)
     _schema_id = Column(String, nullable=False)
     _parent_id = Column(String)
+
+
+class RecordPackage(Base):
+    """One-to-many record-package association.
+
+    This association table allows the record-package linkage to be
+    controlled from the record side while enforcing a one-to-many
+    relationship.
+    """
+    __tablename__ = 'record_package'
+
+    record_id = Column(String, ForeignKey('record.id', ondelete='CASCADE'), primary_key=True)
+    package_id = Column(String, ForeignKey('package.id', ondelete='RESTRICT'), primary_key=True, unique=True)
+
+    record = relationship('Record', viewonly=True)
+    package = relationship('Package')
 
 
 class RecordTag(Base):
