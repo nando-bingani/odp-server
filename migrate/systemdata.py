@@ -25,7 +25,7 @@ from odp.const import (
 from odp.const.db import SchemaType, ScopeType
 from odp.const.hydra import GrantType, HydraScope
 from odp.db import Base, Session, engine
-from odp.db.models import Archive, Catalog, Client, Collection, Role, Schema, Scope, Tag, Vocabulary, VocabularyTerm
+from odp.db.models import Archive, Catalog, Client, Role, Schema, Scope, Tag, Vocabulary, VocabularyTerm
 from odp.lib.hydra import HydraAdminAPI
 from odp.lib.schema import schema_md5
 
@@ -269,14 +269,6 @@ def init_clients():
             Session.execute(select(Scope).where(Scope.id == scope_id)).scalar_one()
             for scope_id in _expand_scopes(client_spec['scopes'])
         ]
-        if collection_keys := client_spec.get('collections'):
-            client.collection_specific = True
-            client.collections = Session.execute(
-                select(Collection).where(Collection.key.in_(collection_keys))
-            ).scalars().all()
-        else:
-            client.collection_specific = False
-
         client.save()
 
         opts = dict(
