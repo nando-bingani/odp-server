@@ -1,7 +1,7 @@
 """Add global catalog data
 
 Revision ID: df57d06e1ee5
-Revises: df471c7d7f99
+Revises:
 Create Date: 2023-10-30 11:41:39.261576
 
 """
@@ -11,7 +11,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision = 'df57d06e1ee5'
-down_revision = 'df471c7d7f99'
+down_revision = None
 branch_labels = None
 depends_on = None
 
