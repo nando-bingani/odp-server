@@ -23,9 +23,6 @@ class Provider(Base):
     # view of associated collections (one-to-many)
     collections = relationship('Collection', viewonly=True)
 
-    # view of associated roles (one-to-many)
-    roles = relationship('Role', viewonly=True)
-
     _repr_ = 'id', 'key', 'name'
 
 

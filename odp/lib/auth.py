@@ -28,8 +28,8 @@ def get_role_permissions(role_id: str) -> Permissions:
     def permission(scope_id: str) -> Permission:
         if role.collection_specific and ODPScope(scope_id).constrainable_by == 'collection':
             return [collection.id for collection in role.collections]
-        if role.provider_id and ODPScope(scope_id).constrainable_by == 'provider':
-            return [role.provider_id]
+        # if role.provider_id and ODPScope(scope_id).constrainable_by == 'provider':
+        #     return [role.provider_id]
         return '*'
 
     if not (role := Session.get(Role, role_id)):
