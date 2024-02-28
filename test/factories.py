@@ -156,6 +156,14 @@ class ProviderFactory(ODPModelFactory):
     name = factory.Sequence(lambda n: f'{fake.company()}.{n}')
     timestamp = factory.LazyFunction(lambda: datetime.now(timezone.utc))
 
+    @factory.post_generation
+    def users(obj, create, users):
+        if users:
+            for user in users:
+                obj.users.append(user)
+            if create:
+                Session.commit()
+
 
 class CollectionFactory(ODPModelFactory):
     class Meta:
@@ -174,21 +182,18 @@ class ClientFactory(ODPModelFactory):
         model = Client
 
     id = factory.Sequence(lambda n: id_from_fake('catch_phrase', n))
-    collection_specific = factory.LazyFunction(lambda: randint(0, 1))
+    provider_specific = factory.LazyFunction(lambda: randint(0, 1))
+    provider = factory.Maybe(
+        'provider_specific',
+        yes_declaration=factory.SubFactory(ProviderFactory),
+        no_declaration=None,
+    )
 
     @factory.post_generation
     def scopes(obj, create, scopes):
         if scopes:
             for scope in scopes:
                 obj.scopes.append(scope)
-            if create:
-                Session.commit()
-
-    @factory.post_generation
-    def collections(obj, create, collections):
-        if collections:
-            for collection in collections:
-                obj.collections.append(collection)
             if create:
                 Session.commit()
 

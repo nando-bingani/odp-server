@@ -6,10 +6,32 @@ import migrate.systemdata
 from odp.const import ODPScope, ODPSystemRole
 from odp.const.db import ScopeType
 from odp.db import Session
-from odp.db.models import (Archive, Catalog, Client, ClientCollection, ClientScope, Collection, CollectionTag, Provider, Record, RecordTag, Role,
-                           RoleCollection, RoleScope, Schema, Scope, Tag, User, UserRole, Vocabulary, VocabularyTerm)
-from test.factories import (ArchiveFactory, CatalogFactory, ClientFactory, CollectionFactory, CollectionTagFactory, ProviderFactory, RecordFactory,
-                            RecordTagFactory, RoleFactory, SchemaFactory, ScopeFactory, TagFactory, UserFactory, VocabularyFactory)
+from odp.db.models import (
+    Archive,
+    Catalog,
+    Client,
+    ClientScope,
+    Collection,
+    CollectionTag,
+    Provider,
+    ProviderUser,
+    Record,
+    RecordTag,
+    Role,
+    RoleCollection,
+    RoleScope,
+    Schema,
+    Scope,
+    Tag,
+    User,
+    UserRole,
+    Vocabulary,
+    VocabularyTerm,
+)
+from test.factories import (
+    ArchiveFactory, CatalogFactory, ClientFactory, CollectionFactory, CollectionTagFactory, ProviderFactory, RecordFactory,
+    RecordTagFactory, RoleFactory, SchemaFactory, ScopeFactory, TagFactory, UserFactory, VocabularyFactory,
+)
 
 
 def sorted_tuples(rows):
@@ -64,16 +86,18 @@ def test_create_catalog():
 
 def test_create_client():
     client = ClientFactory()
-    result = Session.execute(select(Client)).scalar_one()
-    assert (result.id, result.collection_specific) == (client.id, client.collection_specific)
-
-
-def test_create_client_with_collections():
-    collections = CollectionFactory.create_batch(5)
-    client = ClientFactory(collections=collections)
-    result = Session.execute(select(ClientCollection)).scalars()
-    assert sorted_tuples((row.client_id, row.collection_id) for row in result) \
-           == sorted_tuples((client.id, collection.id) for collection in collections)
+    result = Session.execute(select(Client, Provider).outerjoin(Provider)).one()
+    assert (
+               result.Client.id,
+               result.Client.provider_specific,
+               result.Client.provider_id,
+               result.Provider.key if result.Client.provider_id else None,
+           ) == (
+               client.id,
+               client.provider_specific,
+               client.provider_id,
+               client.provider.key if client.provider_id else None,
+           )
 
 
 def test_create_client_with_scopes():
@@ -102,6 +126,14 @@ def test_create_provider():
     provider = ProviderFactory()
     result = Session.execute(select(Provider)).scalar_one()
     assert (result.id, result.key, result.name) == (provider.id, provider.key, provider.name)
+
+
+def test_create_provider_with_users():
+    users = UserFactory.create_batch(5)
+    provider = ProviderFactory(users=users)
+    result = Session.execute(select(ProviderUser)).scalars()
+    assert sorted_tuples((row.provider_id, row.user_id) for row in result) \
+           == sorted_tuples((provider.id, user.id) for user in users)
 
 
 def test_create_record():
