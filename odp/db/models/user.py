@@ -27,6 +27,10 @@ class User(Base):
     user_roles = relationship('UserRole', cascade='all, delete-orphan', passive_deletes=True)
     roles = association_proxy('user_roles', 'role', creator=lambda r: UserRole(role=r))
 
+    # view of associated providers via many-to-many provider_user relation
+    user_providers = relationship('ProviderUser', viewonly=True)
+    providers = association_proxy('user_providers', 'provider')
+
     _repr_ = 'id', 'email', 'name', 'active', 'verified'
 
 
@@ -40,6 +44,8 @@ class UserRole(Base):
 
     user = relationship('User', viewonly=True)
     role = relationship('Role')
+
+    _repr_ = 'user_id', 'role_id'
 
 
 class IdentityAudit(Base):

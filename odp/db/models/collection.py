@@ -30,10 +30,6 @@ class Collection(Base):
     collection_roles = relationship('RoleCollection', viewonly=True)
     roles = association_proxy('collection_roles', 'role')
 
-    # view of associated clients via many-to-many client_collection relation
-    collection_clients = relationship('ClientCollection', viewonly=True)
-    clients = association_proxy('collection_clients', 'client')
-
     _repr_ = 'id', 'key', 'name', 'doi_key', 'provider_id'
 
 

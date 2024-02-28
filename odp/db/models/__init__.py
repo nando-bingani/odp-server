@@ -1,9 +1,9 @@
 from .archive import Archive, ArchiveResource
 from .catalog import Catalog, CatalogRecord, CatalogRecordFacet
-from .client import Client, ClientCollection, ClientScope
+from .client import Client, ClientScope
 from .collection import Collection, CollectionAudit, CollectionTag, CollectionTagAudit
 from .package import Package, PackageResource
-from .provider import Provider, ProviderAudit
+from .provider import Provider, ProviderAudit, ProviderUser
 from .record import PublishedRecord, Record, RecordAudit, RecordTag, RecordTagAudit
 from .resource import Resource
 from .role import Role, RoleCollection, RoleScope
