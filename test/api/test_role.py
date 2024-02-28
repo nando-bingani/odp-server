@@ -6,7 +6,7 @@ from sqlalchemy import select
 from odp.const import ODPScope
 from odp.db import Session
 from odp.db.models import Role
-from test.api import CollectionAuth, assert_conflict, assert_empty_result, assert_forbidden, assert_not_found
+from test.api import CollectionAuth, assert_conflict, assert_empty_result, assert_forbidden, assert_not_found, assert_unprocessable
 from test.factories import CollectionFactory, RoleFactory, ScopeFactory
 
 
@@ -187,6 +187,23 @@ def test_create_role_conflict(api, role_batch, collection_auth):
     assert_db_state(role_batch)
 
 
+def test_create_role_collection_specific_admin(api, role_batch):
+    scopes = [ODPScope.ROLE_ADMIN]
+    role = role_build(
+        collections=CollectionFactory.create_batch(randint(1, 2)),
+    )
+
+    r = api(scopes).post('/role/', json=dict(
+        id=role.id,
+        scope_ids=list(scope_ids(role)) + [ODPScope.ROLE_ADMIN],
+        collection_specific=role.collection_specific,
+        collection_ids=[c.id for c in role.collections],
+    ))
+
+    assert_unprocessable(r, "Scope 'odp.role:admin' cannot be granted to a collection-specific role.")
+    assert_db_state(role_batch)
+
+
 @pytest.mark.require_scope(ODPScope.ROLE_ADMIN)
 def test_update_role(api, role_batch, scopes, collection_auth):
     """
@@ -264,6 +281,24 @@ def test_update_role_not_found(api, role_batch, collection_auth):
     else:
         assert_forbidden(r)
 
+    assert_db_state(role_batch)
+
+
+def test_update_role_collection_specific_admin(api, role_batch):
+    scopes = [ODPScope.ROLE_ADMIN]
+    role = role_build(
+        id=role_batch[2].id,
+        collections=CollectionFactory.create_batch(randint(1, 2)),
+    )
+
+    r = api(scopes).put('/role/', json=dict(
+        id=role.id,
+        scope_ids=list(scope_ids(role)) + [ODPScope.ROLE_ADMIN],
+        collection_specific=role.collection_specific,
+        collection_ids=[c.id for c in role.collections],
+    ))
+
+    assert_unprocessable(r, "Scope 'odp.role:admin' cannot be granted to a collection-specific role.")
     assert_db_state(role_batch)
 
 

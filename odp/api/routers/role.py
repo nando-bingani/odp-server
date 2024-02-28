@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
-from starlette.status import HTTP_404_NOT_FOUND, HTTP_409_CONFLICT
+from starlette.status import HTTP_404_NOT_FOUND, HTTP_409_CONFLICT, HTTP_422_UNPROCESSABLE_ENTITY
 
 from odp.api.lib.auth import Authorize, select_scopes
 from odp.api.lib.paging import Page, Paginator
@@ -59,7 +59,16 @@ async def create_role(
         role_in: RoleModelIn,
 ):
     if Session.get(Role, role_in.id):
-        raise HTTPException(HTTP_409_CONFLICT, 'Role id is already in use')
+        raise HTTPException(
+            HTTP_409_CONFLICT,
+            'Role id is already in use',
+        )
+
+    if role_in.collection_specific and ODPScope.ROLE_ADMIN in role_in.scope_ids:
+        raise HTTPException(
+            HTTP_422_UNPROCESSABLE_ENTITY,
+            f'Scope {ODPScope.ROLE_ADMIN.value!r} cannot be granted to a collection-specific role.',
+        )
 
     role = Role(
         id=role_in.id,
@@ -82,6 +91,12 @@ async def update_role(
 ):
     if not (role := Session.get(Role, role_in.id)):
         raise HTTPException(HTTP_404_NOT_FOUND)
+
+    if role_in.collection_specific and ODPScope.ROLE_ADMIN in role_in.scope_ids:
+        raise HTTPException(
+            HTTP_422_UNPROCESSABLE_ENTITY,
+            f'Scope {ODPScope.ROLE_ADMIN.value!r} cannot be granted to a collection-specific role.',
+        )
 
     role.scopes = select_scopes(role_in.scope_ids, [ScopeType.odp, ScopeType.client])
     role.collection_specific = role_in.collection_specific
