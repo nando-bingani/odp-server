@@ -9,8 +9,8 @@ def get_client_permissions(client_id: str) -> Permissions:
     """Return effective client permissions."""
 
     def permission(scope_id: str) -> Permission:
-        if client.collection_specific and ODPScope(scope_id).constrainable_by == 'collection':
-            return [collection.id for collection in client.collections]
+        if client.provider_specific and ODPScope(scope_id).constrainable_by == 'provider':
+            return [client.provider_id]
         return '*'
 
     if not (client := Session.get(Client, client_id)):
@@ -28,8 +28,6 @@ def get_role_permissions(role_id: str) -> Permissions:
     def permission(scope_id: str) -> Permission:
         if role.collection_specific and ODPScope(scope_id).constrainable_by == 'collection':
             return [collection.id for collection in role.collections]
-        # if role.provider_id and ODPScope(scope_id).constrainable_by == 'provider':
-        #     return [role.provider_id]
         return '*'
 
     if not (role := Session.get(Role, role_id)):
@@ -44,6 +42,7 @@ def get_role_permissions(role_id: str) -> Permissions:
 def get_user_permissions(user_id: str, client_id: str) -> Permissions:
     """Return effective user permissions, which may be linked with
     a user's access token for a given client application."""
+
     if not (user := Session.get(User, user_id)):
         raise x.ODPUserNotFound
 
@@ -94,6 +93,7 @@ def get_user_permissions(user_id: str, client_id: str) -> Permissions:
 
 def get_user_info(user_id: str) -> UserInfo:
     """Return user profile info, which may be linked with a user's ID token."""
+
     if not (user := Session.get(User, user_id)):
         raise x.ODPUserNotFound
 
