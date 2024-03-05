@@ -48,7 +48,6 @@ def static_publishing_data():
     os.environ['SAEON_CATALOG_URL'] = 'http://odp.catalog/saeon'
     os.environ['MIMS_CATALOG_URL'] = 'http://odp.catalog/mims'
     os.environ['DATACITE_CATALOG_URL'] = 'http://odp.catalog/datacite'
-    migrate.systemdata.init_system_scopes()
     migrate.systemdata.init_schemas()
     migrate.systemdata.init_vocabularies()
     migrate.systemdata.init_tags()
@@ -327,7 +326,7 @@ def test_get_published_record(
         route += f'/{example_record.doi.swapcase()}' if example_record.doi else f'/{example_record.id}'
         resp_code = 200 if published else 404
 
-    r = api(scopes, create_scopes=False).get(route)
+    r = api(scopes).get(route)
 
     if not authorized:
         assert_forbidden(r)
@@ -408,7 +407,7 @@ def test_get_published_metadata_value(
     route = f'/catalog/{catalog_id}/getvalue/'
     route += example_record.doi.swapcase() if example_record.doi else example_record.id
 
-    r = api(scopes, create_scopes=False).get(route, params=dict(
+    r = api(scopes).get(route, params=dict(
         schema_id=schema_id,
         json_pointer=json_pointer,
     ))
@@ -440,7 +439,7 @@ def test_get_published_metadata_document(
     route = f'/catalog/{catalog_id}/getvalue/'
     route += example_record.doi.swapcase() if example_record.doi else example_record.id
 
-    r = api(scopes, create_scopes=False).get(route, params=dict(
+    r = api(scopes).get(route, params=dict(
         schema_id=schema_id,
         # json_pointer='',  # default
     ))

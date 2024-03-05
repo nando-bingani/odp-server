@@ -1,57 +1,111 @@
+from collections import namedtuple
+
 import pytest
-from authlib.integrations.requests_client import OAuth2Session
 from starlette.testclient import TestClient
 
+import migrate.systemdata
 import odp.api.main
 from odp.config import config
 from odp.const import ODPScope
 from odp.const.db import TagCardinality
 from odp.db import Session
-from odp.db.models import Scope
+from odp.db.models import Collection, Provider, Scope
 from odp.lib.hydra import HydraAdminAPI
 from test.api import CollectionAuth, all_scopes, all_scopes_excluding
-from test.factories import ClientFactory, ScopeFactory
+from test.factories import ClientFactory, RoleFactory, UserFactory
 
-hydra_admin_url = config.HYDRA.ADMIN.URL
-hydra_public_url = config.HYDRA.PUBLIC.URL
+MockToken = namedtuple('MockToken', ('active', 'client_id', 'sub'))
+
+
+@pytest.fixture(autouse=True)
+def static_data():
+    """Initialize static system data."""
+    migrate.systemdata.init_system_scopes()
+
+
+@pytest.fixture(params=['client_credentials', 'authorization_code'])
+def api(request, monkeypatch):
+    """Fixture returning an API test client constructor. Example usages::
+
+        r = api(scopes).get('/catalog/')
+
+        r = api(scopes, user_collections=collections).post('/record/', json=dict(
+            doi=record.doi,
+            metadata=record.metadata_,
+            ...,
+        ))
+
+    Each parameterization of the calling test is invoked twice: first
+    to simulate a machine client with a client_credentials grant; second
+    to simulate a UI client with an authorization_code grant.
+
+    :param scopes: iterable of ODPScope granted to the test client/user
+    :param client_provider: constrain the test client's package/resource access to the specified Provider
+    :param user_providers: constrain the test user's package/resource access to the specified Providers
+    :param user_collections: constrain the test user's collection/record access to the specified Collections
+    """
+
+    def api_test_client(
+            scopes: list[ODPScope],
+            *,
+            client_provider: Provider = None,
+            user_providers: list[Provider] = None,
+            user_collections: list[Collection] = None,
+    ):
+        scope_objects = [Session.get(Scope, (s.value, 'odp')) for s in scopes]
+
+        if request.param == 'authorization_code':
+            # for authorization_code we grant the test client all scopes
+            all_scope_objects = [Session.get(Scope, (s.value, 'odp')) for s in ODPScope]
+
+            odp_user = UserFactory(roles=[RoleFactory(
+                scopes=scope_objects,
+                collection_specific=user_collections is not None,
+                collections=user_collections,
+            )])
+
+            for provider in user_providers or ():
+                provider.users += [odp_user]
+
+        odp_client = ClientFactory(
+            id='odp.test',
+            scopes=scope_objects if request.param == 'client_credentials' else all_scope_objects,
+            provider_specific=client_provider is not None,
+            provider=client_provider,
+        )
+
+        monkeypatch.setattr(HydraAdminAPI, 'introspect_token', lambda *args: MockToken(
+            active=True,
+            client_id=odp_client.id,
+            sub=odp_user.id if request.param == 'authorization_code' else odp_client.id,
+        ))
+
+        return TestClient(
+            app=odp.api.main.app,
+            headers={
+                'Accept': 'application/json',
+                'Authorization': 'Bearer t0k3n',
+            }
+        )
+
+    return api_test_client
 
 
 @pytest.fixture
-def api():
-    def scoped_client(scopes, collections=None, create_scopes=True):
-        if create_scopes:
-            scope_objects = [ScopeFactory(id=s.value, type='odp') for s in scopes]
-        else:
-            scope_objects = [Session.get(Scope, (s.value, 'odp')) for s in scopes]
-
-        ClientFactory(
-            id='odp.test',
-            scopes=scope_objects,
-            collection_specific=collections is not None,
-            collections=collections,
-        )
-        token = OAuth2Session(
-            client_id='odp.test',
-            client_secret='secret',
-            scope=' '.join(s.value for s in ODPScope),
-        ).fetch_token(
-            f'{hydra_public_url}/oauth2/token',
-            grant_type='client_credentials',
-            timeout=1.0,
-        )
-        api_client = TestClient(app=odp.api.main.app)
-        api_client.headers = {
-            'Accept': 'application/json',
-            'Authorization': 'Bearer ' + token['access_token'],
-        }
-        return api_client
-
-    return scoped_client
-
-
-@pytest.fixture(scope='session')
 def hydra_admin_api():
-    return HydraAdminAPI(hydra_admin_url)
+    """Returns a HydraAdminAPI instance providing access to the dockerized
+    Hydra test server.
+
+    A dummy Hydra client is created to correspond with the ODP test client,
+    and all Hydra clients are deleted following the test.
+    """
+    try:
+        hapi = HydraAdminAPI(config.HYDRA.ADMIN.URL)
+        hapi.create_or_update_client('odp.test', name='foo', secret=None, scope_ids=['bar'], grant_types=[])
+        yield hapi
+    finally:
+        for hydra_client in hapi.list_clients():
+            hapi.delete_client(hydra_client.id)
 
 
 @pytest.fixture(params=CollectionAuth)
@@ -67,7 +121,7 @@ def tag_cardinality(request):
     return request.param
 
 
-@pytest.fixture(params=[1, 2, 3, 4])
+@pytest.fixture(params=['scope_match', 'scope_none', 'scope_all', 'scope_excl'])
 def scopes(request):
     """Fixture for parameterizing the set of auth scopes
     to be associated with the API test client.
@@ -90,11 +144,11 @@ def scopes(request):
     """
     scope = request.node.get_closest_marker('require_scope').args[0]
 
-    if request.param == 1:
+    if request.param == 'scope_match':
         return [scope]
-    elif request.param == 2:
+    elif request.param == 'scope_none':
         return []
-    elif request.param == 3:
+    elif request.param == 'scope_all':
         return all_scopes
-    elif request.param == 4:
+    elif request.param == 'scope_excl':
         return all_scopes_excluding(scope)

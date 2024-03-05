@@ -23,11 +23,10 @@ def collection_batch():
 
 
 @pytest.fixture
-def collection_batch_with_roles_and_clients():
+def collection_batch_with_roles():
     """Create and commit a batch of Collection instances,
-    with associated clients and roles."""
+    with associated roles."""
     collections = [CollectionFactory() for _ in range(randint(3, 5))]
-    ClientFactory.create_batch(randint(0, 3), collections=collections)
     RoleFactory.create_batch(randint(0, 3), collections=collections)
     return collections
 
@@ -40,10 +39,6 @@ def collection_build(**id):
         provider=(provider := ProviderFactory()),
         provider_id=provider.id,
     )
-
-
-def client_ids(collection):
-    return tuple(sorted(client.id for client in collection.clients if client.id != 'odp.test'))
 
 
 def role_ids(collection):
@@ -64,7 +59,6 @@ def assert_db_state(collections):
         assert row.doi_key == collections[n].doi_key
         assert row.provider_id == collections[n].provider_id
         assert_new_timestamp(row.timestamp)
-        assert client_ids(row) == client_ids(collections[n])
         assert role_ids(row) == role_ids(collections[n])
 
 
@@ -128,7 +122,6 @@ def assert_json_collection_result(response, json, collection):
     assert json['doi_key'] == collection.doi_key
     assert json['provider_id'] == collection.provider_id
     assert json['provider_key'] == collection.provider.key
-    assert tuple(sorted(cid for cid in json['client_ids'] if cid != 'odp.test')) == client_ids(collection)
     assert tuple(sorted(json['role_ids'])) == role_ids(collection)
     assert_new_timestamp(datetime.fromisoformat(json['timestamp']))
 
@@ -164,19 +157,19 @@ def assert_doi_result(response, collection):
 
 
 @pytest.mark.require_scope(ODPScope.COLLECTION_READ)
-def test_list_collections(api, collection_batch_with_roles_and_clients, scopes, collection_auth):
+def test_list_collections(api, collection_batch_with_roles, scopes, collection_auth):
     authorized = ODPScope.COLLECTION_READ in scopes
 
     if collection_auth == CollectionAuth.MATCH:
-        api_client_collections = [collection_batch_with_roles_and_clients[2]]
+        api_client_collections = [collection_batch_with_roles[2]]
         expected_result_batch = api_client_collections
     elif collection_auth == CollectionAuth.MISMATCH:
         api_client_collections = [CollectionFactory()]
         expected_result_batch = api_client_collections
-        collection_batch_with_roles_and_clients += api_client_collections
+        collection_batch_with_roles += api_client_collections
     else:
         api_client_collections = None
-        expected_result_batch = collection_batch_with_roles_and_clients
+        expected_result_batch = collection_batch_with_roles
 
     r = api(scopes, api_client_collections).get('/collection/')
 
@@ -185,41 +178,41 @@ def test_list_collections(api, collection_batch_with_roles_and_clients, scopes, 
     else:
         assert_forbidden(r)
 
-    assert_db_state(collection_batch_with_roles_and_clients)
+    assert_db_state(collection_batch_with_roles)
     assert_no_audit_log()
 
 
 @pytest.mark.require_scope(ODPScope.COLLECTION_READ)
-def test_get_collection(api, collection_batch_with_roles_and_clients, scopes, collection_auth):
+def test_get_collection(api, collection_batch_with_roles, scopes, collection_auth):
     authorized = ODPScope.COLLECTION_READ in scopes and \
                  collection_auth in (CollectionAuth.NONE, CollectionAuth.MATCH)
 
     if collection_auth == CollectionAuth.MATCH:
-        api_client_collections = [collection_batch_with_roles_and_clients[2]]
+        api_client_collections = [collection_batch_with_roles[2]]
     elif collection_auth == CollectionAuth.MISMATCH:
-        api_client_collections = [collection_batch_with_roles_and_clients[1]]
+        api_client_collections = [collection_batch_with_roles[1]]
     else:
         api_client_collections = None
 
-    r = api(scopes, api_client_collections).get(f'/collection/{collection_batch_with_roles_and_clients[2].id}')
+    r = api(scopes, api_client_collections).get(f'/collection/{collection_batch_with_roles[2].id}')
 
     if authorized:
-        assert_json_collection_result(r, r.json(), collection_batch_with_roles_and_clients[2])
+        assert_json_collection_result(r, r.json(), collection_batch_with_roles[2])
     else:
         assert_forbidden(r)
 
-    assert_db_state(collection_batch_with_roles_and_clients)
+    assert_db_state(collection_batch_with_roles)
     assert_no_audit_log()
 
 
-def test_get_collection_not_found(api, collection_batch_with_roles_and_clients, collection_auth):
+def test_get_collection_not_found(api, collection_batch_with_roles, collection_auth):
     scopes = [ODPScope.COLLECTION_READ]
     authorized = collection_auth == CollectionAuth.NONE
 
     if collection_auth == CollectionAuth.NONE:
         api_client_collections = None
     else:
-        api_client_collections = [collection_batch_with_roles_and_clients[2]]
+        api_client_collections = [collection_batch_with_roles[2]]
 
     r = api(scopes, api_client_collections).get('/collection/foo')
 
@@ -228,7 +221,7 @@ def test_get_collection_not_found(api, collection_batch_with_roles_and_clients, 
     else:
         assert_forbidden(r)
 
-    assert_db_state(collection_batch_with_roles_and_clients)
+    assert_db_state(collection_batch_with_roles)
     assert_no_audit_log()
 
 

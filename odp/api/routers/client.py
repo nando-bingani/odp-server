@@ -7,7 +7,7 @@ from odp.api.lib.paging import Page, Paginator
 from odp.api.models import ClientModel, ClientModelIn
 from odp.const import ODPScope
 from odp.db import Session
-from odp.db.models import Client, Collection
+from odp.db.models import Client
 
 router = APIRouter()
 
@@ -18,9 +18,9 @@ def output_client_model(client: Client) -> ClientModel:
         id=client.id,
         name=hydra_client.name,
         scope_ids=[scope.id for scope in client.scopes],
-        collection_specific=client.collection_specific,
-        collection_keys={collection.key: collection.id
-                         for collection in client.collections} if client.collection_specific else {},
+        provider_specific=client.provider_specific,
+        provider_id=client.provider_id,
+        provider_key=client.provider.key if client.provider_id else None,
         grant_types=hydra_client.grant_types,
         response_types=hydra_client.response_types,
         redirect_uris=hydra_client.redirect_uris,
@@ -88,14 +88,17 @@ async def create_client(
     if client_in.secret is None:
         raise HTTPException(HTTP_422_UNPROCESSABLE_ENTITY, 'Client secret must be provided on create')
 
+    if client_in.provider_specific and ODPScope.CLIENT_ADMIN in client_in.scope_ids:
+        raise HTTPException(
+            HTTP_422_UNPROCESSABLE_ENTITY,
+            f'Scope {ODPScope.CLIENT_ADMIN.value!r} cannot be granted to a provider-specific client.',
+        )
+
     client = Client(
         id=client_in.id,
         scopes=select_scopes(client_in.scope_ids),
-        collection_specific=client_in.collection_specific,
-        collections=[
-            Session.get(Collection, collection_id)
-            for collection_id in client_in.collection_ids
-        ],
+        provider_specific=client_in.provider_specific,
+        provider_id=client_in.provider_id,
     )
     client.save()
     create_or_update_hydra_client(client_in)
@@ -111,12 +114,15 @@ async def update_client(
     if not (client := Session.get(Client, client_in.id)):
         raise HTTPException(HTTP_404_NOT_FOUND)
 
+    if client_in.provider_specific and ODPScope.CLIENT_ADMIN in client_in.scope_ids:
+        raise HTTPException(
+            HTTP_422_UNPROCESSABLE_ENTITY,
+            f'Scope {ODPScope.CLIENT_ADMIN.value!r} cannot be granted to a provider-specific client.',
+        )
+
     client.scopes = select_scopes(client_in.scope_ids)
-    client.collection_specific = client_in.collection_specific
-    client.collections = [
-        Session.get(Collection, collection_id)
-        for collection_id in client_in.collection_ids
-    ]
+    client.provider_specific = client_in.provider_specific
+    client.provider_id = client_in.provider_id
     client.save()
     create_or_update_hydra_client(client_in)
 

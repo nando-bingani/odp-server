@@ -9,21 +9,6 @@ services:
       - POSTGRES_PASSWORD=${ODP_DB_PASS}
     restart: always
 
-  odp-client:
-    container_name: TEST-odp-client
-    image: ${HYDRA_IMAGE}
-    command: >
-      clients create
-        --id odp.test
-        --secret secret
-        --grant-types client_credentials
-        --scope odp.archive:read,odp.catalog:read,odp.catalog:search,odp.client:admin,odp.client:read,odp.collection:admin,odp.collection:read,odp.collection:publish,odp.collection:freeze,odp.collection:infrastructure,odp.collection:project,odp.collection:nosearch,odp.collection:harvested,odp.package:admin,odp.package:read,odp.package:write,odp.provider:admin,odp.provider:read,odp.record:write,odp.record:admin,odp.record:read,odp.record:qc,odp.record:embargo,odp.record:migrate,odp.record:nosearch,odp.record:retract,odp.record:note,odp.record:sdg,odp.resource:admin,odp.resource:read,odp.resource:write,odp.role:admin,odp.role:read,odp.schema:read,odp.scope:read,odp.tag:read,odp.token:read,odp.user:admin,odp.user:read,odp.vocabulary:infrastructure,odp.vocabulary:project,odp.vocabulary:sdg,odp.vocabulary:read
-    environment:
-      - HYDRA_ADMIN_URL=http://hydra:4445
-    depends_on:
-      - hydra
-    restart: on-failure
-
   hydra:
     container_name: TEST-hydra
     image: ${HYDRA_IMAGE}

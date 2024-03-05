@@ -43,7 +43,6 @@ def output_collection_model(result) -> CollectionModel:
             output_tag_instance_model(collection_tag)
             for collection_tag in result.Collection.tags
         ],
-        client_ids=[client.id for client in result.Collection.clients],
         role_ids=[role.id for role in result.Collection.roles],
         timestamp=result.Collection.timestamp.isoformat(),
     )

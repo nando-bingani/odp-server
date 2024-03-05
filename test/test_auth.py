@@ -11,6 +11,9 @@ from odp.lib.auth import get_client_permissions, get_role_permissions, get_user_
 from test.factories import ClientFactory, CollectionFactory, ProviderFactory, RoleFactory, UserFactory
 
 
+# TODO: test provider-user associations
+
+
 @pytest.fixture
 def scopes():
     """Return a random sample of size 15 of ODP scope DB objects."""
