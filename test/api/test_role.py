@@ -6,7 +6,7 @@ from sqlalchemy import select
 from odp.const import ODPScope
 from odp.db import Session
 from odp.db.models import Role
-from test.api import CollectionAuth, assert_conflict, assert_empty_result, assert_forbidden, assert_not_found, assert_unprocessable
+from test.api import assert_conflict, assert_empty_result, assert_forbidden, assert_not_found, assert_unprocessable
 from test.factories import CollectionFactory, RoleFactory, ScopeFactory
 
 
@@ -16,21 +16,24 @@ def role_batch():
     return [
         RoleFactory(
             scopes=ScopeFactory.create_batch(randint(0, 3), type=choice(('odp', 'client'))),
-            collection_specific=n in (1, 2) or randint(0, 1),
-            collections=CollectionFactory.create_batch(randint(1, 2)) if n > 1 else None,
+            collection_specific=(collection_specific := randint(0, 1)),
+            collections=CollectionFactory.create_batch(randint(0, 3)) if collection_specific else None,
         )
-        for n in range(randint(3, 5))
+        for _ in range(randint(3, 5))
     ]
 
 
-def role_build(collections=None, **id):
+def role_build(collection_specific=None, **id):
     """Build and return an uncommitted Role instance.
-    Referenced scopes and/or collections are however committed."""
+    Referenced scopes and collections are however committed."""
+    if collection_specific is None:
+        collection_specific = randint(0, 1)
+
     return RoleFactory.build(
         **id,
         scopes=ScopeFactory.create_batch(randint(0, 3), type=choice(('odp', 'client'))),
-        collections=collections,
-        collection_specific=collections is not None,
+        collection_specific=collection_specific,
+        collections=CollectionFactory.create_batch(randint(0, 3)) if collection_specific else None,
     )
 
 
@@ -51,9 +54,9 @@ def collection_keys(role):
 def assert_db_state(roles):
     """Verify that the DB role table contains the given role batch."""
     Session.expire_all()
-    result = Session.execute(select(Role)).scalars().all()
-    assert set((row.id, scope_ids(row), collection_ids(row)) for row in result) \
-           == set((role.id, scope_ids(role), collection_ids(role)) for role in roles)
+    result = Session.execute(select(Role).where(Role.id != 'odp.test')).scalars().all()
+    assert set((row.id, scope_ids(row), row.collection_specific, collection_ids(row)) for row in result) \
+           == set((role.id, scope_ids(role), role.collection_specific, collection_ids(role)) for role in roles)
 
 
 def assert_json_result(response, json, role):
@@ -67,8 +70,8 @@ def assert_json_result(response, json, role):
 
 def assert_json_results(response, json, roles):
     """Verify that the API result list matches the given role batch."""
-    items = json['items']
-    assert json['total'] == len(items) == len(roles)
+    items = [j for j in json['items'] if j['id'] != 'odp.test']
+    assert len(items) == len(roles)
     items.sort(key=lambda i: i['id'])
     roles.sort(key=lambda r: r.id)
     for n, role in enumerate(roles):
@@ -105,35 +108,11 @@ def test_get_role_not_found(api, role_batch):
 
 
 @pytest.mark.require_scope(ODPScope.ROLE_ADMIN)
-def test_create_role(api, role_batch, scopes, collection_auth):
-    """
-    Note: we retain older test code that checked for (mis)matches
-    between collections associated with the test client and
-    collections associated with the role under construction.
-    Now, mismatches do not matter (the API does not check for them),
-    because in reality we'll never grant role admin access to a
-    collection-specific client or role.
-    """
-    authorized = ODPScope.ROLE_ADMIN in scopes #and \
-                 #collection_auth in (CollectionAuth.NONE, CollectionAuth.MATCH)
+def test_create_role(api, role_batch, scopes):
+    authorized = ODPScope.ROLE_ADMIN in scopes
+    modified_role_batch = role_batch + [role := role_build()]
 
-    if collection_auth == CollectionAuth.MATCH:
-        api_client_collections = role_batch[2].collections
-    elif collection_auth == CollectionAuth.MISMATCH:
-        api_client_collections = role_batch[1].collections
-    else:
-        api_client_collections = None
-
-    if collection_auth in (CollectionAuth.MATCH, CollectionAuth.MISMATCH):
-        new_role_collections = role_batch[2].collections
-    else:
-        new_role_collections = None
-
-    modified_role_batch = role_batch + [role := role_build(
-        collections=new_role_collections
-    )]
-
-    r = api(scopes, api_client_collections).post('/role/', json=dict(
+    r = api(scopes).post('/role/', json=dict(
         id=role.id,
         scope_ids=scope_ids(role),
         collection_specific=role.collection_specific,
@@ -148,50 +127,24 @@ def test_create_role(api, role_batch, scopes, collection_auth):
         assert_db_state(role_batch)
 
 
-def test_create_role_conflict(api, role_batch, collection_auth):
-    """
-    See docstring for test_create_role
-    """
+def test_create_role_conflict(api, role_batch):
     scopes = [ODPScope.ROLE_ADMIN]
-    authorized = True  # collection_auth in (CollectionAuth.NONE, CollectionAuth.MATCH)
+    role = role_build(id=role_batch[2].id)
 
-    if collection_auth == CollectionAuth.MATCH:
-        api_client_collections = role_batch[2].collections
-    elif collection_auth == CollectionAuth.MISMATCH:
-        api_client_collections = role_batch[1].collections
-    else:
-        api_client_collections = None
-
-    if collection_auth in (CollectionAuth.MATCH, CollectionAuth.MISMATCH):
-        new_role_collections = role_batch[2].collections
-    else:
-        new_role_collections = None
-
-    role = role_build(
-        id=role_batch[2].id,
-        collections=new_role_collections,
-    )
-
-    r = api(scopes, api_client_collections).post('/role/', json=dict(
+    r = api(scopes).post('/role/', json=dict(
         id=role.id,
         scope_ids=scope_ids(role),
         collection_specific=role.collection_specific,
         collection_ids=[c.id for c in role.collections],
     ))
 
-    if authorized:
-        assert_conflict(r, 'Role id is already in use')
-    else:
-        assert_forbidden(r)
-
+    assert_conflict(r, 'Role id is already in use')
     assert_db_state(role_batch)
 
 
-def test_create_role_collection_specific_admin(api, role_batch):
+def test_create_role_admin_collection_specific(api, role_batch):
     scopes = [ODPScope.ROLE_ADMIN]
-    role = role_build(
-        collections=CollectionFactory.create_batch(randint(1, 2)),
-    )
+    role = role_build(collection_specific=True)
 
     r = api(scopes).post('/role/', json=dict(
         id=role.id,
@@ -205,32 +158,12 @@ def test_create_role_collection_specific_admin(api, role_batch):
 
 
 @pytest.mark.require_scope(ODPScope.ROLE_ADMIN)
-def test_update_role(api, role_batch, scopes, collection_auth):
-    """
-    See docstring for test_create_role
-    """
-    authorized = ODPScope.ROLE_ADMIN in scopes #and \
-                 #collection_auth in (CollectionAuth.NONE, CollectionAuth.MATCH)
-
-    if collection_auth == CollectionAuth.MATCH:
-        api_client_collections = role_batch[2].collections
-    elif collection_auth == CollectionAuth.MISMATCH:
-        api_client_collections = role_batch[1].collections
-    else:
-        api_client_collections = None
-
-    if collection_auth in (CollectionAuth.MATCH, CollectionAuth.MISMATCH):
-        modified_role_collections = role_batch[2].collections
-    else:
-        modified_role_collections = None
-
+def test_update_role(api, role_batch, scopes):
+    authorized = ODPScope.ROLE_ADMIN in scopes
     modified_role_batch = role_batch.copy()
-    modified_role_batch[2] = (role := role_build(
-        id=role_batch[2].id,
-        collections=modified_role_collections,
-    ))
+    modified_role_batch[2] = (role := role_build(id=role_batch[2].id))
 
-    r = api(scopes, api_client_collections).put('/role/', json=dict(
+    r = api(scopes).put('/role/', json=dict(
         id=role.id,
         scope_ids=scope_ids(role),
         collection_specific=role.collection_specific,
@@ -245,51 +178,24 @@ def test_update_role(api, role_batch, scopes, collection_auth):
         assert_db_state(role_batch)
 
 
-def test_update_role_not_found(api, role_batch, collection_auth):
-    """
-    See docstring for test_create_role
-    """
+def test_update_role_not_found(api, role_batch):
     scopes = [ODPScope.ROLE_ADMIN]
-    authorized = True  # collection_auth in (CollectionAuth.NONE, CollectionAuth.MATCH)
+    role = role_build(id='foo')
 
-    if collection_auth == CollectionAuth.MATCH:
-        api_client_collections = role_batch[2].collections
-    elif collection_auth == CollectionAuth.MISMATCH:
-        api_client_collections = role_batch[1].collections
-    else:
-        api_client_collections = None
-
-    if collection_auth in (CollectionAuth.MATCH, CollectionAuth.MISMATCH):
-        modified_role_collections = role_batch[2].collections
-    else:
-        modified_role_collections = None
-
-    role = role_build(
-        id='foo',
-        collections=modified_role_collections,
-    )
-
-    r = api(scopes, api_client_collections).put('/role/', json=dict(
+    r = api(scopes).put('/role/', json=dict(
         id=role.id,
         scope_ids=scope_ids(role),
         collection_specific=role.collection_specific,
         collection_ids=[c.id for c in role.collections],
     ))
 
-    if authorized:
-        assert_not_found(r)
-    else:
-        assert_forbidden(r)
-
+    assert_not_found(r)
     assert_db_state(role_batch)
 
 
-def test_update_role_collection_specific_admin(api, role_batch):
+def test_update_role_admin_collection_specific(api, role_batch):
     scopes = [ODPScope.ROLE_ADMIN]
-    role = role_build(
-        id=role_batch[2].id,
-        collections=CollectionFactory.create_batch(randint(1, 2)),
-    )
+    role = role_build(id=role_batch[2].id, collection_specific=True)
 
     r = api(scopes).put('/role/', json=dict(
         id=role.id,
@@ -303,24 +209,12 @@ def test_update_role_collection_specific_admin(api, role_batch):
 
 
 @pytest.mark.require_scope(ODPScope.ROLE_ADMIN)
-def test_delete_role(api, role_batch, scopes, collection_auth):
-    """
-    See docstring for test_create_role
-    """
-    authorized = ODPScope.ROLE_ADMIN in scopes #and \
-                 #collection_auth in (CollectionAuth.NONE, CollectionAuth.MATCH)
-
-    if collection_auth == CollectionAuth.MATCH:
-        api_client_collections = role_batch[2].collections
-    elif collection_auth == CollectionAuth.MISMATCH:
-        api_client_collections = role_batch[1].collections
-    else:
-        api_client_collections = None
-
+def test_delete_role(api, role_batch, scopes):
+    authorized = ODPScope.ROLE_ADMIN in scopes
     modified_role_batch = role_batch.copy()
     del modified_role_batch[2]
 
-    r = api(scopes, api_client_collections).delete(f'/role/{role_batch[2].id}')
+    r = api(scopes).delete(f'/role/{role_batch[2].id}')
 
     if authorized:
         assert_empty_result(r)
@@ -330,15 +224,8 @@ def test_delete_role(api, role_batch, scopes, collection_auth):
         assert_db_state(role_batch)
 
 
-def test_delete_role_not_found(api, role_batch, collection_auth):
+def test_delete_role_not_found(api, role_batch):
     scopes = [ODPScope.ROLE_ADMIN]
-
-    if collection_auth == CollectionAuth.NONE:
-        api_client_collections = None
-    else:
-        api_client_collections = role_batch[2].collections
-
-    r = api(scopes, api_client_collections).delete('/role/foo')
-
+    r = api(scopes).delete('/role/foo')
     assert_not_found(r)
     assert_db_state(role_batch)

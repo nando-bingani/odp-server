@@ -59,6 +59,7 @@ def api(request, monkeypatch):
             all_scope_objects = [Session.get(Scope, (s.value, 'odp')) for s in ODPScope]
 
             odp_user = UserFactory(roles=[RoleFactory(
+                id='odp.test',
                 scopes=scope_objects,
                 collection_specific=user_collections is not None,
                 collections=user_collections,
