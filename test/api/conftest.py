@@ -11,7 +11,7 @@ from odp.const.db import TagCardinality
 from odp.db import Session
 from odp.db.models import Collection, Provider, Scope
 from odp.lib.hydra import HydraAdminAPI
-from test.api import CollectionAuth, all_scopes, all_scopes_excluding
+from test.api import all_scopes, all_scopes_excluding
 from test.factories import ClientFactory, RoleFactory, UserFactory
 
 MockToken = namedtuple('MockToken', ('active', 'client_id', 'sub'))
@@ -29,7 +29,7 @@ def api(request, monkeypatch):
 
         r = api(scopes).get('/catalog/')
 
-        r = api(scopes, user_collections=collections).post('/record/', json=dict(
+        r = api(scopes, user_collections=authorized_collections).post('/record/', json=dict(
             doi=record.doi,
             metadata=record.metadata_,
             ...,
@@ -58,18 +58,21 @@ def api(request, monkeypatch):
             # for authorization_code we grant the test client all scopes
             all_scope_objects = [Session.get(Scope, (s.value, 'odp')) for s in ODPScope]
 
-            odp_user = UserFactory(roles=[RoleFactory(
-                id='odp.test',
-                scopes=scope_objects,
-                collection_specific=user_collections is not None,
-                collections=user_collections,
-            )])
+            odp_user = UserFactory(
+                id='odp.test/user',
+                name='Test User',
+                roles=[RoleFactory(
+                    id='odp.test/role',
+                    scopes=scope_objects,
+                    collection_specific=user_collections is not None,
+                    collections=user_collections,
+                )])
 
             for provider in user_providers or ():
                 provider.users += [odp_user]
 
         odp_client = ClientFactory(
-            id='odp.test',
+            id='odp.test/client',
             scopes=scope_objects if request.param == 'client_credentials' else all_scope_objects,
             provider_specific=client_provider is not None,
             provider=client_provider,
@@ -89,6 +92,7 @@ def api(request, monkeypatch):
             }
         )
 
+    api_test_client.grant_type = request.param
     return api_test_client
 
 
@@ -102,17 +106,28 @@ def hydra_admin_api():
     """
     try:
         hapi = HydraAdminAPI(config.HYDRA.ADMIN.URL)
-        hapi.create_or_update_client('odp.test', name='foo', secret=None, scope_ids=['bar'], grant_types=[])
+        hapi.create_or_update_client('odp.test/client', name='foo', secret=None, scope_ids=['bar'], grant_types=[])
         yield hapi
     finally:
         for hydra_client in hapi.list_clients():
             hapi.delete_client(hydra_client.id)
 
 
-@pytest.fixture(params=CollectionAuth)
-def collection_auth(request):
-    """Use for parameterizing the three possible logic branches
-    involving collection-specific authorization."""
+@pytest.fixture(params=['collection_any', 'collection_match', 'collection_mismatch'])
+def collection_constraint(request):
+    """Fixture for parameterizing the three possible logic branches
+    involving scopes that may be constrained to specific collections.
+
+    'collection_any'      => The test user has a non-collection-specific role
+    'collection_match'    => The test user has a collection-specific role, and is
+                             requesting access to authorized collection(s)
+    'collection_mismatch' => The test user has a collection-specific role, and is
+                             requesting access to unauthorized collection(s)
+
+    Note that collection access can only be constrained under the authorization_code
+    flow, when we have a test user whose role can be made collection-specific.
+    Under client_credentials, the calling test may skip collection_match/mismatch.
+    """
     return request.param
 
 

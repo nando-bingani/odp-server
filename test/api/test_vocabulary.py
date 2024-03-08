@@ -70,7 +70,7 @@ def assert_db_state(vocabularies):
 def assert_audit_log(command, term):
     """Verify that the vocabulary term audit table contains the given entry."""
     result = Session.execute(select(VocabularyTermAudit)).scalar_one()
-    assert result.client_id == 'odp.test'
+    assert result.client_id == 'odp.test/client'
     assert result.user_id is None
     assert result.command == command
     assert_new_timestamp(result.timestamp)

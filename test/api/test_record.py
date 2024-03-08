@@ -179,7 +179,7 @@ def assert_db_tag_state(record_id, *record_tags):
 
 def assert_audit_log(command, record):
     result = Session.execute(select(RecordAudit)).scalar_one()
-    assert result.client_id == 'odp.test'
+    assert result.client_id == 'odp.test/client'
     assert result.user_id is None
     assert result.command == command
     assert_new_timestamp(result.timestamp)
@@ -200,7 +200,7 @@ def assert_tag_audit_log(*entries):
     result = Session.execute(select(RecordTagAudit)).scalars().all()
     assert len(result) == len(entries)
     for n, row in enumerate(result):
-        assert row.client_id == 'odp.test'
+        assert row.client_id == 'odp.test/client'
         assert row.user_id is None
         assert row.command == entries[n]['command']
         assert_new_timestamp(row.timestamp)
