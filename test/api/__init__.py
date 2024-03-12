@@ -1,5 +1,7 @@
 from datetime import datetime, timedelta, timezone
 
+import pytest
+
 from odp.const import ODPScope
 
 all_scopes = [s for s in ODPScope]
@@ -52,3 +54,8 @@ def assert_new_timestamp(timestamp):
 def assert_redirect(response, url):
     assert response.is_redirect
     assert response.next_request.url == url
+
+
+def skip_client_credentials_collection_constraint(grant_type, collection_constraint):
+    if grant_type == 'client_credentials' and collection_constraint != 'collection_any':
+        pytest.skip('Collections cannot be constrained under client_credentials as there is no test user/role')

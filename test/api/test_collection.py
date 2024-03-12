@@ -12,7 +12,7 @@ from odp.db import Session
 from odp.db.models import Collection, CollectionAudit, CollectionTag, CollectionTagAudit, Scope, User
 from test.api import (
     all_scopes, all_scopes_excluding, assert_conflict, assert_empty_result, assert_forbidden, assert_new_timestamp,
-    assert_not_found, assert_unprocessable,
+    assert_not_found, assert_unprocessable, skip_client_credentials_collection_constraint,
 )
 from test.factories import CollectionFactory, CollectionTagFactory, ProviderFactory, RecordFactory, SchemaFactory, TagFactory
 
@@ -106,6 +106,10 @@ def assert_tag_audit_log(grant_type, *entries):
         assert row._data == entries[n]['collection_tag']['data']
 
 
+def assert_no_tag_audit_log():
+    assert Session.execute(select(CollectionTagAudit)).first() is None
+
+
 def assert_json_collection_result(response, json, collection):
     """Verify that the API result matches the given collection object."""
     assert response.status_code == 200
@@ -147,11 +151,6 @@ def assert_doi_result(response, collection):
     prefix, _, suffix = doi.rpartition('.')
     assert prefix == f'10.15493/{collection.doi_key}'
     assert re.match(r'^\d{8}$', suffix) is not None
-
-
-def skip_client_credentials_collection_constraint(grant_type, collection_constraint):
-    if grant_type == 'client_credentials' and collection_constraint != 'collection_any':
-        pytest.skip('Collections cannot be constrained under client_credentials as there is no test user/role')
 
 
 @pytest.mark.require_scope(ODPScope.COLLECTION_READ)
@@ -522,7 +521,7 @@ def test_tag_collection(api, collection_batch, scopes, collection_constraint, ta
     else:
         assert_forbidden(r)
         assert_db_tag_state(collection_id, api.grant_type)
-        assert_tag_audit_log(api.grant_type)
+        assert_no_tag_audit_log()
 
     r = client.post(
         f'/collection/{(collection_id := collection_batch[2].id)}/tag',
@@ -552,7 +551,7 @@ def test_tag_collection(api, collection_batch, scopes, collection_constraint, ta
     else:
         assert_forbidden(r)
         assert_db_tag_state(collection_id, api.grant_type)
-        assert_tag_audit_log(api.grant_type)
+        assert_no_tag_audit_log()
 
     assert_db_state(collection_batch)
     assert_no_audit_log()
@@ -589,7 +588,7 @@ def test_tag_collection_user_conflict(api, collection_batch, scopes, collection_
         if tag_cardinality == 'one':
             assert_conflict(r, 'Cannot update a tag set by another user')
             assert_db_tag_state(collection_id, api.grant_type, collection_tag_1)
-            assert_tag_audit_log(api.grant_type)
+            assert_no_tag_audit_log()
         elif tag_cardinality in ('user', 'multi'):
             assert_json_tag_result(r, r.json(), collection_tag_2 | dict(cardinality=tag_cardinality, public=tag.public), api.grant_type)
             assert_db_tag_state(collection_id, api.grant_type, collection_tag_1, collection_tag_2)
@@ -602,7 +601,7 @@ def test_tag_collection_user_conflict(api, collection_batch, scopes, collection_
     else:
         assert_forbidden(r)
         assert_db_tag_state(collection_id, api.grant_type, collection_tag_1)
-        assert_tag_audit_log(api.grant_type)
+        assert_no_tag_audit_log()
 
     assert_db_state(collection_batch)
     assert_no_audit_log()
@@ -667,7 +666,7 @@ def test_untag_collection(api, collection_batch, admin_route, scopes, collection
         if not admin_route and not same_user:
             assert_forbidden(r)
             assert_db_tag_state(collection.id, api.grant_type, *collection_tags, collection_tag_1)
-            assert_tag_audit_log(api.grant_type)
+            assert_no_tag_audit_log()
         else:
             assert_empty_result(r)
             assert_db_tag_state(collection.id, api.grant_type, *collection_tags)
@@ -678,7 +677,7 @@ def test_untag_collection(api, collection_batch, admin_route, scopes, collection
     else:
         assert_forbidden(r)
         assert_db_tag_state(collection.id, api.grant_type, *collection_tags, collection_tag_1)
-        assert_tag_audit_log(api.grant_type)
+        assert_no_tag_audit_log()
 
     assert_db_state(collection_batch)
     assert_no_audit_log()
