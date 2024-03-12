@@ -76,7 +76,7 @@ def scope_ids(client):
 def assert_db_state(clients):
     """Verify that the DB client table contains the given client batch."""
     Session.expire_all()
-    result = Session.execute(select(Client).where(Client.id != 'odp.test/client')).scalars().all()
+    result = Session.execute(select(Client).where(Client.id != 'odp.test.client')).scalars().all()
     assert set((row.id, scope_ids(row), row.provider_specific, row.provider_id) for row in result) \
            == set((client.id, scope_ids(client), client.provider_specific, client.provider_id) for client in clients)
 
@@ -102,7 +102,7 @@ def assert_json_result(response, json, client):
 
 def assert_json_results(response, json, clients):
     """Verify that the API result list matches the given client batch."""
-    items = [j for j in json['items'] if j['id'] != 'odp.test/client']
+    items = [j for j in json['items'] if j['id'] != 'odp.test.client']
     assert json['total'] - 1 == len(items) == len(clients)
     items.sort(key=lambda i: i['id'])
     clients.sort(key=lambda c: c.id)

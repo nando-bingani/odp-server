@@ -53,7 +53,7 @@ def assert_db_state(providers):
 
 def assert_audit_log(command, provider):
     result = Session.execute(select(ProviderAudit)).scalar_one()
-    assert result.client_id == 'odp.test/client'
+    assert result.client_id == 'odp.test.client'
     assert result.user_id is None
     assert result.command == command
     assert_new_timestamp(result.timestamp)

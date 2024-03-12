@@ -34,7 +34,7 @@ def collection_build(**id):
 
 
 def role_ids(collection):
-    return tuple(sorted(role.id for role in collection.roles if role.id != 'odp.test/role'))
+    return tuple(sorted(role.id for role in collection.roles if role.id != 'odp.test.role'))
 
 
 def assert_db_state(collections):
@@ -71,14 +71,14 @@ def assert_db_tag_state(collection_id, grant_type, *collection_tags):
             assert row.data == collection_tag.data
         else:
             assert row.tag_id == collection_tag['tag_id']
-            assert row.user_id == ('odp.test/user' if grant_type == 'authorization_code' else None)
+            assert row.user_id == ('odp.test.user' if grant_type == 'authorization_code' else None)
             assert row.data == collection_tag['data']
 
 
 def assert_audit_log(command, collection, grant_type):
     result = Session.execute(select(CollectionAudit)).scalar_one()
-    assert result.client_id == 'odp.test/client'
-    assert result.user_id == ('odp.test/user' if grant_type == 'authorization_code' else None)
+    assert result.client_id == 'odp.test.client'
+    assert result.user_id == ('odp.test.user' if grant_type == 'authorization_code' else None)
     assert result.command == command
     assert_new_timestamp(result.timestamp)
     assert result._id == collection.id
@@ -96,13 +96,13 @@ def assert_tag_audit_log(grant_type, *entries):
     result = Session.execute(select(CollectionTagAudit)).scalars().all()
     assert len(result) == len(entries)
     for n, row in enumerate(result):
-        assert row.client_id == 'odp.test/client'
-        assert row.user_id == ('odp.test/user' if grant_type == 'authorization_code' else None)
+        assert row.client_id == 'odp.test.client'
+        assert row.user_id == ('odp.test.user' if grant_type == 'authorization_code' else None)
         assert row.command == entries[n]['command']
         assert_new_timestamp(row.timestamp)
         assert row._collection_id == entries[n]['collection_id']
         assert row._tag_id == entries[n]['collection_tag']['tag_id']
-        assert row._user_id == entries[n]['collection_tag'].get('user_id') or ('odp.test/user' if grant_type == 'authorization_code' else None)
+        assert row._user_id == entries[n]['collection_tag'].get('user_id') or ('odp.test.user' if grant_type == 'authorization_code' else None)
         assert row._data == entries[n]['collection_tag']['data']
 
 
@@ -119,7 +119,7 @@ def assert_json_collection_result(response, json, collection):
     assert json['doi_key'] == collection.doi_key
     assert json['provider_id'] == collection.provider_id
     assert json['provider_key'] == collection.provider.key
-    assert tuple(sorted(r for r in json['role_ids'] if r != 'odp.test/role')) == role_ids(collection)
+    assert tuple(sorted(r for r in json['role_ids'] if r != 'odp.test.role')) == role_ids(collection)
     assert_new_timestamp(datetime.fromisoformat(json['timestamp']))
 
 
@@ -137,7 +137,7 @@ def assert_json_tag_result(response, json, collection_tag, grant_type):
     """Verify that the API result matches the given collection tag dict."""
     assert response.status_code == 200
     assert json['tag_id'] == collection_tag['tag_id']
-    assert json['user_id'] == ('odp.test/user' if grant_type == 'authorization_code' else None)
+    assert json['user_id'] == ('odp.test.user' if grant_type == 'authorization_code' else None)
     assert json['user_name'] == ('Test User' if grant_type == 'authorization_code' else None)
     assert json['data'] == collection_tag['data']
     assert_new_timestamp(datetime.fromisoformat(json['timestamp']))
@@ -647,7 +647,7 @@ def test_untag_collection(api, collection_batch, admin_route, scopes, collection
         collection_tag_1 = CollectionTagFactory(
             collection=collection,
             tag=tag,
-            user=Session.get(User, 'odp.test/user') if api.grant_type == 'authorization_code' else None,
+            user=Session.get(User, 'odp.test.user') if api.grant_type == 'authorization_code' else None,
         )
     else:
         collection_tag_1 = CollectionTagFactory(

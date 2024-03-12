@@ -177,14 +177,14 @@ def assert_db_tag_state(record_id, grant_type, *record_tags):
             assert row.data == record_tag.data
         else:
             assert row.tag_id == record_tag['tag_id']
-            assert row.user_id == ('odp.test/user' if grant_type == 'authorization_code' else None)
+            assert row.user_id == ('odp.test.user' if grant_type == 'authorization_code' else None)
             assert row.data == record_tag['data']
 
 
 def assert_audit_log(command, record, grant_type):
     result = Session.execute(select(RecordAudit)).scalar_one()
-    assert result.client_id == 'odp.test/client'
-    assert result.user_id == ('odp.test/user' if grant_type == 'authorization_code' else None)
+    assert result.client_id == 'odp.test.client'
+    assert result.user_id == ('odp.test.user' if grant_type == 'authorization_code' else None)
     assert result.command == command
     assert_new_timestamp(result.timestamp)
     assert result._id == record.id
@@ -204,13 +204,13 @@ def assert_tag_audit_log(grant_type, *entries):
     result = Session.execute(select(RecordTagAudit)).scalars().all()
     assert len(result) == len(entries)
     for n, row in enumerate(result):
-        assert row.client_id == 'odp.test/client'
-        assert row.user_id == ('odp.test/user' if grant_type == 'authorization_code' else None)
+        assert row.client_id == 'odp.test.client'
+        assert row.user_id == ('odp.test.user' if grant_type == 'authorization_code' else None)
         assert row.command == entries[n]['command']
         assert_new_timestamp(row.timestamp)
         assert row._record_id == entries[n]['record_id']
         assert row._tag_id == entries[n]['record_tag']['tag_id']
-        assert row._user_id == entries[n]['record_tag'].get('user_id') or ('odp.test/user' if grant_type == 'authorization_code' else None)
+        assert row._user_id == entries[n]['record_tag'].get('user_id') or ('odp.test.user' if grant_type == 'authorization_code' else None)
         assert row._data == entries[n]['record_tag']['data']
 
 
@@ -258,7 +258,7 @@ def assert_json_tag_result(response, json, record_tag, grant_type):
     """Verify that the API result matches the given record tag dict."""
     assert response.status_code == 200
     assert json['tag_id'] == record_tag['tag_id']
-    assert json['user_id'] == ('odp.test/user' if grant_type == 'authorization_code' else None)
+    assert json['user_id'] == ('odp.test.user' if grant_type == 'authorization_code' else None)
     assert json['user_name'] == ('Test User' if grant_type == 'authorization_code' else None)
     assert json['data'] == record_tag['data']
     assert_new_timestamp(datetime.fromisoformat(json['timestamp']))
@@ -1084,7 +1084,7 @@ def test_untag_record(api, record_batch_no_tags, admin_route, scopes, collection
         record_tag_1 = RecordTagFactory(
             record=record,
             tag=tag,
-            user=Session.get(User, 'odp.test/user') if api.grant_type == 'authorization_code' else None,
+            user=Session.get(User, 'odp.test.user') if api.grant_type == 'authorization_code' else None,
         )
     else:
         record_tag_1 = RecordTagFactory(

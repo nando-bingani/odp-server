@@ -54,7 +54,7 @@ def collection_keys(role):
 def assert_db_state(roles):
     """Verify that the DB role table contains the given role batch."""
     Session.expire_all()
-    result = Session.execute(select(Role).where(Role.id != 'odp.test/role')).scalars().all()
+    result = Session.execute(select(Role).where(Role.id != 'odp.test.role')).scalars().all()
     assert set((row.id, scope_ids(row), row.collection_specific, collection_ids(row)) for row in result) \
            == set((role.id, scope_ids(role), role.collection_specific, collection_ids(role)) for role in roles)
 
@@ -70,7 +70,7 @@ def assert_json_result(response, json, role):
 
 def assert_json_results(response, json, roles):
     """Verify that the API result list matches the given role batch."""
-    items = [j for j in json['items'] if j['id'] != 'odp.test/role']
+    items = [j for j in json['items'] if j['id'] != 'odp.test.role']
     assert len(items) == len(roles)
     items.sort(key=lambda i: i['id'])
     roles.sort(key=lambda r: r.id)

@@ -35,7 +35,7 @@ def assert_db_state(users):
 def assert_audit_log(command, user, user_role_ids):
     """Verify that the identity audit table contains the given entry."""
     result = Session.execute(select(IdentityAudit)).scalar_one()
-    assert result.client_id == 'odp.test/client'
+    assert result.client_id == 'odp.test.client'
     assert result.user_id is None
     assert result.command == command
     assert result.completed is True

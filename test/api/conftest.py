@@ -59,10 +59,10 @@ def api(request, monkeypatch):
             all_scope_objects = [Session.get(Scope, (s.value, 'odp')) for s in ODPScope]
 
             odp_user = UserFactory(
-                id='odp.test/user',
+                id='odp.test.user',
                 name='Test User',
                 roles=[RoleFactory(
-                    id='odp.test/role',
+                    id='odp.test.role',
                     scopes=scope_objects,
                     collection_specific=user_collections is not None,
                     collections=user_collections,
@@ -72,7 +72,7 @@ def api(request, monkeypatch):
                 provider.users += [odp_user]
 
         odp_client = ClientFactory(
-            id='odp.test/client',
+            id='odp.test.client',
             scopes=scope_objects if request.param == 'client_credentials' else all_scope_objects,
             provider_specific=client_provider is not None,
             provider=client_provider,
@@ -106,7 +106,7 @@ def hydra_admin_api():
     """
     try:
         hapi = HydraAdminAPI(config.HYDRA.ADMIN.URL)
-        hapi.create_or_update_client('odp.test/client', name='foo', secret=None, scope_ids=['bar'], grant_types=[])
+        hapi.create_or_update_client('odp.test.client', name='foo', secret=None, scope_ids=['bar'], grant_types=[])
         yield hapi
     finally:
         for hydra_client in hapi.list_clients():
