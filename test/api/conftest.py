@@ -168,3 +168,9 @@ def scopes(request):
         return all_scopes
     elif request.param == 'scope_excl':
         return all_scopes_excluding(scope)
+
+
+def pytest_configure(config):
+    config.addinivalue_line(
+        'markers', 'require_scope(odpscope): mark API test with ODPScope required by API route'
+    )
