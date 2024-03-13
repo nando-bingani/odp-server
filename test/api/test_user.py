@@ -27,16 +27,16 @@ def role_ids(user):
 def assert_db_state(users):
     """Verify that the DB user table contains the given user batch."""
     Session.expire_all()
-    result = Session.execute(select(User)).scalars().all()
+    result = Session.execute(select(User).where(User.id != 'odp.test.user')).scalars().all()
     assert set((row.id, row.name, row.email, row.active, row.verified, role_ids(row)) for row in result) \
            == set((user.id, user.name, user.email, user.active, user.verified, role_ids(user)) for user in users)
 
 
-def assert_audit_log(command, user, user_role_ids):
+def assert_audit_log(command, user, user_role_ids, grant_type):
     """Verify that the identity audit table contains the given entry."""
     result = Session.execute(select(IdentityAudit)).scalar_one()
     assert result.client_id == 'odp.test.client'
-    assert result.user_id is None
+    assert result.user_id == ('odp.test.user' if grant_type == 'authorization_code' else None)
     assert result.command == command
     assert result.completed is True
     assert result.error is None
@@ -65,8 +65,8 @@ def assert_json_result(response, json, user):
 
 def assert_json_results(response, json, users):
     """Verify that the API result list matches the given user batch."""
-    items = json['items']
-    assert json['total'] == len(items) == len(users)
+    items = [j for j in json['items'] if j['id'] != 'odp.test.user']
+    assert len(items) == len(users)
     items.sort(key=lambda i: i['id'])
     users.sort(key=lambda u: u.id)
     for n, user in enumerate(users):
@@ -130,7 +130,7 @@ def test_update_user(api, user_batch, scopes):
     if authorized:
         assert_empty_result(r)
         assert_db_state(modified_user_batch)
-        assert_audit_log('edit', user, role_ids(user))
+        assert_audit_log('edit', user, role_ids(user), api.grant_type)
     else:
         assert_forbidden(r)
         assert_db_state(user_batch)
@@ -184,7 +184,7 @@ def test_delete_user(api, user_batch, scopes, has_tag_instance):
         else:
             assert_empty_result(r)
             # check audit log first because assert_db_state expires the deleted item
-            assert_audit_log('delete', deleted_user, deleted_user_role_ids)
+            assert_audit_log('delete', deleted_user, deleted_user_role_ids, api.grant_type)
             assert_db_state(modified_user_batch)
     else:
         assert_forbidden(r)
