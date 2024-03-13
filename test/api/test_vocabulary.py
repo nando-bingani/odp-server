@@ -67,11 +67,11 @@ def assert_db_state(vocabularies):
             assert trow.data == terms[m].data
 
 
-def assert_audit_log(command, term):
+def assert_audit_log(command, term, grant_type):
     """Verify that the vocabulary term audit table contains the given entry."""
     result = Session.execute(select(VocabularyTermAudit)).scalar_one()
     assert result.client_id == 'odp.test.client'
-    assert result.user_id is None
+    assert result.user_id == ('odp.test.user' if grant_type == 'authorization_code' else None)
     assert result.command == command
     assert_new_timestamp(result.timestamp)
     assert result._vocabulary_id == term.vocabulary.id
@@ -164,7 +164,7 @@ def test_create_term(api, vocabulary_batch, scopes):
         else:
             assert_empty_result(r)
             assert_db_state(modified_vocab_batch)
-            assert_audit_log('insert', term)
+            assert_audit_log('insert', term, api.grant_type)
     else:
         assert_forbidden(r)
         assert_db_state(vocabulary_batch)
@@ -223,7 +223,7 @@ def test_update_term(api, vocabulary_batch, scopes):
         else:
             assert_empty_result(r)
             assert_db_state(modified_vocab_batch)
-            assert_audit_log('update', term)
+            assert_audit_log('update', term, api.grant_type)
     else:
         assert_forbidden(r)
         assert_db_state(vocabulary_batch)
@@ -276,7 +276,7 @@ def test_delete_term(api, vocabulary_batch, scopes):
         else:
             assert_empty_result(r)
             # check audit log first because assert_db_state expires the deleted item
-            assert_audit_log('delete', deleted_term)
+            assert_audit_log('delete', deleted_term, api.grant_type)
             assert_db_state(modified_vocab_batch)
     else:
         assert_forbidden(r)
