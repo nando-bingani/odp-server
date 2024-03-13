@@ -51,10 +51,10 @@ def assert_db_state(providers):
         assert collection_ids(row) == collection_ids(providers[n])
 
 
-def assert_audit_log(command, provider):
+def assert_audit_log(command, provider, grant_type):
     result = Session.execute(select(ProviderAudit)).scalar_one()
     assert result.client_id == 'odp.test.client'
-    assert result.user_id is None
+    assert result.user_id == ('odp.test.user' if grant_type == 'authorization_code' else None)
     assert result.command == command
     assert_new_timestamp(result.timestamp)
     assert result._id == provider.id
@@ -130,7 +130,7 @@ def test_create_provider(api, provider_batch, scopes):
         provider.id = r.json().get('id')
         assert_json_result(r, r.json(), provider)
         assert_db_state(modified_provider_batch)
-        assert_audit_log('insert', provider)
+        assert_audit_log('insert', provider, api.grant_type)
     else:
         assert_forbidden(r)
         assert_db_state(provider_batch)
@@ -164,7 +164,7 @@ def test_update_provider(api, provider_batch, scopes):
     if authorized:
         assert_empty_result(r)
         assert_db_state(modified_provider_batch)
-        assert_audit_log('update', provider)
+        assert_audit_log('update', provider, api.grant_type)
     else:
         assert_forbidden(r)
         assert_db_state(provider_batch)
@@ -226,7 +226,7 @@ def test_delete_provider(api, provider_batch, scopes, has_record):
         else:
             assert_empty_result(r)
             # check audit log first because assert_db_state expires the deleted item
-            assert_audit_log('delete', deleted_provider)
+            assert_audit_log('delete', deleted_provider, api.grant_type)
             assert_db_state(modified_provider_batch)
     else:
         assert_forbidden(r)
