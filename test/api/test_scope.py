@@ -47,9 +47,9 @@ def assert_json_results(response, json, scopes):
 @pytest.mark.require_scope(ODPScope.SCOPE_READ)
 def test_list_scopes(api, scope_batch, scopes):
     authorized = ODPScope.SCOPE_READ in scopes
-    # add the parameterized scopes to the batch of expected scopes,
-    # as they will be created by the api fixture
-    scope_batch += [ScopeFactory.build(id=s.value, type='odp') for s in scopes]
+    # add ODP scopes to the batch of expected scopes,
+    # as they are created by the static_data fixture
+    scope_batch += [ScopeFactory.build(id=s.value, type='odp') for s in ODPScope]
     r = api(scopes).get('/scope/')
     if authorized:
         assert_json_results(r, r.json(), scope_batch)
