@@ -26,6 +26,10 @@ def output_provider_model(provider: Provider) -> ProviderModel:
             collection.key: collection.id
             for collection in provider.collections
         },
+        user_ids={
+            user.id: user.name
+            for user in provider.users
+        },
         timestamp=provider.timestamp.isoformat(),
     )
 
@@ -43,6 +47,7 @@ def output_audit_model(row) -> ProviderAuditModel:
         provider_id=row.ProviderAudit._id,
         provider_key=row.ProviderAudit._key,
         provider_name=row.ProviderAudit._name,
+        provider_users=row.ProviderAudit._users,
     )
 
 
@@ -60,6 +65,7 @@ def create_audit_record(
         _id=provider.id,
         _key=provider.key,
         _name=provider.name,
+        _users=[user.id for user in provider.users],
     ).save()
 
 
@@ -108,6 +114,10 @@ async def create_provider(
     provider = Provider(
         key=provider_in.key,
         name=provider_in.name,
+        users=[
+            Session.get(User, user_id)
+            for user_id in provider_in.user_ids
+        ],
         timestamp=(timestamp := datetime.now(timezone.utc)),
     )
     provider.save()
@@ -140,6 +150,10 @@ async def update_provider(
     ):
         provider.key = provider_in.key
         provider.name = provider_in.name
+        provider.users = [
+            Session.get(User, user_id)
+            for user_id in provider_in.user_ids
+        ]
         provider.timestamp = (timestamp := datetime.now(timezone.utc))
         provider.save()
         create_audit_record(auth, provider, timestamp, AuditCommand.update)
@@ -155,6 +169,8 @@ async def delete_provider(
     if not (provider := Session.get(Provider, provider_id)):
         raise HTTPException(HTTP_404_NOT_FOUND)
 
+    create_audit_record(auth, provider, datetime.now(timezone.utc), AuditCommand.delete)
+
     try:
         provider.delete()
     except IntegrityError as e:
@@ -162,8 +178,6 @@ async def delete_provider(
             HTTP_422_UNPROCESSABLE_ENTITY,
             'A provider with non-empty collections cannot be deleted.',
         ) from e
-
-    create_audit_record(auth, provider, datetime.now(timezone.utc), AuditCommand.delete)
 
 
 @router.get(

@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import Column, Enum, ForeignKey, Identity, Integer, String, TIMESTAMP
+from sqlalchemy import ARRAY, Column, Enum, ForeignKey, Identity, Integer, String, TIMESTAMP
 from sqlalchemy.ext.associationproxy import association_proxy
 from sqlalchemy.orm import relationship
 
@@ -64,3 +64,4 @@ class ProviderAudit(Base):
     _id = Column(String, nullable=False)
     _key = Column(String, nullable=False)
     _name = Column(String, nullable=False)
+    _users = Column(ARRAY(String))
