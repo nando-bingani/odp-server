@@ -47,7 +47,7 @@ def output_audit_model(row) -> ProviderAuditModel:
         provider_id=row.ProviderAudit._id,
         provider_key=row.ProviderAudit._key,
         provider_name=row.ProviderAudit._name,
-        provider_users=row.ProviderAudit._users,
+        provider_users=row.ProviderAudit._users or [],
     )
 
 
