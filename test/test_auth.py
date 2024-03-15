@@ -353,12 +353,13 @@ def test_user_info():
     user = UserFactory(roles=(role1, role2, role3, role4))
 
     actual_user_info = get_user_info(user.id)
+    actual_user_info.roles = set(actual_user_info.roles)
     expected_user_info = UserInfo(
         sub=user.id,
         email=user.email,
         email_verified=user.verified,
         name=user.name,
         picture=user.picture,
-        roles=[role1.id, role2.id, role3.id, role4.id],
+        roles={role1.id, role2.id, role3.id, role4.id},
     )
     assert actual_user_info == expected_user_info
