@@ -235,7 +235,7 @@ def assert_json_record_result(response, json, record):
     assert_new_timestamp(datetime.fromisoformat(json['timestamp']))
     assert json['parent_id'] == record.parent_id
     assert json['parent_doi'] == (record.parent.doi if record.parent_id else None)
-    assert json['child_dois'] == {child.doi: child.id for child in record.children}
+    assert json['child_dois'] == {child.id: child.doi for child in record.children}
 
     json_tags = json['tags']
     db_tags = Session.execute(

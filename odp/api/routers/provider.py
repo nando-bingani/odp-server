@@ -23,10 +23,10 @@ def output_provider_model(provider: Provider) -> ProviderModel:
         key=provider.key,
         name=provider.name,
         collection_keys={
-            collection.key: collection.id
+            collection.id: collection.key
             for collection in provider.collections
         },
-        user_ids={
+        user_names={
             user.id: user.name
             for user in provider.users
         },

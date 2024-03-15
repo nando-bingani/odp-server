@@ -42,10 +42,10 @@ def collection_ids(provider):
 
 
 def collection_keys(provider):
-    return {collection.key: collection.id for collection in provider.collections}
+    return {collection.id: collection.key for collection in provider.collections}
 
 
-def user_ids(provider):
+def user_names(provider):
     return {user.id: user.name for user in provider.users}
 
 
@@ -62,7 +62,7 @@ def assert_db_state(providers):
         assert row.name == providers[n].name
         assert_new_timestamp(row.timestamp)
         assert collection_ids(row) == collection_ids(providers[n])
-        assert user_ids(row) == user_ids(providers[n])
+        assert user_names(row) == user_names(providers[n])
 
 
 def assert_audit_log(command, provider, provider_user_ids, grant_type):
@@ -88,7 +88,7 @@ def assert_json_result(response, json, provider):
     assert json['key'] == provider.key
     assert json['name'] == provider.name
     assert json['collection_keys'] == collection_keys(provider)
-    assert json['user_ids'] == user_ids(provider)
+    assert json['user_names'] == user_names(provider)
     assert_new_timestamp(datetime.fromisoformat(json['timestamp']))
 
 
@@ -141,13 +141,13 @@ def test_create_provider(api, provider_batch, scopes):
     r = api(scopes).post('/provider/', json=dict(
         key=provider.key,
         name=provider.name,
-        user_ids=list(user_ids(provider)),
+        user_ids=list(user_names(provider)),
     ))
     if authorized:
         provider.id = r.json().get('id')
         assert_json_result(r, r.json(), provider)
         assert_db_state(modified_provider_batch)
-        assert_audit_log('insert', provider, user_ids(provider), api.grant_type)
+        assert_audit_log('insert', provider, user_names(provider), api.grant_type)
     else:
         assert_forbidden(r)
         assert_db_state(provider_batch)
@@ -160,7 +160,7 @@ def test_create_provider_conflict(api, provider_batch):
     r = api(scopes).post('/provider/', json=dict(
         key=provider.key,
         name=provider.name,
-        user_ids=list(user_ids(provider)),
+        user_ids=list(user_names(provider)),
     ))
     assert_conflict(r, 'Provider key is already in use')
     assert_db_state(provider_batch)
@@ -178,12 +178,12 @@ def test_update_provider(api, provider_batch, scopes):
     r = api(scopes).put(f'/provider/{provider.id}', json=dict(
         key=provider.key,
         name=provider.name,
-        user_ids=list(user_ids(provider)),
+        user_ids=list(user_names(provider)),
     ))
     if authorized:
         assert_empty_result(r)
         assert_db_state(modified_provider_batch)
-        assert_audit_log('update', provider, user_ids(provider), api.grant_type)
+        assert_audit_log('update', provider, user_names(provider), api.grant_type)
     else:
         assert_forbidden(r)
         assert_db_state(provider_batch)
@@ -196,7 +196,7 @@ def test_update_provider_not_found(api, provider_batch):
     r = api(scopes).put(f'/provider/{provider.id}', json=dict(
         key=provider.key,
         name=provider.name,
-        user_ids=list(user_ids(provider)),
+        user_ids=list(user_names(provider)),
     ))
     assert_not_found(r)
     assert_db_state(provider_batch)
@@ -212,7 +212,7 @@ def test_update_provider_conflict(api, provider_batch):
     r = api(scopes).put(f'/provider/{provider.id}', json=dict(
         key=provider.key,
         name=provider.name,
-        user_ids=list(user_ids(provider)),
+        user_ids=list(user_names(provider)),
     ))
     assert_conflict(r, 'Provider key is already in use')
     assert_db_state(provider_batch)
@@ -229,7 +229,7 @@ def test_delete_provider(api, provider_batch, scopes, has_record):
     authorized = ODPScope.PROVIDER_ADMIN in scopes
     modified_provider_batch = provider_batch.copy()
     deleted_provider = modified_provider_batch[2]
-    deleted_provider_user_ids = list(user_ids(deleted_provider))
+    deleted_provider_user_ids = list(user_names(deleted_provider))
     del modified_provider_batch[2]
 
     if has_record:

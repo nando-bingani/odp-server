@@ -41,7 +41,7 @@ class MIMSCatalog(SAEONCatalog):
 
         # add related identifiers for published child records to
         # the DataCite and ISO19115 metadata records
-        for child_doi, child_id in record_model.child_dois.items():
+        for child_id, child_doi in record_model.child_dois.items():
             if child_snapshot := self.snapshot.get(child_id):
                 child_record_model, _ = child_snapshot
                 can_publish_reasons = []

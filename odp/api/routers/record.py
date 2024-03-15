@@ -61,7 +61,7 @@ def output_record_model(record: Record) -> RecordModel:
         parent_id=record.parent_id,
         parent_doi=record.parent.doi if record.parent_id else None,
         child_dois={
-            child.doi: child.id
+            child.id: child.doi
             for child in record.children
         },
         metadata=record.metadata_,

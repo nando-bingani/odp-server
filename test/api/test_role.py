@@ -47,7 +47,7 @@ def collection_ids(role):
 
 def collection_keys(role):
     return {
-        collection.key: collection.id for collection in role.collections
+        collection.id: collection.key for collection in role.collections
     } if role.collection_specific else {}
 
 
