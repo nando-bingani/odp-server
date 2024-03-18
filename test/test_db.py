@@ -14,7 +14,6 @@ from odp.db.models import (
     Collection,
     CollectionTag,
     Provider,
-    ProviderUser,
     Record,
     RecordTag,
     Role,
@@ -24,6 +23,7 @@ from odp.db.models import (
     Scope,
     Tag,
     User,
+    UserProvider,
     UserRole,
     Vocabulary,
     VocabularyTerm,
@@ -126,14 +126,6 @@ def test_create_provider():
     provider = ProviderFactory()
     result = Session.execute(select(Provider)).scalar_one()
     assert (result.id, result.key, result.name) == (provider.id, provider.key, provider.name)
-
-
-def test_create_provider_with_users():
-    users = UserFactory.create_batch(5)
-    provider = ProviderFactory(users=users)
-    result = Session.execute(select(ProviderUser)).scalars()
-    assert sorted_tuples((row.provider_id, row.user_id) for row in result) \
-           == sorted_tuples((provider.id, user.id) for user in users)
 
 
 def test_create_record():
@@ -244,6 +236,14 @@ def test_create_user():
     result = Session.execute(select(User)).scalar_one()
     assert (result.id, result.name, result.email, result.active, result.verified) \
            == (user.id, user.name, user.email, user.active, user.verified)
+
+
+def test_create_user_with_providers():
+    providers = ProviderFactory.create_batch(5)
+    user = UserFactory(providers=providers)
+    result = Session.execute(select(UserProvider)).scalars()
+    assert sorted_tuples((row.user_id, row.provider_id) for row in result) \
+           == sorted_tuples((user.id, provider.id) for provider in providers)
 
 
 def test_create_user_with_roles():

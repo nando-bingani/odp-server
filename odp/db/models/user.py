@@ -27,9 +27,10 @@ class User(Base):
     user_roles = relationship('UserRole', cascade='all, delete-orphan', passive_deletes=True)
     roles = association_proxy('user_roles', 'role', creator=lambda r: UserRole(role=r))
 
-    # view of associated providers via many-to-many provider_user relation
-    user_providers = relationship('ProviderUser', viewonly=True)
-    providers = association_proxy('user_providers', 'provider')
+    # many-to-many user_provider entities are persisted by
+    # assigning/removing Provider instances to/from providers
+    user_providers = relationship('UserProvider', cascade='all, delete-orphan', passive_deletes=True)
+    providers = association_proxy('user_providers', 'provider', creator=lambda p: UserProvider(provider=p))
 
     _repr_ = 'id', 'email', 'name', 'active', 'verified'
 
@@ -46,6 +47,21 @@ class UserRole(Base):
     role = relationship('Role')
 
     _repr_ = 'user_id', 'role_id'
+
+
+class UserProvider(Base):
+    """A user-provider association, which enables partitioning of
+    package/resource access by (groups of) user."""
+
+    __tablename__ = 'user_provider'
+
+    user_id = Column(String, ForeignKey('user.id', ondelete='CASCADE'), primary_key=True)
+    provider_id = Column(String, ForeignKey('provider.id', ondelete='CASCADE'), primary_key=True)
+
+    user = relationship('User', viewonly=True)
+    provider = relationship('Provider')
+
+    _repr_ = 'user_id', 'provider_id'
 
 
 class IdentityAudit(Base):
@@ -65,3 +81,4 @@ class IdentityAudit(Base):
     _email = Column(String)
     _active = Column(Boolean)
     _roles = Column(ARRAY(String))
+    _providers = Column(ARRAY(String))
