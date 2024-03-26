@@ -13,9 +13,11 @@ from odp.db.models import (
     ClientScope,
     Collection,
     CollectionTag,
+    Package,
     Provider,
     Record,
     RecordTag,
+    Resource,
     Role,
     RoleCollection,
     RoleScope,
@@ -29,8 +31,22 @@ from odp.db.models import (
     VocabularyTerm,
 )
 from test.factories import (
-    ArchiveFactory, CatalogFactory, ClientFactory, CollectionFactory, CollectionTagFactory, ProviderFactory, RecordFactory,
-    RecordTagFactory, RoleFactory, SchemaFactory, ScopeFactory, TagFactory, UserFactory, VocabularyFactory,
+    ArchiveFactory,
+    CatalogFactory,
+    ClientFactory,
+    CollectionFactory,
+    CollectionTagFactory,
+    PackageFactory,
+    ProviderFactory,
+    RecordFactory,
+    RecordTagFactory,
+    ResourceFactory,
+    RoleFactory,
+    SchemaFactory,
+    ScopeFactory,
+    TagFactory,
+    UserFactory,
+    VocabularyFactory,
 )
 
 
@@ -111,8 +127,21 @@ def test_create_client_with_scopes():
 def test_create_collection():
     collection = CollectionFactory()
     result = Session.execute(select(Collection, Provider).join(Provider)).one()
-    assert (result.Collection.id, result.Collection.key, result.Collection.name, result.Collection.doi_key, result.Collection.provider_id, result.Provider.name) \
-           == (collection.id, collection.key, collection.name, collection.doi_key, collection.provider.id, collection.provider.name)
+    assert (
+               result.Collection.id,
+               result.Collection.key,
+               result.Collection.name,
+               result.Collection.doi_key,
+               result.Collection.provider_id,
+               result.Provider.name,
+           ) == (
+               collection.id,
+               collection.key,
+               collection.name,
+               collection.doi_key,
+               collection.provider.id,
+               collection.provider.name,
+           )
 
 
 def test_create_collection_tag():
@@ -120,6 +149,30 @@ def test_create_collection_tag():
     result = Session.execute(select(CollectionTag).join(Collection).join(Tag)).scalar_one()
     assert (result.collection_id, result.tag_id, result.tag_type, result.user_id, result.data) \
            == (collection_tag.collection.id, collection_tag.tag.id, 'collection', collection_tag.user.id, collection_tag.data)
+
+
+def test_create_package():
+    package = PackageFactory()
+    result = Session.execute(select(Package)).scalar_one()
+    assert (
+               result.id,
+               result.metadata_,
+               result.validity,
+               result.notes,
+               result.provider_id,
+               result.schema_id,
+               result.schema_type,
+               result.timestamp,
+           ) == (
+               package.id,
+               package.metadata_,
+               package.validity,
+               package.notes,
+               package.provider_id,
+               package.schema_id,
+               package.schema_type,
+               package.timestamp,
+           )
 
 
 def test_create_provider():
@@ -168,6 +221,32 @@ def test_create_record_tag():
     result = Session.execute(select(RecordTag).join(Record).join(Tag)).scalar_one()
     assert (result.record_id, result.tag_id, result.tag_type, result.user_id, result.data) \
            == (record_tag.record.id, record_tag.tag.id, 'record', record_tag.user.id, record_tag.data)
+
+
+def test_create_resource():
+    resource = ResourceFactory()
+    result = Session.execute(select(Resource)).scalar_one()
+    assert (
+               result.id,
+               result.title,
+               result.description,
+               result.filename,
+               result.mimetype,
+               result.size,
+               result.md5,
+               result.timestamp,
+               result.provider_id,
+           ) == (
+               resource.id,
+               resource.title,
+               resource.description,
+               resource.filename,
+               resource.mimetype,
+               resource.size,
+               resource.md5,
+               resource.timestamp,
+               resource.provider_id,
+           )
 
 
 def test_create_role():

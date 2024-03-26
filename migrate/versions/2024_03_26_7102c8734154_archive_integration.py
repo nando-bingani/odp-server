@@ -1,8 +1,8 @@
 """Archive integration
 
-Revision ID: 8b7c8e06a27d
+Revision ID: 7102c8734154
 Revises: df57d06e1ee5
-Create Date: 2024-03-18 10:05:55.830780
+Create Date: 2024-03-26 14:43:52.793498
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision = '8b7c8e06a27d'
+revision = '7102c8734154'
 down_revision = 'df57d06e1ee5'
 branch_labels = None
 depends_on = None
@@ -25,10 +25,17 @@ def upgrade():
                     )
     op.create_table('package',
                     sa.Column('id', sa.String(), nullable=False),
-                    sa.Column('metadata_', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
+                    sa.Column('metadata_', postgresql.JSONB(astext_type=sa.Text()), nullable=False),
+                    sa.Column('validity', postgresql.JSONB(astext_type=sa.Text()), nullable=False),
+                    sa.Column('notes', sa.String(), nullable=True),
                     sa.Column('timestamp', sa.TIMESTAMP(timezone=True), nullable=False),
                     sa.Column('provider_id', sa.String(), nullable=False),
-                    sa.ForeignKeyConstraint(['provider_id'], ['provider.id'], ondelete='CASCADE'),
+                    sa.Column('schema_id', sa.String(), nullable=False),
+                    sa.Column('schema_type', sa.Enum('metadata', 'tag', 'vocabulary', name='schematype'), nullable=False),
+                    sa.CheckConstraint("schema_type = 'metadata'", name='package_schema_type_check'),
+                    sa.ForeignKeyConstraint(['provider_id'], ['provider.id'], ondelete='RESTRICT'),
+                    sa.ForeignKeyConstraint(['schema_id', 'schema_type'], ['schema.id', 'schema.type'], name='package_schema_fkey',
+                                            ondelete='RESTRICT'),
                     sa.PrimaryKeyConstraint('id')
                     )
     op.create_table('resource',

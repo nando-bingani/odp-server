@@ -1,4 +1,5 @@
 import re
+import sys
 from datetime import datetime, timezone
 from random import choice, randint
 
@@ -7,8 +8,25 @@ from factory.alchemy import SQLAlchemyModelFactory
 from faker import Faker
 
 from odp.db import Session
-from odp.db.models import (Archive, Catalog, Client, Collection, CollectionTag, Provider, Record,
-                           RecordTag, Role, Schema, Scope, Tag, User, Vocabulary, VocabularyTerm)
+from odp.db.models import (
+    Archive,
+    Catalog,
+    Client,
+    Collection,
+    CollectionTag,
+    Package,
+    Provider,
+    Record,
+    RecordTag,
+    Resource,
+    Role,
+    Schema,
+    Scope,
+    Tag,
+    User,
+    Vocabulary,
+    VocabularyTerm,
+)
 from test import datacite4_example, iso19115_example
 
 fake = Faker()
@@ -118,7 +136,7 @@ class SchemaFactory(ODPModelFactory):
     id = factory.Sequence(lambda n: f'{fake.word()}.{n}')
     type = factory.LazyFunction(lambda: choice(('metadata', 'tag', 'vocabulary')))
     uri = factory.LazyAttribute(schema_uri_from_type)
-    md5 = ''
+    md5 = factory.Faker('md5')
     timestamp = factory.LazyFunction(lambda: datetime.now(timezone.utc))
 
     @factory.post_generation
@@ -154,6 +172,45 @@ class ProviderFactory(ODPModelFactory):
     id = factory.Faker('uuid4')
     key = factory.LazyAttribute(id_from_name)
     name = factory.Sequence(lambda n: f'{fake.company()}.{n}')
+    timestamp = factory.LazyFunction(lambda: datetime.now(timezone.utc))
+
+
+class PackageFactory(ODPModelFactory):
+    class Meta:
+        model = Package
+
+    id = factory.Faker('uuid4')
+    metadata_ = factory.Sequence(lambda n: {'foo': f'test-{n}'})
+    validity = factory.LazyFunction(lambda: dict(valid=randint(0, 1)))
+    notes = factory.Faker('sentence')
+    provider = factory.SubFactory(ProviderFactory)
+    schema_id = factory.LazyFunction(lambda: choice(('SAEON.DataCite4', 'SAEON.ISO19115')))
+    schema_type = 'metadata'
+    schema = factory.LazyAttribute(lambda p: Session.get(Schema, (p.schema_id, 'metadata')) or
+                                             SchemaFactory(id=p.schema_id, type='metadata'))
+    timestamp = factory.LazyFunction(lambda: datetime.now(timezone.utc))
+
+    @factory.post_generation
+    def resources(obj, create, resources):
+        if resources:
+            for resource in resources:
+                obj.resources.append(resource)
+            if create:
+                Session.commit()
+
+
+class ResourceFactory(ODPModelFactory):
+    class Meta:
+        model = Resource
+
+    id = factory.Faker('uuid4')
+    title = factory.Faker('catch_phrase')
+    description = factory.Faker('sentence')
+    filename = factory.Faker('file_name')
+    mimetype = factory.Faker('mime_type')
+    size = factory.LazyFunction(lambda: randint(1, sys.maxsize))
+    md5 = factory.Faker('md5')
+    provider = factory.SubFactory(ProviderFactory)
     timestamp = factory.LazyFunction(lambda: datetime.now(timezone.utc))
 
 
