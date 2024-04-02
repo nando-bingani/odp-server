@@ -6,8 +6,8 @@ import pytest
 from sqlalchemy import select
 
 from odp.const import ODPScope
-from odp.db import Session
 from odp.db.models import Provider, ProviderAudit
+from test import TestSession
 from test.api import (
     assert_conflict, assert_empty_result, assert_forbidden, assert_new_timestamp,
     assert_not_found, assert_unprocessable,
@@ -49,8 +49,7 @@ def client_ids(provider):
 
 def assert_db_state(providers):
     """Verify that the DB provider table contains the given provider batch."""
-    Session.expire_all()
-    result = Session.execute(select(Provider)).scalars().all()
+    result = TestSession.execute(select(Provider)).scalars().all()
     result.sort(key=lambda p: p.id)
     providers.sort(key=lambda p: p.id)
     assert len(result) == len(providers)
@@ -62,7 +61,7 @@ def assert_db_state(providers):
 
 
 def assert_audit_log(command, provider, grant_type):
-    result = Session.execute(select(ProviderAudit)).scalar_one()
+    result = TestSession.execute(select(ProviderAudit)).scalar_one()
     assert result.client_id == 'odp.test.client'
     assert result.user_id == ('odp.test.user' if grant_type == 'authorization_code' else None)
     assert result.command == command
@@ -73,7 +72,7 @@ def assert_audit_log(command, provider, grant_type):
 
 
 def assert_no_audit_log():
-    assert Session.execute(select(ProviderAudit)).first() is None
+    assert TestSession.execute(select(ProviderAudit)).first() is None
 
 
 def assert_json_result(response, json, provider):
@@ -236,9 +235,8 @@ def test_delete_provider(api, provider_batch, scopes, has_record):
             assert_no_audit_log()
         else:
             assert_empty_result(r)
-            # check audit log first because assert_db_state expires the deleted item
-            assert_audit_log('delete', deleted_provider, api.grant_type)
             assert_db_state(modified_provider_batch)
+            assert_audit_log('delete', deleted_provider, api.grant_type)
     else:
         assert_forbidden(r)
         assert_db_state(provider_batch)

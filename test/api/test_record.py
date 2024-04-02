@@ -7,14 +7,21 @@ from sqlalchemy import select
 
 from odp.const import ODPCollectionTag, ODPScope
 from odp.const.db import ScopeType
-from odp.db import Session
 from odp.db.models import CollectionTag, PublishedRecord, Record, RecordAudit, RecordTag, RecordTagAudit, Scope, User
+from test import TestSession
 from test.api import (
     all_scopes, all_scopes_excluding, assert_conflict, assert_empty_result, assert_forbidden, assert_new_timestamp,
     assert_not_found, assert_unprocessable, skip_client_credentials_collection_constraint,
 )
 from test.factories import (
-    CollectionFactory, CollectionTagFactory, RecordFactory, RecordTagFactory, SchemaFactory, TagFactory, VocabularyFactory,
+    CollectionFactory,
+    CollectionTagFactory,
+    FactorySession,
+    RecordFactory,
+    RecordTagFactory,
+    SchemaFactory,
+    TagFactory,
+    VocabularyFactory,
     fake,
 )
 
@@ -129,7 +136,7 @@ def new_generic_tag(cardinality, is_keyword_tag=False):
     return TagFactory(
         type='record',
         cardinality=cardinality,
-        scope=Session.get(
+        scope=FactorySession.get(
             Scope, (ODPScope.RECORD_QC, ScopeType.odp)
         ) or Scope(
             id=ODPScope.RECORD_QC, type=ScopeType.odp
@@ -144,8 +151,7 @@ def new_generic_tag(cardinality, is_keyword_tag=False):
 
 def assert_db_state(records):
     """Verify that the DB record table contains the given record batch."""
-    Session.expire_all()
-    result = Session.execute(select(Record)).scalars().all()
+    result = TestSession.execute(select(Record)).scalars().all()
     result.sort(key=lambda r: r.id)
     records.sort(key=lambda r: r.id)
     assert len(result) == len(records)
@@ -163,8 +169,7 @@ def assert_db_state(records):
 
 def assert_db_tag_state(record_id, grant_type, *record_tags):
     """Verify that the record_tag table contains the given record tags."""
-    Session.expire_all()
-    result = Session.execute(select(RecordTag)).scalars().all()
+    result = TestSession.execute(select(RecordTag)).scalars().all()
     result.sort(key=lambda r: r.timestamp)
 
     assert len(result) == len(record_tags)
@@ -182,7 +187,7 @@ def assert_db_tag_state(record_id, grant_type, *record_tags):
 
 
 def assert_audit_log(command, record, grant_type):
-    result = Session.execute(select(RecordAudit)).scalar_one()
+    result = TestSession.execute(select(RecordAudit)).scalar_one()
     assert result.client_id == 'odp.test.client'
     assert result.user_id == ('odp.test.user' if grant_type == 'authorization_code' else None)
     assert result.command == command
@@ -197,11 +202,11 @@ def assert_audit_log(command, record, grant_type):
 
 
 def assert_no_audit_log():
-    assert Session.execute(select(RecordAudit)).first() is None
+    assert TestSession.execute(select(RecordAudit)).first() is None
 
 
 def assert_tag_audit_log(grant_type, *entries):
-    result = Session.execute(select(RecordTagAudit)).scalars().all()
+    result = TestSession.execute(select(RecordTagAudit)).scalars().all()
     assert len(result) == len(entries)
     for n, row in enumerate(result):
         assert row.client_id == 'odp.test.client'
@@ -215,7 +220,7 @@ def assert_tag_audit_log(grant_type, *entries):
 
 
 def assert_no_tag_audit_log():
-    assert Session.execute(select(RecordTagAudit)).first() is None
+    assert TestSession.execute(select(RecordTagAudit)).first() is None
 
 
 def assert_json_record_result(response, json, record):
@@ -238,9 +243,9 @@ def assert_json_record_result(response, json, record):
     assert json['child_dois'] == {child.id: child.doi for child in record.children}
 
     json_tags = json['tags']
-    db_tags = Session.execute(
+    db_tags = TestSession.execute(
         select(RecordTag).where(RecordTag.record_id == record.id)
-    ).scalars().all() + Session.execute(
+    ).scalars().all() + TestSession.execute(
         select(CollectionTag).where(CollectionTag.collection_id == record.collection_id)
     ).scalars().all()
     assert len(json_tags) == len(db_tags)
@@ -788,10 +793,11 @@ def test_update_record_doi_change(api, record_batch_with_ids, is_admin_route, co
         modified_record_collection = None  # new collection
 
     if is_published_record:
-        PublishedRecord(
+        FactorySession.add(PublishedRecord(
             id=record_batch_with_ids[2].id,
             doi=record_batch_with_ids[2].doi if is_published_record == 'doi' else None,
-        ).save()
+        ))
+        FactorySession.commit()
 
     modified_record_batch = record_batch_with_ids.copy()
     if doi_change == 'change':
@@ -867,10 +873,11 @@ def test_delete_record(api, record_batch_with_ids, admin_route, scopes, collecti
         )
 
     if is_published_record:
-        PublishedRecord(
+        FactorySession.add(PublishedRecord(
             id=record_batch_with_ids[2].id,
             doi=record_batch_with_ids[2].doi if is_published_record == 'doi' else None,
-        ).save()
+        ))
+        FactorySession.commit()
 
     modified_record_batch = record_batch_with_ids.copy()
     deleted_record = modified_record_batch[2]
@@ -889,9 +896,8 @@ def test_delete_record(api, record_batch_with_ids, admin_route, scopes, collecti
             assert_no_audit_log()
         else:
             assert_empty_result(r)
-            # check audit log first because assert_db_state expires the deleted item
-            assert_audit_log('delete', deleted_record, api.grant_type)
             assert_db_state(modified_record_batch)
+            assert_audit_log('delete', deleted_record, api.grant_type)
     else:
         assert_forbidden(r)
         assert_db_state(record_batch_with_ids)
@@ -1084,7 +1090,7 @@ def test_untag_record(api, record_batch_no_tags, admin_route, scopes, collection
         record_tag_1 = RecordTagFactory(
             record=record,
             tag=tag,
-            user=Session.get(User, 'odp.test.user') if api.grant_type == 'authorization_code' else None,
+            user=FactorySession.get(User, 'odp.test.user') if api.grant_type == 'authorization_code' else None,
         )
     else:
         record_tag_1 = RecordTagFactory(

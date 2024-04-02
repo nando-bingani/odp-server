@@ -4,8 +4,8 @@ import pytest
 from sqlalchemy import select
 
 from odp.const import ODPScope
-from odp.db import Session
 from odp.db.models import Schema
+from test import TestSession
 from test.api import assert_forbidden, assert_not_found
 from test.factories import SchemaFactory
 
@@ -21,8 +21,7 @@ def schema_batch():
 
 def assert_db_state(schemas):
     """Verify that the DB schema table contains the given schema batch."""
-    Session.expire_all()
-    result = Session.execute(
+    result = TestSession.execute(
         select(Schema).
         where(Schema.id.notlike('vocab-schema-%'))  # ignore schemas created by vocabulary factories
     ).scalars().all()

@@ -1,5 +1,5 @@
 import os
-from copy import deepcopy, copy
+from copy import copy, deepcopy
 from datetime import datetime
 from random import randint
 
@@ -10,11 +10,10 @@ import migrate.systemdata
 from odp.catalog.mims import MIMSCatalog
 from odp.catalog.saeon import SAEONCatalog
 from odp.const import ODPScope
-from odp.db import Session
 from odp.db.models import Catalog, Tag
-from test import datacite4_example, isequal, iso19115_example, ris_example
+from test import TestSession, datacite4_example, isequal, iso19115_example, ris_example
 from test.api import assert_forbidden, assert_new_timestamp, assert_not_found, assert_redirect
-from test.factories import CatalogFactory, CollectionTagFactory, RecordFactory, RecordTagFactory
+from test.factories import CatalogFactory, CollectionTagFactory, FactorySession, RecordFactory, RecordTagFactory
 
 
 @pytest.fixture
@@ -52,6 +51,7 @@ def static_publishing_data():
     migrate.systemdata.init_vocabularies()
     migrate.systemdata.init_tags()
     migrate.systemdata.init_catalogs()
+    migrate.systemdata.Session.commit()
 
 
 @pytest.fixture(params=['SAEON', 'MIMS'])
@@ -82,24 +82,24 @@ def create_example_record(
 
     if tag_collection_published is not None:
         CollectionTagFactory.create(
-            tag=Session.get(Tag, ('Collection.Published', 'collection')),
+            tag=FactorySession.get(Tag, ('Collection.Published', 'collection')),
             collection=record.collection,
         )
     if tag_collection_infrastructure is not None:
         CollectionTagFactory.create(
-            tag=Session.get(Tag, ('Collection.Infrastructure', 'collection')),
+            tag=FactorySession.get(Tag, ('Collection.Infrastructure', 'collection')),
             collection=record.collection,
             data={'infrastructure': tag_collection_infrastructure}
         )
     if tag_record_qc is not None:
         RecordTagFactory.create(
-            tag=Session.get(Tag, ('Record.QC', 'record')),
+            tag=FactorySession.get(Tag, ('Record.QC', 'record')),
             record=record,
             data={'pass_': tag_record_qc}
         )
     if tag_record_retracted is not None:
         RecordTagFactory.create(
-            tag=Session.get(Tag, ('Record.Retracted', 'record')),
+            tag=FactorySession.get(Tag, ('Record.Retracted', 'record')),
             record=record,
         )
 
@@ -115,8 +115,7 @@ def create_example_record(
 
 def assert_db_state(catalogs):
     """Verify that the DB catalog table contains the given catalog batch."""
-    Session.expire_all()
-    result = Session.execute(select(Catalog)).scalars().all()
+    result = TestSession.execute(select(Catalog)).scalars().all()
     result.sort(key=lambda r: r.id)
     catalogs.sort(key=lambda c: c.id)
     for n, row in enumerate(result):
@@ -180,7 +179,7 @@ def test_redirect_to(
         static_publishing_data, catalog_id,
         tag_collection_published,
 ):
-    catalog = Session.get(Catalog, catalog_id)
+    catalog = FactorySession.get(Catalog, catalog_id)
     example_record = create_example_record(
         tag_collection_published,
         tag_collection_infrastructure='MIMS',

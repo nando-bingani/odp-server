@@ -8,6 +8,8 @@ from sqlalchemy_utils import create_database, drop_database
 import migrate.systemdata
 import odp.db
 from odp.config import config
+from test import TestSession
+from test.factories import FactorySession
 
 
 @pytest.fixture(scope='session', autouse=True)
@@ -41,13 +43,15 @@ def database():
 
 
 @pytest.fixture(autouse=True)
-def session():
-    """An auto-use, per-test fixture that disposes of the current
-    session after every test."""
+def dispose_session():
+    """An auto-use, per-test fixture that disposes ODP, factory and
+    test (assertion) session instances after every test."""
     try:
         yield
     finally:
         odp.db.Session.remove()
+        FactorySession.remove()
+        TestSession.remove()
 
 
 @pytest.fixture(autouse=True)

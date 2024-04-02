@@ -8,13 +8,13 @@ from sqlalchemy import select
 
 from odp.const import DOI_REGEX, ODPScope
 from odp.const.db import ScopeType
-from odp.db import Session
 from odp.db.models import Collection, CollectionAudit, CollectionTag, CollectionTagAudit, Scope, User
+from test import TestSession
 from test.api import (
     all_scopes, all_scopes_excluding, assert_conflict, assert_empty_result, assert_forbidden, assert_new_timestamp,
     assert_not_found, assert_unprocessable, skip_client_credentials_collection_constraint,
 )
-from test.factories import CollectionFactory, CollectionTagFactory, ProviderFactory, RecordFactory, SchemaFactory, TagFactory
+from test.factories import CollectionFactory, CollectionTagFactory, FactorySession, ProviderFactory, RecordFactory, SchemaFactory, TagFactory
 
 
 @pytest.fixture
@@ -39,8 +39,7 @@ def role_ids(collection):
 
 def assert_db_state(collections):
     """Verify that the DB collection table contains the given collection batch."""
-    Session.expire_all()
-    result = Session.execute(select(Collection)).scalars().all()
+    result = TestSession.execute(select(Collection)).scalars().all()
     result.sort(key=lambda c: c.id)
     collections.sort(key=lambda c: c.id)
     assert len(result) == len(collections)
@@ -56,8 +55,7 @@ def assert_db_state(collections):
 
 def assert_db_tag_state(collection_id, grant_type, *collection_tags):
     """Verify that the collection_tag table contains the given collection tags."""
-    Session.expire_all()
-    result = Session.execute(select(CollectionTag)).scalars().all()
+    result = TestSession.execute(select(CollectionTag)).scalars().all()
     result.sort(key=lambda r: r.timestamp)
 
     assert len(result) == len(collection_tags)
@@ -76,7 +74,7 @@ def assert_db_tag_state(collection_id, grant_type, *collection_tags):
 
 
 def assert_audit_log(command, collection, grant_type):
-    result = Session.execute(select(CollectionAudit)).scalar_one()
+    result = TestSession.execute(select(CollectionAudit)).scalar_one()
     assert result.client_id == 'odp.test.client'
     assert result.user_id == ('odp.test.user' if grant_type == 'authorization_code' else None)
     assert result.command == command
@@ -89,11 +87,11 @@ def assert_audit_log(command, collection, grant_type):
 
 
 def assert_no_audit_log():
-    assert Session.execute(select(CollectionAudit)).first() is None
+    assert TestSession.execute(select(CollectionAudit)).first() is None
 
 
 def assert_tag_audit_log(grant_type, *entries):
-    result = Session.execute(select(CollectionTagAudit)).scalars().all()
+    result = TestSession.execute(select(CollectionTagAudit)).scalars().all()
     assert len(result) == len(entries)
     for n, row in enumerate(result):
         assert row.client_id == 'odp.test.client'
@@ -107,7 +105,7 @@ def assert_tag_audit_log(grant_type, *entries):
 
 
 def assert_no_tag_audit_log():
-    assert Session.execute(select(CollectionTagAudit)).first() is None
+    assert TestSession.execute(select(CollectionTagAudit)).first() is None
 
 
 def assert_json_collection_result(response, json, collection):
@@ -420,9 +418,8 @@ def test_delete_collection(api, collection_batch, scopes, collection_constraint,
             assert_no_audit_log()
         else:
             assert_empty_result(r)
-            # check audit log first because assert_db_state expires the deleted item
-            assert_audit_log('delete', deleted_collection, api.grant_type)
             assert_db_state(modified_collection_batch)
+            assert_audit_log('delete', deleted_collection, api.grant_type)
     else:
         assert_forbidden(r)
         assert_db_state(collection_batch)
@@ -483,7 +480,7 @@ def new_generic_tag(cardinality):
     return TagFactory(
         type='collection',
         cardinality=cardinality,
-        scope=Session.get(Scope, (ODPScope.COLLECTION_FREEZE, ScopeType.odp)),
+        scope=FactorySession.get(Scope, (ODPScope.COLLECTION_FREEZE, ScopeType.odp)),
         schema=SchemaFactory(type='tag', uri='https://odp.saeon.ac.za/schema/tag/generic'),
     )
 
@@ -647,7 +644,7 @@ def test_untag_collection(api, collection_batch, admin_route, scopes, collection
         collection_tag_1 = CollectionTagFactory(
             collection=collection,
             tag=tag,
-            user=Session.get(User, 'odp.test.user') if api.grant_type == 'authorization_code' else None,
+            user=FactorySession.get(User, 'odp.test.user') if api.grant_type == 'authorization_code' else None,
         )
     else:
         collection_tag_1 = CollectionTagFactory(

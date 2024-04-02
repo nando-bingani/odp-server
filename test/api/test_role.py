@@ -4,8 +4,8 @@ import pytest
 from sqlalchemy import select
 
 from odp.const import ODPScope
-from odp.db import Session
 from odp.db.models import Role
+from test import TestSession
 from test.api import assert_conflict, assert_empty_result, assert_forbidden, assert_not_found, assert_unprocessable
 from test.factories import CollectionFactory, RoleFactory, ScopeFactory
 
@@ -53,8 +53,7 @@ def collection_keys(role):
 
 def assert_db_state(roles):
     """Verify that the DB role table contains the given role batch."""
-    Session.expire_all()
-    result = Session.execute(select(Role).where(Role.id != 'odp.test.role')).scalars().all()
+    result = TestSession.execute(select(Role).where(Role.id != 'odp.test.role')).scalars().all()
     assert set((row.id, scope_ids(row), row.collection_specific, collection_ids(row)) for row in result) \
            == set((role.id, scope_ids(role), role.collection_specific, collection_ids(role)) for role in roles)
 

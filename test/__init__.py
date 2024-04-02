@@ -2,9 +2,20 @@ import json
 import pathlib
 from copy import deepcopy
 
+from sqlalchemy.orm import scoped_session, sessionmaker
+
+import odp.db
 import odp.schema
 
 schema_dir = pathlib.Path(odp.schema.__file__).parent
+
+# SQLAlchemy session to use for making assertions about database state
+TestSession = scoped_session(sessionmaker(
+    bind=odp.db.engine,
+    autocommit=False,
+    autoflush=False,
+    future=True,
+))
 
 
 def datacite4_example():

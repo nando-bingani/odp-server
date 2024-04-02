@@ -6,8 +6,9 @@ from random import choice, randint
 import factory
 from factory.alchemy import SQLAlchemyModelFactory
 from faker import Faker
+from sqlalchemy.orm import scoped_session, sessionmaker
 
-from odp.db import Session
+import odp.db
 from odp.db.models import (
     Archive,
     Catalog,
@@ -28,6 +29,13 @@ from odp.db.models import (
     VocabularyTerm,
 )
 from test import datacite4_example, iso19115_example
+
+FactorySession = scoped_session(sessionmaker(
+    bind=odp.db.engine,
+    autocommit=False,
+    autoflush=False,
+    future=True,
+))
 
 fake = Faker()
 
@@ -117,7 +125,7 @@ def schema_uri_from_type(schema):
 
 class ODPModelFactory(SQLAlchemyModelFactory):
     class Meta:
-        sqlalchemy_session = Session
+        sqlalchemy_session = FactorySession
         sqlalchemy_session_persistence = 'commit'
 
 
@@ -145,7 +153,7 @@ class SchemaFactory(ODPModelFactory):
         ``vocabulary`` keyword references work."""
         if obj.type == 'tag':
             for vocab_id in 'Infrastructure', 'Project':
-                if obj.uri.endswith(vocab_id.lower()) and not Session.get(Vocabulary, vocab_id):
+                if obj.uri.endswith(vocab_id.lower()) and not FactorySession.get(Vocabulary, vocab_id):
                     VocabularyFactory(
                         id=vocab_id,
                         schema=SchemaFactory(
@@ -186,7 +194,7 @@ class PackageFactory(ODPModelFactory):
     provider = factory.SubFactory(ProviderFactory)
     schema_id = factory.LazyFunction(lambda: choice(('SAEON.DataCite4', 'SAEON.ISO19115')))
     schema_type = 'metadata'
-    schema = factory.LazyAttribute(lambda p: Session.get(Schema, (p.schema_id, 'metadata')) or
+    schema = factory.LazyAttribute(lambda p: FactorySession.get(Schema, (p.schema_id, 'metadata')) or
                                              SchemaFactory(id=p.schema_id, type='metadata'))
     timestamp = factory.LazyFunction(lambda: datetime.now(timezone.utc))
 
@@ -196,7 +204,7 @@ class PackageFactory(ODPModelFactory):
             for resource in resources:
                 obj.resources.append(resource)
             if create:
-                Session.commit()
+                FactorySession.commit()
 
 
 class ResourceFactory(ODPModelFactory):
@@ -244,7 +252,7 @@ class ClientFactory(ODPModelFactory):
             for scope in scopes:
                 obj.scopes.append(scope)
             if create:
-                Session.commit()
+                FactorySession.commit()
 
 
 class VocabularyTermFactory(ODPModelFactory):
@@ -308,7 +316,7 @@ class UserFactory(ODPModelFactory):
             for provider in providers:
                 obj.providers.append(provider)
             if create:
-                Session.commit()
+                FactorySession.commit()
 
     @factory.post_generation
     def roles(obj, create, roles):
@@ -316,7 +324,7 @@ class UserFactory(ODPModelFactory):
             for role in roles:
                 obj.roles.append(role)
             if create:
-                Session.commit()
+                FactorySession.commit()
 
 
 class CollectionTagFactory(ODPModelFactory):
@@ -347,7 +355,7 @@ class RecordFactory(ODPModelFactory):
     collection = factory.SubFactory(CollectionFactory)
     schema_id = factory.LazyFunction(lambda: choice(('SAEON.DataCite4', 'SAEON.ISO19115')))
     schema_type = 'metadata'
-    schema = factory.LazyAttribute(lambda r: Session.get(Schema, (r.schema_id, 'metadata')) or
+    schema = factory.LazyAttribute(lambda r: FactorySession.get(Schema, (r.schema_id, 'metadata')) or
                                              SchemaFactory(id=r.schema_id, type='metadata'))
     timestamp = factory.LazyFunction(lambda: datetime.now(timezone.utc))
 
@@ -383,7 +391,7 @@ class RoleFactory(ODPModelFactory):
             for scope in scopes:
                 obj.scopes.append(scope)
             if create:
-                Session.commit()
+                FactorySession.commit()
 
     @factory.post_generation
     def collections(obj, create, collections):
@@ -391,7 +399,7 @@ class RoleFactory(ODPModelFactory):
             for collection in collections:
                 obj.collections.append(collection)
             if create:
-                Session.commit()
+                FactorySession.commit()
 
 
 class ArchiveFactory(ODPModelFactory):

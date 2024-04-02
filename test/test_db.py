@@ -5,7 +5,6 @@ from sqlalchemy import select
 import migrate.systemdata
 from odp.const import ODPScope, ODPSystemRole
 from odp.const.db import ScopeType
-from odp.db import Session
 from odp.db.models import (
     Archive,
     Catalog,
@@ -30,6 +29,7 @@ from odp.db.models import (
     Vocabulary,
     VocabularyTerm,
 )
+from test import TestSession
 from test.factories import (
     ArchiveFactory,
     CatalogFactory,
@@ -56,8 +56,9 @@ def sorted_tuples(rows):
 
 def test_db_setup():
     migrate.systemdata.init_system_scopes()
-    Session.commit()
-    result = Session.execute(select(Scope)).scalars()
+    migrate.systemdata.Session.commit()
+
+    result = TestSession.execute(select(Scope)).scalars()
     assert sorted(row.id for row in result) == sorted(s.value for s in ODPScope)
 
     # create a batch of arbitrary scopes; these should not be assigned to
@@ -65,19 +66,20 @@ def test_db_setup():
     scopes = ScopeFactory.create_batch(5)
 
     migrate.systemdata.init_system_roles()
-    Session.commit()
-    result = Session.execute(select(Role)).scalars()
+    migrate.systemdata.Session.commit()
+
+    result = TestSession.execute(select(Role)).scalars()
     assert sorted_tuples((row.id, row.collection_specific) for row in result) \
            == sorted_tuples((r.value, False) for r in ODPSystemRole)
 
-    result = Session.execute(
+    result = TestSession.execute(
         select(RoleScope).
         where(RoleScope.role_id == ODPSystemRole.ODP_ADMIN)
     ).scalars()
     assert sorted_tuples((row.scope_id, row.scope_type) for row in result) \
            == sorted_tuples((s.value, ScopeType.odp) for s in ODPScope)
 
-    result = Session.execute(
+    result = TestSession.execute(
         select(RoleScope).
         where(RoleScope.role_id != ODPSystemRole.ODP_ADMIN)
     ).scalars()
@@ -89,20 +91,20 @@ def test_db_setup():
 
 def test_create_archive():
     archive = ArchiveFactory()
-    result = Session.execute(select(Archive)).scalar_one()
+    result = TestSession.execute(select(Archive)).scalar_one()
     assert (result.id, result.url) == (archive.id, archive.url)
 
 
 def test_create_catalog():
     catalog = CatalogFactory()
-    result = Session.execute(select(Catalog)).scalar_one()
+    result = TestSession.execute(select(Catalog)).scalar_one()
     assert (result.id, result.url, result.data, result.timestamp) \
            == (catalog.id, catalog.url, catalog.data, catalog.timestamp)
 
 
 def test_create_client():
     client = ClientFactory()
-    result = Session.execute(select(Client, Provider).outerjoin(Provider)).one()
+    result = TestSession.execute(select(Client, Provider).outerjoin(Provider)).one()
     assert (
                result.Client.id,
                result.Client.provider_specific,
@@ -119,14 +121,14 @@ def test_create_client():
 def test_create_client_with_scopes():
     scopes = ScopeFactory.create_batch(5)
     client = ClientFactory(scopes=scopes)
-    result = Session.execute(select(ClientScope)).scalars()
+    result = TestSession.execute(select(ClientScope)).scalars()
     assert sorted_tuples((row.client_id, row.scope_id, row.scope_type) for row in result) \
            == sorted_tuples((client.id, scope.id, scope.type) for scope in scopes)
 
 
 def test_create_collection():
     collection = CollectionFactory()
-    result = Session.execute(select(Collection, Provider).join(Provider)).one()
+    result = TestSession.execute(select(Collection, Provider).join(Provider)).one()
     assert (
                result.Collection.id,
                result.Collection.key,
@@ -146,14 +148,14 @@ def test_create_collection():
 
 def test_create_collection_tag():
     collection_tag = CollectionTagFactory()
-    result = Session.execute(select(CollectionTag).join(Collection).join(Tag)).scalar_one()
+    result = TestSession.execute(select(CollectionTag).join(Collection).join(Tag)).scalar_one()
     assert (result.collection_id, result.tag_id, result.tag_type, result.user_id, result.data) \
            == (collection_tag.collection.id, collection_tag.tag.id, 'collection', collection_tag.user.id, collection_tag.data)
 
 
 def test_create_package():
     package = PackageFactory()
-    result = Session.execute(select(Package)).scalar_one()
+    result = TestSession.execute(select(Package)).scalar_one()
     assert (
                result.id,
                result.metadata_,
@@ -177,13 +179,13 @@ def test_create_package():
 
 def test_create_provider():
     provider = ProviderFactory()
-    result = Session.execute(select(Provider)).scalar_one()
+    result = TestSession.execute(select(Provider)).scalar_one()
     assert (result.id, result.key, result.name) == (provider.id, provider.key, provider.name)
 
 
 def test_create_record():
     record = RecordFactory(is_child_record=randint(0, 1))
-    result = Session.execute(
+    result = TestSession.execute(
         select(Record).where(Record.id == record.id)
     ).scalar_one()
     assert (
@@ -208,7 +210,7 @@ def test_create_record():
                record.parent_id,
            )
     if record.parent_id:
-        parent = Session.execute(
+        parent = TestSession.execute(
             select(Record).where(Record.id == record.parent_id)
         ).scalar_one()
         assert result.parent == parent
@@ -218,14 +220,14 @@ def test_create_record():
 
 def test_create_record_tag():
     record_tag = RecordTagFactory()
-    result = Session.execute(select(RecordTag).join(Record).join(Tag)).scalar_one()
+    result = TestSession.execute(select(RecordTag).join(Record).join(Tag)).scalar_one()
     assert (result.record_id, result.tag_id, result.tag_type, result.user_id, result.data) \
            == (record_tag.record.id, record_tag.tag.id, 'record', record_tag.user.id, record_tag.data)
 
 
 def test_create_resource():
     resource = ResourceFactory()
-    result = Session.execute(select(Resource)).scalar_one()
+    result = TestSession.execute(select(Resource)).scalar_one()
     assert (
                result.id,
                result.title,
@@ -251,14 +253,14 @@ def test_create_resource():
 
 def test_create_role():
     role = RoleFactory()
-    result = Session.execute(select(Role)).scalar_one()
+    result = TestSession.execute(select(Role)).scalar_one()
     assert (result.id, result.collection_specific) == (role.id, role.collection_specific)
 
 
 def test_create_role_with_collections():
     collections = CollectionFactory.create_batch(5)
     role = RoleFactory(collections=collections)
-    result = Session.execute(select(RoleCollection)).scalars()
+    result = TestSession.execute(select(RoleCollection)).scalars()
     assert sorted_tuples((row.role_id, row.collection_id) for row in result) \
            == sorted_tuples((role.id, collection.id) for collection in collections)
 
@@ -266,14 +268,14 @@ def test_create_role_with_collections():
 def test_create_role_with_scopes():
     scopes = ScopeFactory.create_batch(5, type='odp') + ScopeFactory.create_batch(5, type='client')
     role = RoleFactory(scopes=scopes)
-    result = Session.execute(select(RoleScope)).scalars()
+    result = TestSession.execute(select(RoleScope)).scalars()
     assert sorted_tuples((row.role_id, row.scope_id, row.scope_type) for row in result) \
            == sorted_tuples((role.id, scope.id, scope.type) for scope in scopes)
 
 
 def test_create_schema():
     schema = SchemaFactory()
-    result = Session.execute(
+    result = TestSession.execute(
         select(Schema).
         where(Schema.id.notlike('vocab-schema-%'))  # ignore schemas created by vocabulary factories
     ).scalar_one()
@@ -282,13 +284,13 @@ def test_create_schema():
 
 def test_create_scope():
     scope = ScopeFactory()
-    result = Session.execute(select(Scope)).scalar_one()
+    result = TestSession.execute(select(Scope)).scalar_one()
     assert (result.id, result.type) == (scope.id, scope.type)
 
 
 def test_create_tag():
     tag = TagFactory()
-    result = Session.execute(select(Tag, Scope).join(Scope)).one()
+    result = TestSession.execute(select(Tag, Scope).join(Scope)).one()
     assert (
                result.Tag.id,
                result.Tag.type,
@@ -312,7 +314,7 @@ def test_create_tag():
 
 def test_create_user():
     user = UserFactory()
-    result = Session.execute(select(User)).scalar_one()
+    result = TestSession.execute(select(User)).scalar_one()
     assert (result.id, result.name, result.email, result.active, result.verified) \
            == (user.id, user.name, user.email, user.active, user.verified)
 
@@ -320,7 +322,7 @@ def test_create_user():
 def test_create_user_with_providers():
     providers = ProviderFactory.create_batch(5)
     user = UserFactory(providers=providers)
-    result = Session.execute(select(UserProvider)).scalars()
+    result = TestSession.execute(select(UserProvider)).scalars()
     assert sorted_tuples((row.user_id, row.provider_id) for row in result) \
            == sorted_tuples((user.id, provider.id) for provider in providers)
 
@@ -328,14 +330,14 @@ def test_create_user_with_providers():
 def test_create_user_with_roles():
     roles = RoleFactory.create_batch(5)
     user = UserFactory(roles=roles)
-    result = Session.execute(select(UserRole)).scalars()
+    result = TestSession.execute(select(UserRole)).scalars()
     assert sorted_tuples((row.user_id, row.role_id) for row in result) \
            == sorted_tuples((user.id, role.id) for role in roles)
 
 
 def test_create_vocabulary():
     vocabulary = VocabularyFactory()
-    result = Session.execute(select(Vocabulary, VocabularyTerm).join(VocabularyTerm))
+    result = TestSession.execute(select(Vocabulary, VocabularyTerm).join(VocabularyTerm))
     assert sorted_tuples((
                              row.Vocabulary.id,
                              row.Vocabulary.scope_id,

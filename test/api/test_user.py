@@ -4,8 +4,8 @@ import pytest
 from sqlalchemy import select
 
 from odp.const import ODPScope
-from odp.db import Session
 from odp.db.models import IdentityAudit, User
+from test import TestSession
 from test.api import (
     all_scopes, assert_empty_result, assert_forbidden, assert_method_not_allowed, assert_new_timestamp,
     assert_not_found, assert_unprocessable,
@@ -39,8 +39,7 @@ def provider_keys(user):
 
 def assert_db_state(users):
     """Verify that the DB user table contains the given user batch."""
-    Session.expire_all()
-    result = Session.execute(select(User).where(User.id != 'odp.test.user')).scalars().all()
+    result = TestSession.execute(select(User).where(User.id != 'odp.test.user')).scalars().all()
     result.sort(key=lambda u: u.id)
     users.sort(key=lambda u: u.id)
     assert len(result) == len(users)
@@ -56,7 +55,7 @@ def assert_db_state(users):
 
 def assert_audit_log(command, user, user_role_ids, user_provider_ids, grant_type):
     """Verify that the identity audit table contains the given entry."""
-    result = Session.execute(select(IdentityAudit)).scalar_one()
+    result = TestSession.execute(select(IdentityAudit)).scalar_one()
     assert result.client_id == 'odp.test.client'
     assert result.user_id == ('odp.test.user' if grant_type == 'authorization_code' else None)
     assert result.command == command
@@ -72,7 +71,7 @@ def assert_audit_log(command, user, user_role_ids, user_provider_ids, grant_type
 
 def assert_no_audit_log():
     """Verify that no audit log entries have been created."""
-    assert Session.execute(select(IdentityAudit)).first() is None
+    assert TestSession.execute(select(IdentityAudit)).first() is None
 
 
 def assert_json_result(response, json, user):
@@ -212,9 +211,8 @@ def test_delete_user(api, user_batch, scopes, has_tag_instance):
             assert_no_audit_log()
         else:
             assert_empty_result(r)
-            # check audit log first because assert_db_state expires the deleted item
-            assert_audit_log('delete', deleted_user, deleted_user_role_ids, deleted_user_provider_ids, api.grant_type)
             assert_db_state(modified_user_batch)
+            assert_audit_log('delete', deleted_user, deleted_user_role_ids, deleted_user_provider_ids, api.grant_type)
     else:
         assert_forbidden(r)
         assert_db_state(user_batch)

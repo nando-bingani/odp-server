@@ -4,8 +4,8 @@ import pytest
 from sqlalchemy import select
 
 from odp.const import ODPScope
-from odp.db import Session
 from odp.db.models import Scope
+from test import TestSession
 from test.api import assert_forbidden
 from test.factories import ScopeFactory
 
@@ -21,8 +21,7 @@ def scope_batch():
 
 def assert_db_state(scopes):
     """Verify that the DB scope table contains the given scope batch."""
-    Session.expire_all()
-    result = Session.execute(select(Scope)).scalars().all()
+    result = TestSession.execute(select(Scope)).scalars().all()
     assert set((row.id, row.type) for row in result) \
            == set((scope.id, scope.type) for scope in scopes)
 

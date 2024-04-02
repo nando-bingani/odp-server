@@ -8,11 +8,10 @@ import odp.api.main
 from odp.config import config
 from odp.const import ODPScope
 from odp.const.db import TagCardinality
-from odp.db import Session
 from odp.db.models import Collection, Provider, Scope
 from odp.lib.hydra import HydraAdminAPI
 from test.api import all_scopes, all_scopes_excluding
-from test.factories import ClientFactory, RoleFactory, UserFactory
+from test.factories import ClientFactory, FactorySession, RoleFactory, UserFactory
 
 MockToken = namedtuple('MockToken', ('active', 'client_id', 'sub'))
 
@@ -21,6 +20,7 @@ MockToken = namedtuple('MockToken', ('active', 'client_id', 'sub'))
 def static_data():
     """Initialize static system data."""
     migrate.systemdata.init_system_scopes()
+    migrate.systemdata.Session.commit()
 
 
 @pytest.fixture(params=['client_credentials', 'authorization_code'])
@@ -52,11 +52,11 @@ def api(request, monkeypatch):
             user_providers: list[Provider] = None,
             user_collections: list[Collection] = None,
     ):
-        scope_objects = [Session.get(Scope, (s.value, 'odp')) for s in scopes]
+        scope_objects = [FactorySession.get(Scope, (s.value, 'odp')) for s in scopes]
 
         if request.param == 'authorization_code':
             # for authorization_code we grant the test client all scopes
-            all_scope_objects = [Session.get(Scope, (s.value, 'odp')) for s in ODPScope]
+            all_scope_objects = [FactorySession.get(Scope, (s.value, 'odp')) for s in ODPScope]
 
             odp_user = UserFactory(
                 id='odp.test.user',

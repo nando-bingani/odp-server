@@ -4,8 +4,8 @@ import pytest
 from sqlalchemy import select
 
 from odp.const import ODPScope
-from odp.db import Session
 from odp.db.models import Tag
+from test import TestSession
 from test.api import assert_forbidden, assert_not_found
 from test.factories import TagFactory
 
@@ -18,8 +18,7 @@ def tag_batch():
 
 def assert_db_state(tags):
     """Verify that the DB tag table contains the given tag batch."""
-    Session.expire_all()
-    result = Session.execute(select(Tag)).scalars().all()
+    result = TestSession.execute(select(Tag)).scalars().all()
     assert set(
         (row.id,
          row.cardinality,

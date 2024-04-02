@@ -5,10 +5,9 @@ import pytest
 import migrate.systemdata
 from odp.api.models.auth import Permissions, UserInfo
 from odp.const import ODPScope
-from odp.db import Session
 from odp.db.models import Scope
 from odp.lib.auth import get_client_permissions, get_role_permissions, get_user_info, get_user_permissions
-from test.factories import ClientFactory, CollectionFactory, ProviderFactory, RoleFactory, UserFactory
+from test.factories import ClientFactory, CollectionFactory, FactorySession, ProviderFactory, RoleFactory, UserFactory
 
 
 # TODO: test provider-user associations
@@ -18,8 +17,9 @@ from test.factories import ClientFactory, CollectionFactory, ProviderFactory, Ro
 def scopes():
     """Return a random sample of size 15 of ODP scope DB objects."""
     migrate.systemdata.init_system_scopes()
+    migrate.systemdata.Session.commit()
     scope_ids = [s.value for s in random.sample(list(ODPScope.__members__.values()), 15)]
-    return [Session.get(Scope, (scope_id, 'odp')) for scope_id in scope_ids]
+    return [FactorySession.get(Scope, (scope_id, 'odp')) for scope_id in scope_ids]
 
 
 def assert_compare(actual: Permissions, expected: Permissions):

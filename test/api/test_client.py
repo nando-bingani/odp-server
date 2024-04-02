@@ -7,8 +7,8 @@ from sqlalchemy import select
 
 from odp.const import ODPScope
 from odp.const.hydra import GrantType, ResponseType, TokenEndpointAuthMethod
-from odp.db import Session
 from odp.db.models import Client
+from test import TestSession
 from test.api import assert_conflict, assert_empty_result, assert_forbidden, assert_not_found, assert_unprocessable
 from test.factories import ClientFactory, ProviderFactory, ScopeFactory, fake
 
@@ -75,8 +75,7 @@ def scope_ids(client):
 
 def assert_db_state(clients):
     """Verify that the DB client table contains the given client batch."""
-    Session.expire_all()
-    result = Session.execute(select(Client).where(Client.id != 'odp.test.client')).scalars().all()
+    result = TestSession.execute(select(Client).where(Client.id != 'odp.test.client')).scalars().all()
     assert set((row.id, scope_ids(row), row.provider_specific, row.provider_id) for row in result) \
            == set((client.id, scope_ids(client), client.provider_specific, client.provider_id) for client in clients)
 
