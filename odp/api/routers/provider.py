@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from functools import partial
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import func, literal_column, select
 from sqlalchemy.exc import IntegrityError
 from starlette.status import HTTP_404_NOT_FOUND, HTTP_409_CONFLICT, HTTP_422_UNPROCESSABLE_ENTITY
 
@@ -12,29 +12,31 @@ from odp.api.models import ProviderAuditModel, ProviderModel, ProviderModelIn
 from odp.const import ODPScope
 from odp.const.db import AuditCommand
 from odp.db import Session
-from odp.db.models import Provider, ProviderAudit, User
+from odp.db.models import Package, Provider, ProviderAudit, Resource, User
 
 router = APIRouter()
 
 
-def output_provider_model(provider: Provider) -> ProviderModel:
+def output_provider_model(result) -> ProviderModel:
     return ProviderModel(
-        id=provider.id,
-        key=provider.key,
-        name=provider.name,
+        id=result.Provider.id,
+        key=result.Provider.key,
+        name=result.Provider.name,
+        package_count=result.package_count,
+        resource_count=result.resource_count,
         collection_keys={
             collection.id: collection.key
-            for collection in provider.collections
+            for collection in result.Provider.collections
         },
         user_names={
             user.id: user.name
-            for user in provider.users
+            for user in result.Provider.users
         },
         client_ids=[
             client.id
-            for client in provider.clients
+            for client in result.Provider.clients
         ],
-        timestamp=provider.timestamp.isoformat(),
+        timestamp=result.Provider.timestamp.isoformat(),
     )
 
 
@@ -79,9 +81,21 @@ def create_audit_record(
 async def list_providers(
         paginator: Paginator = Depends(partial(Paginator, sort='key')),
 ):
+    stmt = (
+        select(
+            Provider,
+            func.count(Package.id).label('package_count'),
+            func.count(Resource.id).label('resource_count'),
+        ).
+        outerjoin(Package).
+        outerjoin(Resource).
+        group_by(Provider)
+    )
+
     return paginator.paginate(
-        select(Provider),
-        lambda row: output_provider_model(row.Provider),
+        stmt,
+        lambda row: output_provider_model(row),
+        sort_model=Provider,
     )
 
 
@@ -93,10 +107,22 @@ async def list_providers(
 async def get_provider(
         provider_id: str,
 ):
-    if not (provider := Session.get(Provider, provider_id)):
+    stmt = (
+        select(
+            Provider,
+            func.count(Package.id).label('package_count'),
+            func.count(Resource.id).label('resource_count'),
+        ).
+        outerjoin(Package).
+        outerjoin(Resource).
+        where(Provider.id == provider_id).
+        group_by(Provider)
+    )
+
+    if not (result := Session.execute(stmt).one_or_none()):
         raise HTTPException(HTTP_404_NOT_FOUND)
 
-    return output_provider_model(provider)
+    return output_provider_model(result)
 
 
 @router.post(
@@ -121,7 +147,16 @@ async def create_provider(
     provider.save()
     create_audit_record(auth, provider, timestamp, AuditCommand.insert)
 
-    return output_provider_model(provider)
+    result = Session.execute(
+        select(
+            Provider,
+            literal_column('0').label('package_count'),
+            literal_column('0').label('resource_count'),
+        ).
+        where(Provider.id == provider.id)
+    ).first()
+
+    return output_provider_model(result)
 
 
 @router.put(
@@ -170,7 +205,7 @@ async def delete_provider(
     except IntegrityError as e:
         raise HTTPException(
             HTTP_422_UNPROCESSABLE_ENTITY,
-            'A provider with non-empty collections cannot be deleted.',
+            'A provider with associated packages and/or resources cannot be deleted.',
         ) from e
 
 

@@ -12,12 +12,12 @@ from test.api import (
     assert_conflict, assert_empty_result, assert_forbidden, assert_new_timestamp,
     assert_not_found, assert_unprocessable,
 )
-from test.factories import ClientFactory, CollectionFactory, ProviderFactory, RecordFactory, UserFactory
+from test.factories import ClientFactory, CollectionFactory, PackageFactory, ProviderFactory, RecordFactory, ResourceFactory, UserFactory
 
 
 @pytest.fixture
 def provider_batch():
-    """Create and commit a batc of Provider instances,
+    """Create and commit a batch of Provider instances,
     with associated collections, users and clients."""
     providers = [
         ProviderFactory()
@@ -208,13 +208,23 @@ def test_update_provider_conflict(api, provider_batch):
     assert_no_audit_log()
 
 
-@pytest.fixture(params=[True, False])
+@pytest.fixture(params=[False, True])
 def has_record(request):
     return request.param
 
 
+@pytest.fixture(params=[False, True])
+def has_resource(request):
+    return request.param
+
+
+@pytest.fixture(params=[False, True])
+def has_package(request):
+    return request.param
+
+
 @pytest.mark.require_scope(ODPScope.PROVIDER_ADMIN)
-def test_delete_provider(api, provider_batch, scopes, has_record):
+def test_delete_provider(api, provider_batch, scopes, has_record, has_resource, has_package):
     authorized = ODPScope.PROVIDER_ADMIN in scopes
     modified_provider_batch = provider_batch.copy()
     deleted_provider = modified_provider_batch[2]
@@ -226,11 +236,20 @@ def test_delete_provider(api, provider_batch, scopes, has_record):
         else:
             has_record = False
 
+    if has_resource:
+        ResourceFactory(provider=provider_batch[2])
+
+    if has_package:
+        PackageFactory(provider=provider_batch[2])
+
     r = api(scopes).delete(f'/provider/{provider_batch[2].id}')
 
     if authorized:
-        if has_record:
-            assert_unprocessable(r, 'A provider with non-empty collections cannot be deleted.')
+        if has_record or has_resource or has_package:
+            # TODO:
+            #  provider-collection relationship is deprecated;
+            #  has_record should eventually be removed
+            assert_unprocessable(r, 'A provider with associated packages and/or resources cannot be deleted.')
             assert_db_state(provider_batch)
             assert_no_audit_log()
         else:

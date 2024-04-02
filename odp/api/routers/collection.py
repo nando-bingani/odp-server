@@ -159,10 +159,8 @@ async def create_collection(
     create_audit_record(auth, collection, timestamp, AuditCommand.insert)
 
     result = Session.execute(
-        select(Collection, func.count(Record.id)).
-        outerjoin(Record).
-        where(Collection.id == collection.id).
-        group_by(Collection)
+        select(Collection, literal_column('0').label('count')).
+        where(Collection.id == collection.id)
     ).first()
 
     return output_collection_model(result)
