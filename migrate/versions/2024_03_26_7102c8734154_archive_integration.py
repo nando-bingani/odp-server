@@ -31,7 +31,7 @@ def upgrade():
                     sa.Column('timestamp', sa.TIMESTAMP(timezone=True), nullable=False),
                     sa.Column('provider_id', sa.String(), nullable=False),
                     sa.Column('schema_id', sa.String(), nullable=False),
-                    sa.Column('schema_type', sa.Enum('metadata', 'tag', 'vocabulary', name='schematype'), nullable=False),
+                    sa.Column('schema_type', postgresql.ENUM(name='schematype', create_type=False), nullable=False),
                     sa.CheckConstraint("schema_type = 'metadata'", name='package_schema_type_check'),
                     sa.ForeignKeyConstraint(['provider_id'], ['provider.id'], ondelete='RESTRICT'),
                     sa.ForeignKeyConstraint(['schema_id', 'schema_type'], ['schema.id', 'schema.type'], name='package_schema_fkey',
