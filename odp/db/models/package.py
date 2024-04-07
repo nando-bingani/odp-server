@@ -44,6 +44,12 @@ class Package(Base):
     package_resources = relationship('PackageResource', cascade='all, delete-orphan', passive_deletes=True)
     resources = association_proxy('package_resources', 'resource', creator=lambda r: PackageResource(resource=r))
 
+    # view of associated record via one-to-many record_package relation
+    # the plural 'records' is used because these attributes are collections,
+    # although there can be only zero or one related record
+    package_records = relationship('RecordPackage', viewonly=True)
+    records = association_proxy('package_records', 'record')
+
     _repr_ = 'id', 'provider_id', 'schema_id'
 
 

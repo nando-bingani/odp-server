@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from starlette.status import HTTP_404_NOT_FOUND, HTTP_409_CONFLICT
 
@@ -10,7 +10,7 @@ from odp.api.models import ResourceModel, ResourceModelIn
 from odp.const import ODPScope
 from odp.const.db import AuditCommand
 from odp.db import Session
-from odp.db.models import ArchiveResource, Resource
+from odp.db.models import ArchiveResource, PackageResource, Resource
 
 router = APIRouter()
 
@@ -50,12 +50,39 @@ def create_audit_record(
 )
 async def list_resources(
         paginator: Paginator = Depends(),
-        archive_id: str = None,
+        package_id: str = Query(None, title='Filter by package id'),
+        provider_id: list[str] = Query(None, title='Filter by provider id(s)'),
+        archive_id: str = Query(None, title='Only return resources stored in this archive'),
+        exclude_archive_id: str = Query(None, title='Exclude resources stored in this archive'),
+        exclude_packaged: bool = Query(False, title='Exclude resources associated with any package'),
 ):
     stmt = select(Resource)
+
+    if package_id:
+        stmt = stmt.join(PackageResource)
+        stmt = stmt.where(PackageResource.package_id == package_id)
+
+    if provider_id:
+        stmt = stmt.where(Resource.provider_id.in_(provider_id))
+
     if archive_id:
         stmt = stmt.join(ArchiveResource)
         stmt = stmt.where(ArchiveResource.archive_id == archive_id)
+
+    if exclude_archive_id:
+        archived_subq = (
+            select(ArchiveResource).
+            where(ArchiveResource.resource_id == Resource.id).
+            where(ArchiveResource.archive_id == exclude_archive_id)
+        ).exists()
+        stmt = stmt.where(~archived_subq)
+
+    if exclude_packaged:
+        packaged_subq = (
+            select(PackageResource).
+            where(PackageResource.resource_id == Resource.id)
+        ).exists()
+        stmt = stmt.where(~packaged_subq)
 
     return paginator.paginate(
         stmt,
@@ -82,6 +109,8 @@ async def get_resource(
 @router.post(
     '/',
     response_model=ResourceModel,
+    description='Register a new resource. It is up to the caller to '
+                'ensure the resource is stored in the specified archive.',
 )
 async def create_resource(
         resource_in: ResourceModelIn,

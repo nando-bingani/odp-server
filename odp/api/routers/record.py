@@ -13,7 +13,7 @@ from starlette.status import HTTP_403_FORBIDDEN, HTTP_404_NOT_FOUND, HTTP_409_CO
 
 from odp.api.lib.auth import Authorize, Authorized, TagAuthorize, UntagAuthorize
 from odp.api.lib.paging import Page, Paginator
-from odp.api.lib.schema import get_metadata_schema, get_tag_schema
+from odp.api.lib.schema import get_metadata_validity, get_record_schema, get_tag_schema
 from odp.api.lib.utils import output_published_record_model, output_tag_instance_model
 from odp.api.models import (
     AuditModel,
@@ -180,13 +180,6 @@ def touch_parent(record: Record, timestamp: datetime) -> None:
         touch_parent(parent, timestamp)
 
 
-def get_validity(metadata: dict[str, Any], schema: JSONSchema) -> Any:
-    if (result := schema.evaluate(JSON(metadata))).valid:
-        return result.output('flag')
-
-    return result.output('detailed')
-
-
 def create_audit_record(
         auth: Authorized,
         record: Record,
@@ -330,10 +323,10 @@ async def get_record_by_doi(
 )
 async def create_record(
         record_in: RecordModelIn,
-        metadata_schema: JSONSchema = Depends(get_metadata_schema),
+        metadata_schema: JSONSchema = Depends(get_record_schema),
         auth: Authorized = Depends(Authorize(ODPScope.RECORD_WRITE)),
 ):
-    return _create_record(record_in, metadata_schema, auth)
+    return await _create_record(record_in, metadata_schema, auth)
 
 
 @router.post(
@@ -342,13 +335,13 @@ async def create_record(
 )
 async def admin_create_record(
         record_in: RecordModelIn,
-        metadata_schema: JSONSchema = Depends(get_metadata_schema),
+        metadata_schema: JSONSchema = Depends(get_record_schema),
         auth: Authorized = Depends(Authorize(ODPScope.RECORD_ADMIN)),
 ):
-    return _create_record(record_in, metadata_schema, auth, True)
+    return await _create_record(record_in, metadata_schema, auth, True)
 
 
-def _create_record(
+async def _create_record(
         record_in: RecordModelIn,
         metadata_schema: JSONSchema,
         auth: Authorized,
@@ -383,7 +376,7 @@ def _create_record(
         schema_id=record_in.schema_id,
         schema_type=SchemaType.metadata,
         metadata_=record_in.metadata,
-        validity=get_validity(record_in.metadata, metadata_schema),
+        validity=await get_metadata_validity(record_in.metadata, metadata_schema),
         timestamp=(timestamp := datetime.now(timezone.utc)),
     )
     record.save()
@@ -402,7 +395,7 @@ def _create_record(
 async def update_record(
         record_id: str,
         record_in: RecordModelIn,
-        metadata_schema: JSONSchema = Depends(get_metadata_schema),
+        metadata_schema: JSONSchema = Depends(get_record_schema),
         auth: Authorized = Depends(Authorize(ODPScope.RECORD_WRITE)),
 ):
     auth.enforce_constraint([record_in.collection_id])
@@ -410,7 +403,7 @@ async def update_record(
     if not (record := Session.get(Record, record_id)):
         raise HTTPException(HTTP_404_NOT_FOUND)
 
-    return _set_record(False, record, record_in, metadata_schema, auth)
+    return await _set_record(False, record, record_in, metadata_schema, auth)
 
 
 @router.put(
@@ -422,7 +415,7 @@ async def admin_set_record(
         # generated id, so we must validate that it is a uuid
         record_id: UUID,
         record_in: RecordModelIn,
-        metadata_schema: JSONSchema = Depends(get_metadata_schema),
+        metadata_schema: JSONSchema = Depends(get_record_schema),
         auth: Authorized = Depends(Authorize(ODPScope.RECORD_ADMIN)),
 ):
     auth.enforce_constraint([record_in.collection_id])
@@ -433,10 +426,10 @@ async def admin_set_record(
         create = True
         record = Record(id=str(record_id))
 
-    return _set_record(create, record, record_in, metadata_schema, auth, True)
+    return await _set_record(create, record, record_in, metadata_schema, auth, True)
 
 
-def _set_record(
+async def _set_record(
         create: bool,
         record: Record,
         record_in: RecordModelIn,
@@ -491,7 +484,7 @@ def _set_record(
         record.schema_id = record_in.schema_id
         record.schema_type = SchemaType.metadata
         record.metadata_ = record_in.metadata
-        record.validity = get_validity(record_in.metadata, metadata_schema)
+        record.validity = await get_metadata_validity(record_in.metadata, metadata_schema)
         record.timestamp = (timestamp := datetime.now(timezone.utc))
 
         parent_id = get_parent_id(record_in.metadata, record_in.schema_id)

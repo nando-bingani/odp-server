@@ -1,9 +1,11 @@
+from typing import Any
+
 from fastapi import HTTPException
-from jschon import JSONSchema, URI
+from jschon import JSON, JSONSchema, URI
 from sqlalchemy import select
 from starlette.status import HTTP_422_UNPROCESSABLE_ENTITY
 
-from odp.api.models import RecordModelIn, TagInstanceModelIn
+from odp.api.models import PackageModelIn, RecordModelIn, TagInstanceModelIn
 from odp.const.db import SchemaType
 from odp.db import Session
 from odp.db.models import Schema, Tag, Vocabulary
@@ -29,8 +31,22 @@ async def get_vocabulary_schema(vocabulary_id: str) -> JSONSchema:
     return schema_catalog.get_schema(URI(schema.uri))
 
 
-async def get_metadata_schema(record_in: RecordModelIn) -> JSONSchema:
+async def get_package_schema(package_in: PackageModelIn) -> JSONSchema:
+    if not (schema := Session.get(Schema, (package_in.schema_id, SchemaType.metadata))):
+        raise HTTPException(HTTP_422_UNPROCESSABLE_ENTITY, 'Invalid schema id')
+
+    return schema_catalog.get_schema(URI(schema.uri))
+
+
+async def get_record_schema(record_in: RecordModelIn) -> JSONSchema:
     if not (schema := Session.get(Schema, (record_in.schema_id, SchemaType.metadata))):
         raise HTTPException(HTTP_422_UNPROCESSABLE_ENTITY, 'Invalid schema id')
 
     return schema_catalog.get_schema(URI(schema.uri))
+
+
+async def get_metadata_validity(metadata: dict[str, Any], schema: JSONSchema) -> Any:
+    if (result := schema.evaluate(JSON(metadata))).valid:
+        return result.output('flag')
+
+    return result.output('detailed')
