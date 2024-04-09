@@ -28,7 +28,7 @@ def output_package_model(package: Package) -> PackageModel:
         validity=package.validity,
         notes=package.notes,
         timestamp=package.timestamp.isoformat(),
-        resource_count=len(package.resources),
+        resource_ids=[resource.id for resource in package.resources],
         record_id=record.id if record else None,
         record_doi=record.doi if record else None,
         record_sid=record.sid if record else None,
@@ -83,13 +83,13 @@ async def create_package(
         metadata_schema: JSONSchema = Depends(get_package_schema),
         auth: Authorized = Depends(Authorize(ODPScope.PACKAGE_WRITE)),
 ):
-    resources = [
+    resources_in = [
         Session.get(Resource, resource_id)
         for resource_id in package_in.resource_ids
     ]
     auth.enforce_constraint(
         [package_in.provider_id] +
-        [resource.provider_id for resource in resources]
+        [resource.provider_id for resource in resources_in]
     )
 
     package = Package(
@@ -99,9 +99,51 @@ async def create_package(
         metadata_=package_in.metadata,
         validity=await get_metadata_validity(package_in.metadata, metadata_schema),
         notes=package_in.notes,
-        resources=resources,
+        resources=resources_in,
         timestamp=datetime.now(timezone.utc),
     )
     package.save()
+
+    return output_package_model(package)
+
+
+@router.put(
+    '/{package_id}',
+    response_model=PackageModel,
+)
+async def update_package(
+        package_id: str,
+        package_in: PackageModelIn,
+        metadata_schema: JSONSchema = Depends(get_package_schema),
+        auth: Authorized = Depends(Authorize(ODPScope.PACKAGE_WRITE)),
+):
+    if not (package := Session.get(Package, package_id)):
+        raise HTTPException(HTTP_404_NOT_FOUND)
+
+    resources_in = [
+        Session.get(Resource, resource_id)
+        for resource_id in package_in.resource_ids
+    ]
+    auth.enforce_constraint(
+        [package.provider_id, package_in.provider_id] +
+        [resource.provider_id for resource in package.resources] +
+        [resource.provider_id for resource in resources_in]
+    )
+
+    if (
+            package.provider_id != package_in.provider_id or
+            package.schema_id != package_in.schema_id or
+            package.metadata_ != package_in.metadata or
+            package.notes != package_in.notes or
+            set(res.id for res in package.resources) != set(res_in.id for res_in in resources_in)
+    ):
+        package.provider_id = package_in.provider_id
+        package.schema_id = package_in.schema_id
+        package.metadata_ = package_in.metadata
+        package.validity = await get_metadata_validity(package_in.metadata, metadata_schema)
+        package.notes = package_in.notes
+        package.resources = resources_in
+        package.timestamp = datetime.now(timezone.utc)
+        package.save()
 
     return output_package_model(package)
