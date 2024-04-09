@@ -3,7 +3,8 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
 from jschon import JSONSchema
 from sqlalchemy import select
-from starlette.status import HTTP_404_NOT_FOUND
+from sqlalchemy.exc import IntegrityError
+from starlette.status import HTTP_404_NOT_FOUND, HTTP_422_UNPROCESSABLE_ENTITY
 
 from odp.api.lib.auth import Authorize, Authorized
 from odp.api.lib.paging import Page, Paginator
@@ -147,3 +148,23 @@ async def update_package(
         package.save()
 
     return output_package_model(package)
+
+
+@router.delete(
+    '/{package_id}',
+)
+async def delete_package(
+        package_id: str,
+        auth: Authorized = Depends(Authorize(ODPScope.PACKAGE_WRITE)),
+):
+    if not (package := Session.get(Package, package_id)):
+        raise HTTPException(HTTP_404_NOT_FOUND)
+
+    auth.enforce_constraint([package.provider_id])
+
+    try:
+        package.delete()
+    except IntegrityError as e:
+        raise HTTPException(
+            HTTP_422_UNPROCESSABLE_ENTITY, 'A package cannot be deleted if it is associated with a record.'
+        ) from e
