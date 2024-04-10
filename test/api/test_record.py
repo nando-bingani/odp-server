@@ -206,7 +206,7 @@ def assert_no_audit_log():
 
 
 def assert_tag_audit_log(grant_type, *entries):
-    result = TestSession.execute(select(RecordTagAudit)).scalars().all()
+    result = TestSession.execute(select(RecordTagAudit).order_by('id')).scalars().all()
     assert len(result) == len(entries)
     for n, row in enumerate(result):
         assert row.client_id == 'odp.test.client'
