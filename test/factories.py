@@ -11,6 +11,7 @@ from sqlalchemy.orm import scoped_session, sessionmaker
 import odp.db
 from odp.db.models import (
     Archive,
+    ArchiveResource,
     Catalog,
     Client,
     Collection,
@@ -408,3 +409,13 @@ class ArchiveFactory(ODPModelFactory):
 
     id = factory.Sequence(lambda n: f'{fake.slug()}.{n}')
     url = factory.Faker('url')
+
+
+class ArchiveResourceFactory(ODPModelFactory):
+    class Meta:
+        model = ArchiveResource
+
+    archive = factory.SubFactory(ArchiveFactory)
+    resource = factory.SubFactory(ResourceFactory)
+    path = factory.LazyAttribute(lambda a: f'/{fake.uri_path(deep=randint(1, 5))}/{a.resource.filename}')
+    timestamp = factory.LazyFunction(lambda: datetime.now(timezone.utc))
