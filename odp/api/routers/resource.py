@@ -99,9 +99,7 @@ async def get_resource(
         resource_id: str,
 ):
     if not (resource := Session.get(Resource, resource_id)):
-        raise HTTPException(
-            HTTP_404_NOT_FOUND, 'Unknown resource id'
-        )
+        raise HTTPException(HTTP_404_NOT_FOUND)
 
     return output_resource_model(resource)
 
@@ -122,7 +120,8 @@ async def create_resource(
             where(ArchiveResource.path == resource_in.archive_path)
     ).first() is not None:
         raise HTTPException(
-            HTTP_409_CONFLICT, 'path already exists in archive'
+            HTTP_409_CONFLICT, f'path {resource_in.archive_path} '
+                               f'already exists in archive {resource_in.archive_id}'
         )
 
     resource = Resource(

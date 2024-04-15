@@ -417,5 +417,5 @@ class ArchiveResourceFactory(ODPModelFactory):
 
     archive = factory.SubFactory(ArchiveFactory)
     resource = factory.SubFactory(ResourceFactory)
-    path = factory.LazyAttribute(lambda a: f'/{fake.uri_path(deep=randint(1, 5))}/{a.resource.filename}')
+    path = factory.LazyAttribute(lambda a: f'{fake.uri_path(deep=randint(1, 5))}/{a.resource.filename}')
     timestamp = factory.LazyFunction(lambda: datetime.now(timezone.utc))
