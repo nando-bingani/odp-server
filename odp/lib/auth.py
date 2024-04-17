@@ -1,7 +1,7 @@
 from odp.api.models.auth import Permission, Permissions, UserInfo
 from odp.const import ODPScope
 from odp.db import Session
-from odp.db.models import Client, Role, User
+from odp.db.models import Client, User
 from odp.lib import exceptions as x
 
 
@@ -22,23 +22,6 @@ def get_client_permissions(client_id: str) -> Permissions:
     }
 
 
-def get_role_permissions(role_id: str) -> Permissions:
-    """Return effective role permissions."""
-
-    def permission(scope_id: str) -> Permission:
-        if role.collection_specific and ODPScope(scope_id).constrainable_by == 'collection':
-            return [collection.id for collection in role.collections]
-        return '*'
-
-    if not (role := Session.get(Role, role_id)):
-        raise x.ODPRoleNotFound
-
-    return {
-        scope.id: permission(scope.id)
-        for scope in role.scopes
-    }
-
-
 def get_user_permissions(user_id: str, client_id: str) -> Permissions:
     """Return effective user permissions, which may be linked with
     a user's access token for a given client application."""
@@ -50,15 +33,22 @@ def get_user_permissions(user_id: str, client_id: str) -> Permissions:
 
     role_permissions = {}
     for role in user.roles:
-        for scope_id, role_permission in get_role_permissions(role.id).items():
+        for scope in role.scopes:
+
+            if ODPScope(scope.id).constrainable_by == 'collection' and role.collection_specific:
+                role_permission = [collection.id for collection in role.collections]
+            # elif ODPScope(scope.id).constrainable_by == 'provider':
+            #     role_permission = []
+            else:
+                role_permission = '*'
 
             # we cannot grant a scope that is not available to the client
-            if scope_id not in client_permissions:
+            if scope.id not in client_permissions:
                 continue
 
             # add the scope granted by the role
-            if (base_permission := role_permissions.get(scope_id)) is None:
-                role_permissions[scope_id] = role_permission
+            if (base_permission := role_permissions.get(scope.id)) is None:
+                role_permissions[scope.id] = role_permission
 
             # the user already has the widest possible access to the scope
             elif base_permission == '*':
@@ -66,11 +56,11 @@ def get_user_permissions(user_id: str, client_id: str) -> Permissions:
 
             # widen the user's access to the scope
             elif role_permission == '*':
-                role_permissions[scope_id] = '*'
+                role_permissions[scope.id] = '*'
 
             # union the scope access granted by the user's roles
             else:
-                role_permissions[scope_id] = list(set(base_permission) | set(role_permission))
+                role_permissions[scope.id] = list(set(base_permission) | set(role_permission))
 
     user_permissions = {}
     for scope_id, role_permission in role_permissions.items():

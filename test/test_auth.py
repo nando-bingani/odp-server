@@ -6,7 +6,7 @@ import migrate.systemdata
 from odp.api.models.auth import Permissions, UserInfo
 from odp.const import ODPScope
 from odp.db.models import Scope
-from odp.lib.auth import get_client_permissions, get_role_permissions, get_user_info, get_user_permissions
+from odp.lib.auth import get_client_permissions, get_user_info, get_user_permissions
 from test.factories import ClientFactory, CollectionFactory, FactorySession, ProviderFactory, RoleFactory, UserFactory
 
 
@@ -60,20 +60,6 @@ def test_unconstrained_roles(scopes):
     }
     assert_compare(actual_client_perm, expected_client_perm)
 
-    actual_role1_perm = get_role_permissions(role1.id)
-    expected_role1_perm = {
-        scope.id: '*'
-        for scope in scopes[:5]
-    }
-    assert_compare(actual_role1_perm, expected_role1_perm)
-
-    actual_role2_perm = get_role_permissions(role2.id)
-    expected_role2_perm = {
-        scope.id: '*'
-        for scope in scopes[10:]
-    }
-    assert_compare(actual_role2_perm, expected_role2_perm)
-
     actual_user_perm = get_user_permissions(user.id, client.id)
     expected_user_perm = {
         scope.id: '*'
@@ -104,22 +90,6 @@ def test_collection_specific_roles(scopes):
         for scope in scopes[1:14]
     }
     assert_compare(actual_client_perm, expected_client_perm)
-
-    actual_role1_perm = get_role_permissions(role1.id)
-    expected_role1_perm = {
-        scope.id: [c.id for c in role1.collections]
-        if ODPScope(scope.id).constrainable_by == 'collection' else '*'
-        for scope in scopes[:10]
-    }
-    assert_compare(actual_role1_perm, expected_role1_perm)
-
-    actual_role2_perm = get_role_permissions(role2.id)
-    expected_role2_perm = {
-        scope.id: [c.id for c in role2.collections]
-        if ODPScope(scope.id).constrainable_by == 'collection' else '*'
-        for scope in scopes[5:]
-    }
-    assert_compare(actual_role2_perm, expected_role2_perm)
 
     actual_user_perm = get_user_permissions(user.id, client.id)
     expected_user_perm = {
@@ -164,29 +134,6 @@ def test_unconstrained_and_collection_specific_role_mix(scopes):
         for scope in scopes[1:14]
     }
     assert_compare(actual_client_perm, expected_client_perm)
-
-    actual_role1_perm = get_role_permissions(role1.id)
-    expected_role1_perm = {
-        scope.id: '*'
-        for scope in scopes[:7]
-    }
-    assert_compare(actual_role1_perm, expected_role1_perm)
-
-    actual_role2_perm = get_role_permissions(role2.id)
-    expected_role2_perm = {
-        scope.id: [c.id for c in role2.collections]
-        if ODPScope(scope.id).constrainable_by == 'collection' else '*'
-        for scope in scopes[3:12]
-    }
-    assert_compare(actual_role2_perm, expected_role2_perm)
-
-    actual_role3_perm = get_role_permissions(role3.id)
-    expected_role3_perm = {
-        scope.id: [c.id for c in role3.collections]
-        if ODPScope(scope.id).constrainable_by == 'collection' else '*'
-        for scope in scopes[9:]
-    }
-    assert_compare(actual_role3_perm, expected_role3_perm)
 
     actual_user_perm = get_user_permissions(user.id, client.id)
     expected_user_perm = {
@@ -235,20 +182,6 @@ def test_provider_specific_client(scopes):
     }
     assert_compare(actual_client_perm, expected_client_perm)
 
-    actual_role1_perm = get_role_permissions(role1.id)
-    expected_role1_perm = {
-        scope.id: '*'
-        for scope in scopes[:5]
-    }
-    assert_compare(actual_role1_perm, expected_role1_perm)
-
-    actual_role2_perm = get_role_permissions(role2.id)
-    expected_role2_perm = {
-        scope.id: '*'
-        for scope in scopes[10:]
-    }
-    assert_compare(actual_role2_perm, expected_role2_perm)
-
     actual_user_perm = get_user_permissions(user.id, client.id)
     expected_user_perm = {
         scope.id: [client.provider_id]
@@ -284,29 +217,6 @@ def test_provider_specific_client_with_unconstrained_and_collection_specific_rol
         for scope in scopes[1:14]
     }
     assert_compare(actual_client_perm, expected_client_perm)
-
-    actual_role1_perm = get_role_permissions(role1.id)
-    expected_role1_perm = {
-        scope.id: [c.id for c in role1.collections]
-        if ODPScope(scope.id).constrainable_by == 'collection' else '*'
-        for scope in scopes[:7]
-    }
-    assert_compare(actual_role1_perm, expected_role1_perm)
-
-    actual_role2_perm = get_role_permissions(role2.id)
-    expected_role2_perm = {
-        scope.id: [c.id for c in role2.collections]
-        if ODPScope(scope.id).constrainable_by == 'collection' else '*'
-        for scope in scopes[3:12]
-    }
-    assert_compare(actual_role2_perm, expected_role2_perm)
-
-    actual_role3_perm = get_role_permissions(role3.id)
-    expected_role3_perm = {
-        scope.id: '*'
-        for scope in scopes[9:]
-    }
-    assert_compare(actual_role3_perm, expected_role3_perm)
 
     actual_user_perm = get_user_permissions(user.id, client.id)
     expected_user_perm = {
