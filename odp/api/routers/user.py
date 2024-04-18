@@ -11,7 +11,7 @@ from odp.api.models import IdentityAuditModel, UserModel, UserModelIn
 from odp.const import ODPScope
 from odp.const.db import IdentityCommand
 from odp.db import Session
-from odp.db.models import IdentityAudit, Provider, Role, User
+from odp.db.models import IdentityAudit, Role, User
 
 router = APIRouter()
 
@@ -49,7 +49,6 @@ def create_audit_record(
         _email=user.email,
         _active=user.active,
         _roles=[role.id for role in user.roles],
-        _providers=[provider.id for provider in user.providers]
     ).save()
 
 
@@ -67,7 +66,6 @@ def output_audit_model(row) -> IdentityAuditModel:
         user_email=row.IdentityAudit._email,
         user_active=row.IdentityAudit._active,
         user_roles=row.IdentityAudit._roles,
-        user_providers=row.IdentityAudit._providers,
     )
 
 
@@ -109,14 +107,11 @@ async def update_user(
     if not (user := Session.get(User, user_in.id)):
         raise HTTPException(HTTP_404_NOT_FOUND)
 
+    # todo: if different...
     user.active = user_in.active
     user.roles = [
         Session.get(Role, role_id)
         for role_id in user_in.role_ids
-    ]
-    user.providers = [
-        Session.get(Provider, provider_id)
-        for provider_id in user_in.provider_ids
     ]
     user.save()
     create_audit_record(auth, user, IdentityCommand.edit)

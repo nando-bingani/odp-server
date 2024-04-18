@@ -183,6 +183,14 @@ class ProviderFactory(ODPModelFactory):
     name = factory.Sequence(lambda n: f'{fake.company()}.{n}')
     timestamp = factory.LazyFunction(lambda: datetime.now(timezone.utc))
 
+    @factory.post_generation
+    def users(obj, create, users):
+        if users:
+            for user in users:
+                obj.users.append(user)
+            if create:
+                FactorySession.commit()
+
 
 class PackageFactory(ODPModelFactory):
     class Meta:
@@ -310,14 +318,6 @@ class UserFactory(ODPModelFactory):
     active = factory.LazyFunction(lambda: randint(0, 1))
     verified = factory.LazyFunction(lambda: randint(0, 1))
     picture = factory.Faker('image_url')
-
-    @factory.post_generation
-    def providers(obj, create, providers):
-        if providers:
-            for provider in providers:
-                obj.providers.append(provider)
-            if create:
-                FactorySession.commit()
 
     @factory.post_generation
     def roles(obj, create, roles):

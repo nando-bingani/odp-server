@@ -4,7 +4,7 @@ import pytest
 from sqlalchemy import select
 
 from odp.const import ODPScope
-from odp.db.models import IdentityAudit, User
+from odp.db.models import IdentityAudit, User, UserRole
 from test import TestSession
 from test.api import (
     all_scopes, assert_empty_result, assert_forbidden, assert_method_not_allowed, assert_new_timestamp,
@@ -15,31 +15,37 @@ from test.factories import CollectionTagFactory, ProviderFactory, RecordTagFacto
 
 @pytest.fixture
 def user_batch():
-    """Create and commit a batch of User instances."""
-    return [
-        UserFactory(
-            roles=RoleFactory.create_batch(randint(0, 3)),
-            providers=ProviderFactory.create_batch(randint(0, 3)),
-        )
+    """Create and commit a batch of User instances, with
+    associated roles and providers."""
+    users = [
+        UserFactory(roles=RoleFactory.create_batch(randint(0, 3)))
         for _ in range(randint(3, 5))
     ]
+    for user in users:
+        ProviderFactory.create_batch(randint(0, 3), users=[user]),
+        user.role_ids = [role.id for role in user.roles]
+        user.provider_keys = {provider.id: provider.key for provider in user.providers}
+
+    return users
 
 
-def role_ids(user):
-    return tuple(sorted(role.id for role in user.roles))
-
-
-def provider_ids(user):
-    return tuple(sorted(provider.id for provider in user.providers))
-
-
-def provider_keys(user):
-    return {provider.id: provider.key for provider in user.providers}
+def user_build(**attr):
+    """Build and return an uncommitted User instance.
+    Associated roles are however committed."""
+    user = UserFactory.build(
+        **attr,
+        roles=RoleFactory.create_batch(randint(0, 3)),
+    )
+    user.role_ids = [role.id for role in user.roles]
+    user.provider_keys = {}
+    return user
 
 
 def assert_db_state(users):
-    """Verify that the DB user table contains the given user batch."""
-    result = TestSession.execute(select(User).where(User.id != 'odp.test.user')).scalars().all()
+    """Verify that the user table contains the given user batch, and
+    that the user_role table contains the associated role references."""
+    result = TestSession.execute(
+        select(User).where(User.id != 'odp.test.user')).scalars().all()
     result.sort(key=lambda u: u.id)
     users.sort(key=lambda u: u.id)
     assert len(result) == len(users)
@@ -49,11 +55,20 @@ def assert_db_state(users):
         assert row.email == users[n].email
         assert row.active == users[n].active
         assert row.verified == users[n].verified
-        assert role_ids(row) == role_ids(users[n])
-        assert provider_ids(row) == provider_ids(users[n])
+        assert row.picture == users[n].picture
+
+    result = TestSession.execute(
+        select(UserRole.user_id, UserRole.role_id).where(UserRole.user_id != 'odp.test.user')).all()
+    result.sort(key=lambda ur: (ur.user_id, ur.role_id))
+    user_roles = []
+    for user in users:
+        for role_id in user.role_ids:
+            user_roles += [(user.id, role_id)]
+    user_roles.sort()
+    assert result == user_roles
 
 
-def assert_audit_log(command, user, user_role_ids, user_provider_ids, grant_type):
+def assert_audit_log(command, user, grant_type):
     """Verify that the identity audit table contains the given entry."""
     result = TestSession.execute(select(IdentityAudit)).scalar_one()
     assert result.client_id == 'odp.test.client'
@@ -65,8 +80,7 @@ def assert_audit_log(command, user, user_role_ids, user_provider_ids, grant_type
     assert result._id == user.id
     assert result._email == user.email
     assert result._active == user.active
-    assert tuple(sorted(result._roles)) == user_role_ids
-    assert tuple(sorted(result._providers)) == user_provider_ids
+    assert sorted(result._roles) == sorted(user.role_ids)
 
 
 def assert_no_audit_log():
@@ -82,8 +96,9 @@ def assert_json_result(response, json, user):
     assert json['email'] == user.email
     assert json['active'] == user.active
     assert json['verified'] == user.verified
-    assert tuple(sorted(json['role_ids'])) == role_ids(user)
-    assert json['provider_keys'] == provider_keys(user)
+    assert json['picture'] == user.picture
+    assert sorted(json['role_ids']) == sorted(user.role_ids)
+    assert json['provider_keys'] == user.provider_keys
 
 
 def assert_json_results(response, json, users):
@@ -137,25 +152,26 @@ def test_create_user(api):
 @pytest.mark.require_scope(ODPScope.USER_ADMIN)
 def test_update_user(api, user_batch, scopes):
     authorized = ODPScope.USER_ADMIN in scopes
-    modified_user_batch = user_batch.copy()
-    modified_user_batch[2] = (user := UserFactory.build(
+    # the user update API can only modify `active` and `role_ids`;
+    # everything else must stay the same on the rebuilt user object
+    user = user_build(
         id=user_batch[2].id,
         name=user_batch[2].name,
         email=user_batch[2].email,
         verified=user_batch[2].verified,
-        roles=RoleFactory.create_batch(randint(0, 3)),
-        providers=ProviderFactory.create_batch(randint(0, 3)),
-    ))
+        picture=user_batch[2].picture,
+    )
+
     r = api(scopes).put('/user/', json=dict(
         id=user.id,
         active=user.active,
-        role_ids=role_ids(user),
-        provider_ids=provider_ids(user),
+        role_ids=user.role_ids,
     ))
+
     if authorized:
         assert_empty_result(r)
-        assert_db_state(modified_user_batch)
-        assert_audit_log('edit', user, role_ids(user), provider_ids(user), api.grant_type)
+        assert_db_state(user_batch[:2] + [user] + user_batch[3:])
+        assert_audit_log('edit', user, api.grant_type)
     else:
         assert_forbidden(r)
         assert_db_state(user_batch)
@@ -164,19 +180,17 @@ def test_update_user(api, user_batch, scopes):
 
 def test_update_user_not_found(api, user_batch):
     scopes = [ODPScope.USER_ADMIN]
-    user = UserFactory.build(
+    user = user_build(
         id='foo',
         name=user_batch[2].name,
         email=user_batch[2].email,
         verified=user_batch[2].verified,
-        roles=RoleFactory.create_batch(randint(0, 3)),
-        providers=ProviderFactory.create_batch(randint(0, 3)),
+        picture=user_batch[2].picture,
     )
     r = api(scopes).put('/user/', json=dict(
         id=user.id,
         active=user.active,
-        role_ids=role_ids(user),
-        provider_ids=provider_ids(user),
+        role_ids=user.role_ids,
     ))
     assert_not_found(r)
     assert_db_state(user_batch)
@@ -191,18 +205,14 @@ def has_tag_instance(request):
 @pytest.mark.require_scope(ODPScope.USER_ADMIN)
 def test_delete_user(api, user_batch, scopes, has_tag_instance):
     authorized = ODPScope.USER_ADMIN in scopes
-    modified_user_batch = user_batch.copy()
-    deleted_user = modified_user_batch[2]
-    deleted_user_role_ids = role_ids(deleted_user)
-    deleted_user_provider_ids = provider_ids(deleted_user)
-    del modified_user_batch[2]
+    deleted_user = user_batch[2]
 
     if has_tag_instance in ('collection', 'both'):
-        CollectionTagFactory(user=user_batch[2])
+        CollectionTagFactory(user=deleted_user)
     if has_tag_instance in ('record', 'both'):
-        RecordTagFactory(user=user_batch[2])
+        RecordTagFactory(user=deleted_user)
 
-    r = api(scopes).delete(f'/user/{user_batch[2].id}')
+    r = api(scopes).delete(f'/user/{deleted_user.id}')
 
     if authorized:
         if has_tag_instance in ('collection', 'record', 'both'):
@@ -211,8 +221,8 @@ def test_delete_user(api, user_batch, scopes, has_tag_instance):
             assert_no_audit_log()
         else:
             assert_empty_result(r)
-            assert_db_state(modified_user_batch)
-            assert_audit_log('delete', deleted_user, deleted_user_role_ids, deleted_user_provider_ids, api.grant_type)
+            assert_db_state(user_batch[:2] + user_batch[3:])
+            assert_audit_log('delete', deleted_user, api.grant_type)
     else:
         assert_forbidden(r)
         assert_db_state(user_batch)

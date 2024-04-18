@@ -6,7 +6,7 @@ import pytest
 from sqlalchemy import select
 
 from odp.const import ODPScope
-from odp.db.models import Provider, ProviderAudit
+from odp.db.models import Provider, ProviderAudit, ProviderUser
 from test import TestSession
 from test.api import (
     assert_conflict, assert_empty_result, assert_forbidden, assert_new_timestamp,
@@ -18,37 +18,37 @@ from test.factories import ClientFactory, CollectionFactory, PackageFactory, Pro
 @pytest.fixture
 def provider_batch():
     """Create and commit a batch of Provider instances,
-    with associated collections, users and clients."""
+    with associated users, clients and collections."""
     providers = [
-        ProviderFactory()
+        ProviderFactory(users=UserFactory.create_batch(randint(0, 3)))
         for _ in range(randint(3, 5))
     ]
     for provider in providers:
-        CollectionFactory.create_batch(randint(0, 3), provider=provider)
-        UserFactory.create_batch(randint(0, 3), providers=[provider])
         ClientFactory.create_batch(randint(0, 3), provider=provider)
+        CollectionFactory.create_batch(randint(0, 3), provider=provider)
+        provider.user_names = {user.id: user.name for user in provider.users}
+        provider.client_ids = [client.id for client in provider.clients]
+        provider.collection_keys = {collection.id: collection.key for collection in provider.collections}
+
     return providers
 
 
 def provider_build(**id):
-    """Build and return an uncommitted Provider instance."""
-    return ProviderFactory.build(**id)
-
-
-def collection_keys(provider):
-    return {collection.id: collection.key for collection in provider.collections}
-
-
-def user_names(provider):
-    return {user.id: user.name for user in provider.users}
-
-
-def client_ids(provider):
-    return tuple(sorted(client.id for client in provider.clients))
+    """Build and return an uncommitted Provider instance.
+    Associated users are however committed."""
+    provider = ProviderFactory.build(
+        **id,
+        users=UserFactory.create_batch(randint(0, 3)),
+    )
+    provider.user_names = {user.id: user.name for user in provider.users}
+    provider.client_ids = []
+    provider.collection_keys = {}
+    return provider
 
 
 def assert_db_state(providers):
-    """Verify that the DB provider table contains the given provider batch."""
+    """Verify that the provider table contains the given provider batch,
+    and that the provider_user table contains the associated user references."""
     result = TestSession.execute(select(Provider)).scalars().all()
     result.sort(key=lambda p: p.id)
     providers.sort(key=lambda p: p.id)
@@ -58,6 +58,15 @@ def assert_db_state(providers):
         assert row.key == providers[n].key
         assert row.name == providers[n].name
         assert_new_timestamp(row.timestamp)
+
+    result = TestSession.execute(select(ProviderUser.provider_id, ProviderUser.user_id)).all()
+    result.sort(key=lambda pu: (pu.provider_id, pu.user_id))
+    provider_users = []
+    for provider in providers:
+        for user_id in provider.user_names:
+            provider_users += [(provider.id, user_id)]
+    provider_users.sort()
+    assert result == provider_users
 
 
 def assert_audit_log(command, provider, grant_type):
@@ -69,6 +78,7 @@ def assert_audit_log(command, provider, grant_type):
     assert result._id == provider.id
     assert result._key == provider.key
     assert result._name == provider.name
+    assert sorted(result._users) == sorted(provider.user_names)
 
 
 def assert_no_audit_log():
@@ -81,9 +91,9 @@ def assert_json_result(response, json, provider):
     assert json['id'] == provider.id
     assert json['key'] == provider.key
     assert json['name'] == provider.name
-    assert json['collection_keys'] == collection_keys(provider)
-    assert json['user_names'] == user_names(provider)
-    assert tuple(sorted(json['client_ids'])) == client_ids(provider)
+    assert json['collection_keys'] == provider.collection_keys
+    assert json['user_names'] == provider.user_names
+    assert sorted(json['client_ids']) == sorted(provider.client_ids)
     assert_new_timestamp(datetime.fromisoformat(json['timestamp']))
 
 
@@ -132,15 +142,18 @@ def test_get_provider_not_found(api, provider_batch):
 @pytest.mark.require_scope(ODPScope.PROVIDER_ADMIN)
 def test_create_provider(api, provider_batch, scopes):
     authorized = ODPScope.PROVIDER_ADMIN in scopes
-    modified_provider_batch = provider_batch + [provider := provider_build()]
+    provider = provider_build()
+
     r = api(scopes).post('/provider/', json=dict(
         key=provider.key,
         name=provider.name,
+        user_ids=list(provider.user_names),
     ))
+
     if authorized:
         provider.id = r.json().get('id')
         assert_json_result(r, r.json(), provider)
-        assert_db_state(modified_provider_batch)
+        assert_db_state(provider_batch + [provider])
         assert_audit_log('insert', provider, api.grant_type)
     else:
         assert_forbidden(r)
@@ -150,11 +163,16 @@ def test_create_provider(api, provider_batch, scopes):
 
 def test_create_provider_conflict(api, provider_batch):
     scopes = [ODPScope.PROVIDER_ADMIN]
-    provider = provider_build(key=provider_batch[2].key)
+    provider = provider_build(
+        key=provider_batch[2].key,
+    )
+
     r = api(scopes).post('/provider/', json=dict(
         key=provider.key,
         name=provider.name,
+        user_ids=list(provider.user_names),
     ))
+
     assert_conflict(r, 'Provider key is already in use')
     assert_db_state(provider_batch)
     assert_no_audit_log()
@@ -163,17 +181,19 @@ def test_create_provider_conflict(api, provider_batch):
 @pytest.mark.require_scope(ODPScope.PROVIDER_ADMIN)
 def test_update_provider(api, provider_batch, scopes):
     authorized = ODPScope.PROVIDER_ADMIN in scopes
-    modified_provider_batch = provider_batch.copy()
-    modified_provider_batch[2] = (provider := provider_build(
+    provider = provider_build(
         id=provider_batch[2].id,
-    ))
+    )
+
     r = api(scopes).put(f'/provider/{provider.id}', json=dict(
         key=provider.key,
         name=provider.name,
+        user_ids=list(provider.user_names),
     ))
+
     if authorized:
         assert_empty_result(r)
-        assert_db_state(modified_provider_batch)
+        assert_db_state(provider_batch[:2] + [provider] + provider_batch[3:])
         assert_audit_log('update', provider, api.grant_type)
     else:
         assert_forbidden(r)
@@ -183,11 +203,16 @@ def test_update_provider(api, provider_batch, scopes):
 
 def test_update_provider_not_found(api, provider_batch):
     scopes = [ODPScope.PROVIDER_ADMIN]
-    provider = provider_build(id=str(uuid.uuid4()))
+    provider = provider_build(
+        id=str(uuid.uuid4()),
+    )
+
     r = api(scopes).put(f'/provider/{provider.id}', json=dict(
         key=provider.key,
         name=provider.name,
+        user_ids=list(provider.user_names),
     ))
+
     assert_not_found(r)
     assert_db_state(provider_batch)
     assert_no_audit_log()
@@ -199,10 +224,13 @@ def test_update_provider_conflict(api, provider_batch):
         id=provider_batch[2].id,
         key=provider_batch[0].key,
     )
+
     r = api(scopes).put(f'/provider/{provider.id}', json=dict(
         key=provider.key,
         name=provider.name,
+        user_ids=list(provider.user_names),
     ))
+
     assert_conflict(r, 'Provider key is already in use')
     assert_db_state(provider_batch)
     assert_no_audit_log()
@@ -226,23 +254,21 @@ def has_package(request):
 @pytest.mark.require_scope(ODPScope.PROVIDER_ADMIN)
 def test_delete_provider(api, provider_batch, scopes, has_record, has_resource, has_package):
     authorized = ODPScope.PROVIDER_ADMIN in scopes
-    modified_provider_batch = provider_batch.copy()
-    deleted_provider = modified_provider_batch[2]
-    del modified_provider_batch[2]
+    deleted_provider = provider_batch[2]
 
     if has_record:
-        if collection := next((c for c in provider_batch[2].collections), None):
+        if collection := next((c for c in deleted_provider.collections), None):
             RecordFactory(collection=collection)
         else:
             has_record = False
 
     if has_resource:
-        ResourceFactory(provider=provider_batch[2])
+        ResourceFactory(provider=deleted_provider)
 
     if has_package:
-        PackageFactory(provider=provider_batch[2])
+        PackageFactory(provider=deleted_provider)
 
-    r = api(scopes).delete(f'/provider/{provider_batch[2].id}')
+    r = api(scopes).delete(f'/provider/{deleted_provider.id}')
 
     if authorized:
         if has_record or has_resource or has_package:
@@ -254,7 +280,7 @@ def test_delete_provider(api, provider_batch, scopes, has_record, has_resource, 
             assert_no_audit_log()
         else:
             assert_empty_result(r)
-            assert_db_state(modified_provider_batch)
+            assert_db_state(provider_batch[:2] + provider_batch[3:])
             assert_audit_log('delete', deleted_provider, api.grant_type)
     else:
         assert_forbidden(r)

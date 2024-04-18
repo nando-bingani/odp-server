@@ -53,6 +53,7 @@ def output_audit_model(row) -> ProviderAuditModel:
         provider_id=row.ProviderAudit._id,
         provider_key=row.ProviderAudit._key,
         provider_name=row.ProviderAudit._name,
+        provider_users=row.ProviderAudit._users or [],
     )
 
 
@@ -70,6 +71,7 @@ def create_audit_record(
         _id=provider.id,
         _key=provider.key,
         _name=provider.name,
+        _users=[user.id for user in provider.users],
     ).save()
 
 
@@ -142,6 +144,10 @@ async def create_provider(
     provider = Provider(
         key=provider_in.key,
         name=provider_in.name,
+        users=[
+            Session.get(User, user_id)
+            for user_id in provider_in.user_ids
+        ],
         timestamp=(timestamp := datetime.now(timezone.utc)),
     )
     provider.save()
@@ -179,10 +185,14 @@ async def update_provider(
 
     if (
             provider.key != provider_in.key or
-            provider.name != provider_in.name
+            provider.name != provider_in.name  # todo: or user_ids != ...
     ):
         provider.key = provider_in.key
         provider.name = provider_in.name
+        provider.users = [
+            Session.get(User, user_id)
+            for user_id in provider_in.user_ids
+        ]
         provider.timestamp = (timestamp := datetime.now(timezone.utc))
         provider.save()
         create_audit_record(auth, provider, timestamp, AuditCommand.update)
