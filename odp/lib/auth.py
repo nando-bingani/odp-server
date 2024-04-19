@@ -6,7 +6,8 @@ from odp.lib import exceptions as x
 
 
 def get_client_permissions(client_id: str) -> Permissions:
-    """Return effective client permissions."""
+    """Return the set of permissions for a client, which may be
+    associated with an access token via a client credentials grant."""
 
     def permission(scope_id: str) -> Permission:
         if client.provider_specific and ODPScope(scope_id).constrainable_by == 'provider':
@@ -23,8 +24,14 @@ def get_client_permissions(client_id: str) -> Permissions:
 
 
 def get_user_permissions(user_id: str, client_id: str) -> Permissions:
-    """Return effective user permissions, which may be linked with
-    a user's access token for a given client application."""
+    """Return the effective set of permissions for a user using
+    the given client, which may be associated with an access
+    token via an authorization code grant.
+
+    The result is the intersection of the set of client permissions
+    with the cumulative set of permissions granted via the user's
+    roles.
+    """
 
     if not (user := Session.get(User, user_id)):
         raise x.ODPUserNotFound
@@ -35,22 +42,23 @@ def get_user_permissions(user_id: str, client_id: str) -> Permissions:
     for role in user.roles:
         for scope in role.scopes:
 
-            if ODPScope(scope.id).constrainable_by == 'collection' and role.collection_specific:
-                role_permission = [collection.id for collection in role.collections]
-            # elif ODPScope(scope.id).constrainable_by == 'provider':
-            #     role_permission = []
-            else:
-                role_permission = '*'
-
             # we cannot grant a scope that is not available to the client
             if scope.id not in client_permissions:
                 continue
 
-            # add the scope granted by the role
+            # set the scope access granted by this role
+            if ODPScope(scope.id).constrainable_by == 'collection' and role.collection_specific:
+                role_permission = [collection.id for collection in role.collections]
+            elif ODPScope(scope.id).constrainable_by == 'provider':
+                role_permission = [provider.id for provider in user.providers]
+            else:
+                role_permission = '*'
+
+            # the scope has not been granted by another role; add it
             if (base_permission := role_permissions.get(scope.id)) is None:
                 role_permissions[scope.id] = role_permission
 
-            # the user already has the widest possible access to the scope
+            # the scope has already been granted with the widest possible access
             elif base_permission == '*':
                 pass
 
@@ -74,9 +82,8 @@ def get_user_permissions(user_id: str, client_id: str) -> Permissions:
             user_permissions[scope_id] = client_permission
 
         # intersect the scope access granted by the client and the roles
-        # only grant the scope if the intersection is non-empty
-        elif intersection := list(set(client_permission) & set(role_permission)):
-            user_permissions[scope_id] = intersection
+        else:
+            user_permissions[scope_id] = list(set(client_permission) & set(role_permission))
 
     return user_permissions
 

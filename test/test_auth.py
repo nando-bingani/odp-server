@@ -1,4 +1,4 @@
-import random
+from random import sample
 
 import pytest
 
@@ -10,16 +10,33 @@ from odp.lib.auth import get_client_permissions, get_user_info, get_user_permiss
 from test.factories import ClientFactory, CollectionFactory, FactorySession, ProviderFactory, RoleFactory, UserFactory
 
 
-# TODO: test provider-user associations
-
-
 @pytest.fixture
 def scopes():
     """Return a random sample of size 15 of ODP scope DB objects."""
     migrate.systemdata.init_system_scopes()
     migrate.systemdata.Session.commit()
-    scope_ids = [s.value for s in random.sample(list(ODPScope.__members__.values()), 15)]
+    scope_ids = [s.value for s in sample(list(ODPScope.__members__.values()), 15)]
     return [FactorySession.get(Scope, (scope_id, 'odp')) for scope_id in scope_ids]
+
+
+@pytest.fixture(params=[0, 1, 3])
+def role1_collection_count(request):
+    return request.param
+
+
+@pytest.fixture(params=[0, 1, 3])
+def role2_collection_count(request):
+    return request.param
+
+
+@pytest.fixture(params=[0, 1, 3])
+def user_provider_count(request):
+    return request.param
+
+
+@pytest.fixture(params=[False, True])
+def user_has_client_provider(request):
+    return request.param
 
 
 def assert_compare(actual: Permissions, expected: Permissions):
@@ -39,19 +56,21 @@ def assert_compare(actual: Permissions, expected: Permissions):
     assert actual == expected
 
 
-def test_unconstrained_roles(scopes):
+def test_unconstrained_roles(scopes, user_provider_count):
     """Test permissions calculations for unconstrained (not collection-specific) roles.
 
     The client is not provider-specific. Any client-provider and role-collection
     associations should be ignored.
 
     The expected user permissions result contains the intersection of client and
-    role scopes, with a value of '*' for every scope.
+    role scopes. The value for provider-constrainable scopes is the set of providers
+    associated with the user, and '*' for every other scope.
     """
     client = ClientFactory(scopes=scopes[1:14], provider_specific=False, provider=ProviderFactory())
     role1 = RoleFactory(scopes=scopes[:5], collection_specific=False, collections=[CollectionFactory()])
     role2 = RoleFactory(scopes=scopes[10:], collection_specific=False, collections=[CollectionFactory()])
     user = UserFactory(roles=(role1, role2))
+    providers = ProviderFactory.create_batch(user_provider_count, users=[user])
 
     actual_client_perm = get_client_permissions(client.id)
     expected_client_perm = {
@@ -62,27 +81,29 @@ def test_unconstrained_roles(scopes):
 
     actual_user_perm = get_user_permissions(user.id, client.id)
     expected_user_perm = {
-        scope.id: '*'
+        scope.id: [p.id for p in providers]
+        if ODPScope(scope.id).constrainable_by == 'provider' else '*'
         for n, scope in enumerate(scopes)
         if (1 <= n < 5) or (10 <= n < 14)
     }
     assert_compare(actual_user_perm, expected_user_perm)
 
 
-def test_collection_specific_roles(scopes):
+def test_collection_specific_roles(scopes, role1_collection_count, role2_collection_count, user_provider_count):
     """Test permissions calculations for collection-specific roles.
 
     The client is not provider-specific. Any client-provider association
     should be ignored.
 
     The expected user permissions result contains the intersection of client and
-    role scopes, with the value for constrainable scopes being sets of role
-    collections, union'd where the roles overlap.
+    role scopes, with the value for collection-constrainable scopes being sets
+    of role collections, union'd where the roles overlap.
     """
     client = ClientFactory(scopes=scopes[1:14], provider_specific=False, provider=ProviderFactory())
-    role1 = RoleFactory(scopes=scopes[:10], collection_specific=True, collections=CollectionFactory.create_batch(3))
-    role2 = RoleFactory(scopes=scopes[5:], collection_specific=True, collections=CollectionFactory.create_batch(3))
+    role1 = RoleFactory(scopes=scopes[:10], collection_specific=True, collections=CollectionFactory.create_batch(role1_collection_count))
+    role2 = RoleFactory(scopes=scopes[5:], collection_specific=True, collections=CollectionFactory.create_batch(role2_collection_count))
     user = UserFactory(roles=(role1, role2))
+    providers = ProviderFactory.create_batch(user_provider_count, users=[user])
 
     actual_client_perm = get_client_permissions(client.id)
     expected_client_perm = {
@@ -93,17 +114,23 @@ def test_collection_specific_roles(scopes):
 
     actual_user_perm = get_user_permissions(user.id, client.id)
     expected_user_perm = {
-                             scope.id: [c.id for c in role1.collections]
+                             scope.id: [p.id for p in providers]
+                             if ODPScope(scope.id).constrainable_by == 'provider'
+                             else [c.id for c in role1.collections]
                              if ODPScope(scope.id).constrainable_by == 'collection' else '*'
                              for n, scope in enumerate(scopes)
                              if 1 <= n < 5
                          } | {
-                             scope.id: [c.id for c in role1.collections] + [c.id for c in role2.collections]
+                             scope.id: [p.id for p in providers]
+                             if ODPScope(scope.id).constrainable_by == 'provider'
+                             else [c.id for c in role1.collections] + [c.id for c in role2.collections]
                              if ODPScope(scope.id).constrainable_by == 'collection' else '*'
                              for n, scope in enumerate(scopes)
                              if 5 <= n < 10
                          } | {
-                             scope.id: [c.id for c in role2.collections]
+                             scope.id: [p.id for p in providers]
+                             if ODPScope(scope.id).constrainable_by == 'provider'
+                             else [c.id for c in role2.collections]
                              if ODPScope(scope.id).constrainable_by == 'collection' else '*'
                              for n, scope in enumerate(scopes)
                              if 10 <= n < 14
@@ -111,22 +138,23 @@ def test_collection_specific_roles(scopes):
     assert_compare(actual_user_perm, expected_user_perm)
 
 
-def test_unconstrained_and_collection_specific_role_mix(scopes):
+def test_unconstrained_and_collection_specific_role_mix(scopes, role1_collection_count, role2_collection_count, user_provider_count):
     """Test permissions calculations for a mix of unconstrained and collection-specific roles.
 
     The client is not provider-specific. Any client-provider association - and
     role-collection associations for unconstrained roles - should be ignored.
 
     The expected user permissions result contains the intersection of client and
-    role scopes, with a value of '*' for unconstrainable scopes and scopes allowed by
-    unconstrained roles, and union'd sets of role collections for remaining scopes
-    allowed by collection-specific roles.
+    role scopes, with a value of '*' for unconstrainable scopes and collection-constrainable
+    scopes allowed by unconstrained roles, the set of user providers for provider-constrainable
+    scopes, and union'd sets of role collections for remaining scopes allowed by collection-specific roles.
     """
     client = ClientFactory(scopes=scopes[1:14], provider_specific=False, provider=ProviderFactory())
     role1 = RoleFactory(scopes=scopes[:7], collection_specific=False, collections=[CollectionFactory()])
-    role2 = RoleFactory(scopes=scopes[3:12], collection_specific=True, collections=CollectionFactory.create_batch(3))
-    role3 = RoleFactory(scopes=scopes[9:], collection_specific=True, collections=CollectionFactory.create_batch(3))
+    role2 = RoleFactory(scopes=scopes[3:12], collection_specific=True, collections=CollectionFactory.create_batch(role1_collection_count))
+    role3 = RoleFactory(scopes=scopes[9:], collection_specific=True, collections=CollectionFactory.create_batch(role2_collection_count))
     user = UserFactory(roles=(role1, role2, role3))
+    providers = ProviderFactory.create_batch(user_provider_count, users=[user])
 
     actual_client_perm = get_client_permissions(client.id)
     expected_client_perm = {
@@ -137,21 +165,28 @@ def test_unconstrained_and_collection_specific_role_mix(scopes):
 
     actual_user_perm = get_user_permissions(user.id, client.id)
     expected_user_perm = {
-                             scope.id: '*'
+                             scope.id: [p.id for p in providers]
+                             if ODPScope(scope.id).constrainable_by == 'provider' else '*'
                              for n, scope in enumerate(scopes)
                              if 1 <= n < 7
                          } | {
-                             scope.id: [c.id for c in role2.collections]
+                             scope.id: [p.id for p in providers]
+                             if ODPScope(scope.id).constrainable_by == 'provider'
+                             else [c.id for c in role2.collections]
                              if ODPScope(scope.id).constrainable_by == 'collection' else '*'
                              for n, scope in enumerate(scopes)
                              if 7 <= n < 9
                          } | {
-                             scope.id: [c.id for c in role2.collections] + [c.id for c in role3.collections]
+                             scope.id: [p.id for p in providers]
+                             if ODPScope(scope.id).constrainable_by == 'provider'
+                             else [c.id for c in role2.collections] + [c.id for c in role3.collections]
                              if ODPScope(scope.id).constrainable_by == 'collection' else '*'
                              for n, scope in enumerate(scopes)
                              if 9 <= n < 12
                          } | {
-                             scope.id: [c.id for c in role3.collections]
+                             scope.id: [p.id for p in providers]
+                             if ODPScope(scope.id).constrainable_by == 'provider'
+                             else [c.id for c in role3.collections]
                              if ODPScope(scope.id).constrainable_by == 'collection' else '*'
                              for n, scope in enumerate(scopes)
                              if 12 <= n < 14
@@ -159,20 +194,29 @@ def test_unconstrained_and_collection_specific_role_mix(scopes):
     assert_compare(actual_user_perm, expected_user_perm)
 
 
-def test_provider_specific_client(scopes):
+def test_provider_specific_client(scopes, user_provider_count, user_has_client_provider):
     """Test permissions calculations for a provider-specific client.
 
     The roles are not collection-specific. Any role-collection
     associations should be ignored.
 
     The expected user permissions result contains the intersection of
-    client and role scopes, with the value for provider-constrainable
-    scopes being a set of the client provider.
+    client and role scopes. The value for provider-constrainable scopes
+    is a set of the client provider if the user is associated with that
+    provider, otherwise the empty set regardless of any other provider-user
+    associations.
     """
     client = ClientFactory(scopes=scopes[1:14], provider_specific=True)
     role1 = RoleFactory(scopes=scopes[:5], collection_specific=False, collections=[CollectionFactory()])
     role2 = RoleFactory(scopes=scopes[10:], collection_specific=False, collections=[CollectionFactory()])
     user = UserFactory(roles=(role1, role2))
+    ProviderFactory.create_batch(user_provider_count, users=[user])
+    if user_has_client_provider:
+        client.provider.users += [user]
+        FactorySession.commit()
+        providers = [client.provider]
+    else:
+        providers = []
 
     actual_client_perm = get_client_permissions(client.id)
     expected_client_perm = {
@@ -184,7 +228,7 @@ def test_provider_specific_client(scopes):
 
     actual_user_perm = get_user_permissions(user.id, client.id)
     expected_user_perm = {
-        scope.id: [client.provider_id]
+        scope.id: [p.id for p in providers]
         if ODPScope(scope.id).constrainable_by == 'provider' else '*'
         for n, scope in enumerate(scopes)
         if (1 <= n < 5) or (10 <= n < 14)
@@ -192,7 +236,8 @@ def test_provider_specific_client(scopes):
     assert_compare(actual_user_perm, expected_user_perm)
 
 
-def test_provider_specific_client_with_unconstrained_and_collection_specific_role_mix(scopes):
+def test_provider_specific_client_with_unconstrained_and_collection_specific_role_mix(
+        scopes, role1_collection_count, role2_collection_count, user_provider_count, user_has_client_provider):
     """Test permissions calculations for a provider-specific client, with a mix
     of unconstrained and collection-specific roles.
 
@@ -200,15 +245,23 @@ def test_provider_specific_client_with_unconstrained_and_collection_specific_rol
 
     The expected user permissions result contains the intersection of client and
     role scopes. The value for provider-constrainable scopes is a set of the
-    client provider. The value for collection-constrainable scopes is '*' for
-    scopes allowed by unconstrained roles, and union'd sets of role collections
-    for scopes allowed by collection-specific roles.
+    client provider if the user is associated with that provider, otherwise the
+    empty set. The value for collection-constrainable scopes is '*' for scopes
+    allowed by unconstrained roles, and union'd sets of role collections for
+    scopes allowed by collection-specific roles.
     """
     client = ClientFactory(scopes=scopes[1:14], provider_specific=True)
-    role1 = RoleFactory(scopes=scopes[:7], collection_specific=True, collections=CollectionFactory.create_batch(3))
-    role2 = RoleFactory(scopes=scopes[3:12], collection_specific=True, collections=CollectionFactory.create_batch(3))
+    role1 = RoleFactory(scopes=scopes[:7], collection_specific=True, collections=CollectionFactory.create_batch(role1_collection_count))
+    role2 = RoleFactory(scopes=scopes[3:12], collection_specific=True, collections=CollectionFactory.create_batch(role2_collection_count))
     role3 = RoleFactory(scopes=scopes[9:], collection_specific=False, collections=[CollectionFactory()])
     user = UserFactory(roles=(role1, role2, role3))
+    ProviderFactory.create_batch(user_provider_count, users=[user])
+    if user_has_client_provider:
+        client.provider.users += [user]
+        FactorySession.commit()
+        providers = [client.provider]
+    else:
+        providers = []
 
     actual_client_perm = get_client_permissions(client.id)
     expected_client_perm = {
@@ -220,28 +273,28 @@ def test_provider_specific_client_with_unconstrained_and_collection_specific_rol
 
     actual_user_perm = get_user_permissions(user.id, client.id)
     expected_user_perm = {
-                             scope.id: [client.provider_id]
+                             scope.id: [p.id for p in providers]
                              if ODPScope(scope.id).constrainable_by == 'provider'
                              else [c.id for c in role1.collections]
                              if ODPScope(scope.id).constrainable_by == 'collection' else '*'
                              for n, scope in enumerate(scopes)
                              if 1 <= n < 3
                          } | {
-                             scope.id: [client.provider_id]
+                             scope.id: [p.id for p in providers]
                              if ODPScope(scope.id).constrainable_by == 'provider'
                              else [c.id for c in role1.collections] + [c.id for c in role2.collections]
                              if ODPScope(scope.id).constrainable_by == 'collection' else '*'
                              for n, scope in enumerate(scopes)
                              if 3 <= n < 7
                          } | {
-                             scope.id: [client.provider_id]
+                             scope.id: [p.id for p in providers]
                              if ODPScope(scope.id).constrainable_by == 'provider'
                              else [c.id for c in role2.collections]
                              if ODPScope(scope.id).constrainable_by == 'collection' else '*'
                              for n, scope in enumerate(scopes)
                              if 7 <= n < 9
                          } | {
-                             scope.id: [client.provider_id]
+                             scope.id: [p.id for p in providers]
                              if ODPScope(scope.id).constrainable_by == 'provider'
                              else '*'
                              for n, scope in enumerate(scopes)
