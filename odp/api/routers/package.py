@@ -51,6 +51,7 @@ async def list_packages(
         stmt = stmt.where(Package.provider_id.in_(auth.object_ids))
 
     if provider_id:
+        auth.enforce_constraint([provider_id])
         stmt = stmt.where(Package.provider_id == provider_id)
 
     return paginator.paginate(
@@ -78,6 +79,9 @@ async def get_package(
 @router.post(
     '/',
     response_model=PackageModel,
+    description=f'Create a package. The caller must have {ODPScope.PACKAGE_WRITE} access '
+                f'with respect to the referenced provider and to the providers of all '
+                f'referenced resources.'
 )
 async def create_package(
         package_in: PackageModelIn,
@@ -111,6 +115,9 @@ async def create_package(
 @router.put(
     '/{package_id}',
     response_model=PackageModel,
+    description=f'Update a package. The caller must have {ODPScope.PACKAGE_WRITE} access '
+                f'with respect to the referenced provider (both existing and new, if different) '
+                f'and to the providers of all existing and newly referenced resources.'
 )
 async def update_package(
         package_id: str,
@@ -152,6 +159,9 @@ async def update_package(
 
 @router.delete(
     '/{package_id}',
+    description=f"Delete a package. The caller must have {ODPScope.PACKAGE_WRITE} access "
+                f"with respect to the provider of the package and to the provider(s) of "
+                f"the package's resources."
 )
 async def delete_package(
         package_id: str,
@@ -160,7 +170,10 @@ async def delete_package(
     if not (package := Session.get(Package, package_id)):
         raise HTTPException(HTTP_404_NOT_FOUND)
 
-    auth.enforce_constraint([package.provider_id])
+    auth.enforce_constraint(
+        [package.provider_id] +
+        [resource.provider_id for resource in package.resources]
+    )
 
     try:
         package.delete()

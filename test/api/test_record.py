@@ -11,8 +11,9 @@ from odp.db.models import CollectionTag, PublishedRecord, Record, RecordAudit, R
 from test import TestSession
 from test.api import (
     all_scopes, all_scopes_excluding, assert_conflict, assert_empty_result, assert_forbidden, assert_new_timestamp,
-    assert_not_found, assert_unprocessable, skip_client_credentials_collection_constraint,
+    assert_not_found, assert_unprocessable,
 )
+from test.api.conftest import try_skip_collection_constraint
 from test.factories import (
     CollectionFactory,
     CollectionTagFactory,
@@ -285,7 +286,7 @@ def assert_json_record_results(response, json, records):
 def test_list_records(api, record_batch, scopes, collection_constraint, record_list_filter):
     authorized = ODPScope.RECORD_READ in scopes
 
-    skip_client_credentials_collection_constraint(api.grant_type, collection_constraint)
+    try_skip_collection_constraint(api.grant_type, collection_constraint)
 
     if collection_constraint == 'collection_any':
         authorized_collections = None  # => all
@@ -322,7 +323,7 @@ def test_list_records(api, record_batch, scopes, collection_constraint, record_l
 def test_get_record(api, record_batch, scopes, collection_constraint, record_ident):
     authorized = ODPScope.RECORD_READ in scopes and collection_constraint in ('collection_any', 'collection_match')
 
-    skip_client_credentials_collection_constraint(api.grant_type, collection_constraint)
+    try_skip_collection_constraint(api.grant_type, collection_constraint)
 
     if collection_constraint == 'collection_any':
         authorized_collections = None  # => all
@@ -350,7 +351,7 @@ def test_get_record(api, record_batch, scopes, collection_constraint, record_ide
 def test_get_record_not_found(api, record_batch, collection_constraint, record_ident):
     scopes = [ODPScope.RECORD_READ]
 
-    skip_client_credentials_collection_constraint(api.grant_type, collection_constraint)
+    try_skip_collection_constraint(api.grant_type, collection_constraint)
 
     if collection_constraint == 'collection_any':
         authorized_collections = None  # => all
@@ -386,7 +387,7 @@ def test_create_record(api, record_batch, admin_route, scopes, collection_tags, 
                  not admin_route and ODPScope.RECORD_WRITE in scopes
     authorized = authorized and collection_constraint in ('collection_any', 'collection_match')
 
-    skip_client_credentials_collection_constraint(api.grant_type, collection_constraint)
+    try_skip_collection_constraint(api.grant_type, collection_constraint)
 
     if collection_constraint == 'collection_any':
         authorized_collections = None  # => all
@@ -445,7 +446,7 @@ def test_create_record_conflict(api, record_batch_with_ids, is_admin_route, coll
     scopes = [ODPScope.RECORD_ADMIN] if is_admin_route else [ODPScope.RECORD_WRITE]
     authorized = collection_constraint in ('collection_any', 'collection_match')
 
-    skip_client_credentials_collection_constraint(api.grant_type, collection_constraint)
+    try_skip_collection_constraint(api.grant_type, collection_constraint)
 
     if collection_constraint == 'collection_any':
         authorized_collections = None  # => all
@@ -501,7 +502,7 @@ def test_create_or_update_record_parent_error(api, record_batch, create_or_updat
     scopes = [ODPScope.RECORD_ADMIN] if is_admin_route else [ODPScope.RECORD_WRITE]
     authorized = collection_constraint in ('collection_any', 'collection_match')
 
-    skip_client_credentials_collection_constraint(api.grant_type, collection_constraint)
+    try_skip_collection_constraint(api.grant_type, collection_constraint)
 
     if collection_constraint == 'collection_any':
         authorized_collections = None  # => all
@@ -610,7 +611,7 @@ def test_update_record(api, record_batch, admin_route, scopes, collection_tags, 
                  not admin_route and ODPScope.RECORD_WRITE in scopes
     authorized = authorized and collection_constraint in ('collection_any', 'collection_match')
 
-    skip_client_credentials_collection_constraint(api.grant_type, collection_constraint)
+    try_skip_collection_constraint(api.grant_type, collection_constraint)
 
     if collection_constraint == 'collection_any':
         authorized_collections = None  # => all
@@ -672,7 +673,7 @@ def test_update_record_not_found(api, record_batch, is_admin_route, collection_c
     scopes = [ODPScope.RECORD_ADMIN] if is_admin_route else [ODPScope.RECORD_WRITE]
     authorized = collection_constraint in ('collection_any', 'collection_match')
 
-    skip_client_credentials_collection_constraint(api.grant_type, collection_constraint)
+    try_skip_collection_constraint(api.grant_type, collection_constraint)
 
     if collection_constraint == 'collection_any':
         authorized_collections = None  # => all
@@ -719,7 +720,7 @@ def test_update_record_conflict(api, record_batch_with_ids, is_admin_route, coll
     scopes = [ODPScope.RECORD_ADMIN] if is_admin_route else [ODPScope.RECORD_WRITE]
     authorized = collection_constraint in ('collection_any', 'collection_match')
 
-    skip_client_credentials_collection_constraint(api.grant_type, collection_constraint)
+    try_skip_collection_constraint(api.grant_type, collection_constraint)
 
     if collection_constraint == 'collection_any':
         authorized_collections = None  # => all
@@ -778,7 +779,7 @@ def test_update_record_doi_change(api, record_batch_with_ids, is_admin_route, co
     scopes = [ODPScope.RECORD_ADMIN] if is_admin_route else [ODPScope.RECORD_WRITE]
     authorized = collection_constraint in ('collection_any', 'collection_match')
 
-    skip_client_credentials_collection_constraint(api.grant_type, collection_constraint)
+    try_skip_collection_constraint(api.grant_type, collection_constraint)
 
     if collection_constraint == 'collection_any':
         authorized_collections = None  # => all
@@ -857,7 +858,7 @@ def test_delete_record(api, record_batch_with_ids, admin_route, scopes, collecti
                  not admin_route and ODPScope.RECORD_WRITE in scopes
     authorized = authorized and collection_constraint in ('collection_any', 'collection_match')
 
-    skip_client_credentials_collection_constraint(api.grant_type, collection_constraint)
+    try_skip_collection_constraint(api.grant_type, collection_constraint)
 
     if collection_constraint == 'collection_any':
         authorized_collections = None  # => all
@@ -908,7 +909,7 @@ def test_delete_record_not_found(api, record_batch, is_admin_route, collection_c
     route = '/record/admin/' if is_admin_route else '/record/'
     scopes = [ODPScope.RECORD_ADMIN] if is_admin_route else [ODPScope.RECORD_WRITE]
 
-    skip_client_credentials_collection_constraint(api.grant_type, collection_constraint)
+    try_skip_collection_constraint(api.grant_type, collection_constraint)
 
     if collection_constraint == 'collection_any':
         authorized_collections = None  # => all
@@ -937,7 +938,7 @@ def test_tag_record(api, record_batch_no_tags, scopes, collection_constraint, ta
 
     authorized = ODPScope.RECORD_QC in scopes and collection_constraint in ('collection_any', 'collection_match')
 
-    skip_client_credentials_collection_constraint(api.grant_type, collection_constraint)
+    try_skip_collection_constraint(api.grant_type, collection_constraint)
 
     if collection_constraint == 'collection_any':
         authorized_collections = None  # => all
@@ -1009,7 +1010,7 @@ def test_tag_record(api, record_batch_no_tags, scopes, collection_constraint, ta
 def test_tag_record_user_conflict(api, record_batch_no_tags, scopes, collection_constraint, tag_cardinality):
     authorized = ODPScope.RECORD_QC in scopes and collection_constraint in ('collection_any', 'collection_match')
 
-    skip_client_credentials_collection_constraint(api.grant_type, collection_constraint)
+    try_skip_collection_constraint(api.grant_type, collection_constraint)
 
     if collection_constraint == 'collection_any':
         authorized_collections = None  # => all
@@ -1072,7 +1073,7 @@ def test_untag_record(api, record_batch_no_tags, admin_route, scopes, collection
                  not admin_route and ODPScope.RECORD_QC in scopes
     authorized = authorized and collection_constraint in ('collection_any', 'collection_match')
 
-    skip_client_credentials_collection_constraint(api.grant_type, collection_constraint)
+    try_skip_collection_constraint(api.grant_type, collection_constraint)
 
     if collection_constraint == 'collection_any':
         authorized_collections = None  # => all

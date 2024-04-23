@@ -12,8 +12,9 @@ from odp.db.models import Collection, CollectionAudit, CollectionTag, Collection
 from test import TestSession
 from test.api import (
     all_scopes, all_scopes_excluding, assert_conflict, assert_empty_result, assert_forbidden, assert_new_timestamp,
-    assert_not_found, assert_unprocessable, skip_client_credentials_collection_constraint,
+    assert_not_found, assert_unprocessable,
 )
+from test.api.conftest import try_skip_collection_constraint
 from test.factories import CollectionFactory, CollectionTagFactory, FactorySession, ProviderFactory, RecordFactory, SchemaFactory, TagFactory
 
 
@@ -155,7 +156,7 @@ def assert_doi_result(response, collection):
 def test_list_collections(api, collection_batch, scopes, collection_constraint):
     authorized = ODPScope.COLLECTION_READ in scopes
 
-    skip_client_credentials_collection_constraint(api.grant_type, collection_constraint)
+    try_skip_collection_constraint(api.grant_type, collection_constraint)
 
     if collection_constraint == 'collection_any':
         authorized_collections = None  # => all
@@ -183,7 +184,7 @@ def test_list_collections(api, collection_batch, scopes, collection_constraint):
 def test_get_collection(api, collection_batch, scopes, collection_constraint):
     authorized = ODPScope.COLLECTION_READ in scopes and collection_constraint in ('collection_any', 'collection_match')
 
-    skip_client_credentials_collection_constraint(api.grant_type, collection_constraint)
+    try_skip_collection_constraint(api.grant_type, collection_constraint)
 
     if collection_constraint == 'collection_any':
         authorized_collections = None  # => all
@@ -207,7 +208,7 @@ def test_get_collection_not_found(api, collection_batch, collection_constraint):
     scopes = [ODPScope.COLLECTION_READ]
     authorized = collection_constraint == 'collection_any'
 
-    skip_client_credentials_collection_constraint(api.grant_type, collection_constraint)
+    try_skip_collection_constraint(api.grant_type, collection_constraint)
 
     if collection_constraint == 'collection_any':
         authorized_collections = None  # => all
@@ -230,7 +231,7 @@ def test_create_collection(api, collection_batch, scopes, collection_constraint)
     # note that collection-specific auth will never allow creating a new collection
     authorized = ODPScope.COLLECTION_ADMIN in scopes and collection_constraint == 'collection_any'
 
-    skip_client_credentials_collection_constraint(api.grant_type, collection_constraint)
+    try_skip_collection_constraint(api.grant_type, collection_constraint)
 
     if collection_constraint == 'collection_any':
         authorized_collections = None  # => all
@@ -261,7 +262,7 @@ def test_create_collection_conflict(api, collection_batch, collection_constraint
     scopes = [ODPScope.COLLECTION_ADMIN]
     authorized = collection_constraint == 'collection_any'
 
-    skip_client_credentials_collection_constraint(api.grant_type, collection_constraint)
+    try_skip_collection_constraint(api.grant_type, collection_constraint)
 
     if collection_constraint == 'collection_any':
         authorized_collections = None  # => all
@@ -290,7 +291,7 @@ def test_create_collection_conflict(api, collection_batch, collection_constraint
 def test_update_collection(api, collection_batch, scopes, collection_constraint):
     authorized = ODPScope.COLLECTION_ADMIN in scopes and collection_constraint in ('collection_any', 'collection_match')
 
-    skip_client_credentials_collection_constraint(api.grant_type, collection_constraint)
+    try_skip_collection_constraint(api.grant_type, collection_constraint)
 
     if collection_constraint == 'collection_any':
         authorized_collections = None  # => all
@@ -325,7 +326,7 @@ def test_update_collection_not_found(api, collection_batch, collection_constrain
     scopes = [ODPScope.COLLECTION_ADMIN]
     authorized = collection_constraint == 'collection_any'
 
-    skip_client_credentials_collection_constraint(api.grant_type, collection_constraint)
+    try_skip_collection_constraint(api.grant_type, collection_constraint)
 
     if collection_constraint == 'collection_any':
         authorized_collections = None  # => all
@@ -354,7 +355,7 @@ def test_update_collection_conflict(api, collection_batch, collection_constraint
     scopes = [ODPScope.COLLECTION_ADMIN]
     authorized = collection_constraint in ('collection_any', 'collection_match')
 
-    skip_client_credentials_collection_constraint(api.grant_type, collection_constraint)
+    try_skip_collection_constraint(api.grant_type, collection_constraint)
 
     if collection_constraint == 'collection_any':
         authorized_collections = None  # => all
@@ -393,7 +394,7 @@ def has_record(request):
 def test_delete_collection(api, collection_batch, scopes, collection_constraint, has_record):
     authorized = ODPScope.COLLECTION_ADMIN in scopes and collection_constraint in ('collection_any', 'collection_match')
 
-    skip_client_credentials_collection_constraint(api.grant_type, collection_constraint)
+    try_skip_collection_constraint(api.grant_type, collection_constraint)
 
     if collection_constraint == 'collection_any':
         authorized_collections = None  # => all
@@ -430,7 +431,7 @@ def test_delete_collection_not_found(api, collection_batch, collection_constrain
     scopes = [ODPScope.COLLECTION_ADMIN]
     authorized = collection_constraint == 'collection_any'
 
-    skip_client_credentials_collection_constraint(api.grant_type, collection_constraint)
+    try_skip_collection_constraint(api.grant_type, collection_constraint)
 
     if collection_constraint == 'collection_any':
         authorized_collections = None  # => all
@@ -452,7 +453,7 @@ def test_delete_collection_not_found(api, collection_batch, collection_constrain
 def test_get_new_doi(api, collection_batch, scopes, collection_constraint):
     authorized = ODPScope.COLLECTION_READ in scopes and collection_constraint in ('collection_any', 'collection_match')
 
-    skip_client_credentials_collection_constraint(api.grant_type, collection_constraint)
+    try_skip_collection_constraint(api.grant_type, collection_constraint)
 
     if collection_constraint == 'collection_any':
         authorized_collections = None  # => all
@@ -489,7 +490,7 @@ def new_generic_tag(cardinality):
 def test_tag_collection(api, collection_batch, scopes, collection_constraint, tag_cardinality):
     authorized = ODPScope.COLLECTION_FREEZE in scopes and collection_constraint in ('collection_any', 'collection_match')
 
-    skip_client_credentials_collection_constraint(api.grant_type, collection_constraint)
+    try_skip_collection_constraint(api.grant_type, collection_constraint)
 
     if collection_constraint == 'collection_any':
         authorized_collections = None  # => all
@@ -558,7 +559,7 @@ def test_tag_collection(api, collection_batch, scopes, collection_constraint, ta
 def test_tag_collection_user_conflict(api, collection_batch, scopes, collection_constraint, tag_cardinality):
     authorized = ODPScope.COLLECTION_FREEZE in scopes and collection_constraint in ('collection_any', 'collection_match')
 
-    skip_client_credentials_collection_constraint(api.grant_type, collection_constraint)
+    try_skip_collection_constraint(api.grant_type, collection_constraint)
 
     if collection_constraint == 'collection_any':
         authorized_collections = None  # => all
@@ -626,7 +627,7 @@ def test_untag_collection(api, collection_batch, admin_route, scopes, collection
                  not admin_route and ODPScope.COLLECTION_FREEZE in scopes
     authorized = authorized and collection_constraint in ('collection_any', 'collection_match')
 
-    skip_client_credentials_collection_constraint(api.grant_type, collection_constraint)
+    try_skip_collection_constraint(api.grant_type, collection_constraint)
 
     if collection_constraint == 'collection_any':
         authorized_collections = None  # => all

@@ -16,6 +16,12 @@ from test.factories import ClientFactory, FactorySession, RoleFactory, UserFacto
 MockToken = namedtuple('MockToken', ('active', 'client_id', 'sub'))
 
 
+# TODO:
+#   consider using pytest_generate_tests to parameterize interacting fixtures;
+#   this would avoid the unnecessary overhead of test setup for invalid parameter
+#   combinations, which are skipped in any case
+
+
 @pytest.fixture(autouse=True)
 def static_data():
     """Initialize static system data."""
@@ -113,22 +119,89 @@ def hydra_admin_api():
             hapi.delete_client(hydra_client.id)
 
 
-@pytest.fixture(params=['collection_any', 'collection_match', 'collection_mismatch'])
+@pytest.fixture(params=[
+    'collection_any',
+    'collection_match',
+    'collection_mismatch',
+])
 def collection_constraint(request):
-    """Fixture for parameterizing the three possible logic branches
-    involving scopes that may be constrained to specific collections.
+    """Indicate to the test function how to configure the collections
+    associated with the test user's role (`user_collections` param of
+    the `api` fixture) when using a collection-constrainable scope.
 
-    'collection_any'      => The test user has a non-collection-specific role
-    'collection_match'    => The test user has a collection-specific role, and is
-                             requesting access to authorized collection(s)
-    'collection_mismatch' => The test user has a collection-specific role, and is
-                             requesting access to unauthorized collection(s)
+    'collection_any'      => The test role is not collection-specific
+    'collection_match'    => The test role is associated with the collection
+                             including the requested objects (usually the #2
+                             collection of the batch)
+    'collection_mismatch' => The test role is associated with arbitrary
+                             collection(s) not associated with the requested
+                             objects
 
     Note that collection access can only be constrained under the authorization_code
     flow, when we have a test user whose role can be made collection-specific.
-    Under client_credentials, the calling test may skip collection_match/mismatch.
+    Under client_credentials, the test function should skip collection_match/mismatch
+    by calling `try_skip_collection_constraint`.
     """
     return request.param
+
+
+def try_skip_collection_constraint(grant_type, collection_constraint):
+    """Tests which use the `collection_constraint` fixture should call this
+    function to skip non-applicable combinations of grant_type and collection_constraint."""
+    if grant_type == 'client_credentials' and collection_constraint != 'collection_any':
+        pytest.skip('Collection access cannot be constrained under client_credentials as there is no test user/role')
+
+
+@pytest.fixture(params=[
+    'client_provider_any',
+    'client_provider_match',
+    'client_provider_mismatch',
+])
+def client_provider_constraint(request):
+    """Indicate to the test function how to configure the test client
+    (`client_provider` param of `api` fixture) when using a provider-
+    constrainable scope.
+
+    'client_provider_any'      => The test client is not provider-specific
+    'client_provider_match'    => The test client is specific to the provider
+                                  of the requested objects (usually the #2
+                                  provider of the batch)
+    'client_provider_mismatch' => The test client is specific to an arbitrary
+                                  provider, not associated with the requested
+                                  objects
+    """
+    return request.param
+
+
+@pytest.fixture(params=[
+    'user_provider_none',
+    'user_provider_match',
+    'user_provider_mismatch',
+])
+def user_provider_constraint(request):
+    """Indicate to the test function how to configure the test user
+    (`user_providers` param of `api` fixture) when using a provider-
+    constrainable scope.
+
+    'user_provider_none'     => The test user is not associated with any provider
+    'user_provider_match'    => The test user is associated with the provider of
+                                the requested objects (usually the #2 provider of
+                                the batch)
+    'user_provider_mismatch' => The test user is associated with arbitrary provider(s)
+                                not associated with the requested objects
+
+    Note that user-provider access can only be configured under the authorization_code
+    flow, when we have a test user. Under client_credentials, the test function should
+    skip user_provider_match/mismatch by calling `try_skip_user_provider_constraint`.
+    """
+    return request.param
+
+
+def try_skip_user_provider_constraint(grant_type, user_provider_constraint):
+    """Tests which use the `user_provider_constraint` fixture should call this
+    function to skip non-applicable combinations of grant_type and user_provider_constraint."""
+    if grant_type == 'client_credentials' and user_provider_constraint != 'user_provider_none':
+        pytest.skip('User-provider configuration is irrelevant under client_credentials')
 
 
 @pytest.fixture(params=TagCardinality)
