@@ -185,7 +185,8 @@ async def update_provider(
 
     if (
             provider.key != provider_in.key or
-            provider.name != provider_in.name  # todo: or user_ids != ...
+            provider.name != provider_in.name or
+            set(user.id for user in provider.users) != set(provider_in.user_ids)
     ):
         provider.key = provider_in.key
         provider.name = provider_in.name

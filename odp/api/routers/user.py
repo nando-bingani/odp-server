@@ -107,14 +107,17 @@ async def update_user(
     if not (user := Session.get(User, user_in.id)):
         raise HTTPException(HTTP_404_NOT_FOUND)
 
-    # todo: if different...
-    user.active = user_in.active
-    user.roles = [
-        Session.get(Role, role_id)
-        for role_id in user_in.role_ids
-    ]
-    user.save()
-    create_audit_record(auth, user, IdentityCommand.edit)
+    if (
+            user.active != user_in.active or
+            set(role.id for role in user.roles) != set(user_in.role_ids)
+    ):
+        user.active = user_in.active
+        user.roles = [
+            Session.get(Role, role_id)
+            for role_id in user_in.role_ids
+        ]
+        user.save()
+        create_audit_record(auth, user, IdentityCommand.edit)
 
 
 @router.delete(
