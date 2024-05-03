@@ -8,6 +8,8 @@ from odp.db.models import Record
 
 
 def set_parent_ids():
+    raise Exception('Function retained for historical reference. Not for re-use.')
+
     for record in Session.execute(
             select(Record)
     ).scalars().all():

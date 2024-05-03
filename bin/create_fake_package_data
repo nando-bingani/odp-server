@@ -1,0 +1,40 @@
+#!/usr/bin/env python
+
+import pathlib
+import sys
+from random import randint
+
+rootdir = pathlib.Path(__file__).parent.parent
+sys.path.append(str(rootdir))
+
+from odp.config import config
+from odp.const import ODPArchive
+from odp.db.models import Archive
+from test.factories import ArchiveResourceFactory, FactorySession, PackageFactory, ProviderFactory, ResourceFactory
+
+if __name__ == '__main__':
+    if config.ODP.ENV not in ('development', 'testing'):
+        raise Exception(f'Fake data not allowed in {config.ODP.ENV} environment.')
+
+    mims_archive = FactorySession.get(Archive, ODPArchive.MIMS_ARCHIVE)
+    saeon_archive = FactorySession.get(Archive, ODPArchive.SAEON_REPOSITORY)
+
+    for provider in ProviderFactory.create_batch(10):
+        print(f'Creating packages and resources for {provider.key}...')
+
+        for archive in mims_archive, saeon_archive:
+            for _ in range(randint(0, 15)):
+                resources = []
+                for _ in range(randint(1, 20)):
+                    archive_resource = ArchiveResourceFactory(
+                        archive=archive,
+                        resource=ResourceFactory(
+                            provider=provider,
+                        )
+                    )
+                    resources += [archive_resource.resource]
+
+                PackageFactory(
+                    provider=provider,
+                    resources=resources,
+                )
