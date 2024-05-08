@@ -4,11 +4,14 @@ ODP.Admin:
 
 SAEON.Staff:
   scopes:
+    - odp.archive:read
     - odp.catalog:read
     - odp.client:read
     - odp.collection:read
+    - odp.package:read
     - odp.provider:read
     - odp.record:read
+    - odp.resource:read
     - odp.role:read
     - odp.schema:read
     - odp.scope:read
