@@ -46,9 +46,9 @@ def create_audit_record(
 @router.get(
     '/',
     response_model=Page[ResourceModel],
-    dependencies=[Depends(Authorize(ODPScope.RESOURCE_READ))],
 )
 async def list_resources(
+        auth: Authorized = Depends(Authorize(ODPScope.RESOURCE_READ)),
         paginator: Paginator = Depends(),
         package_id: str = Query(None, title='Filter by package id'),
         provider_id: list[str] = Query(None, title='Filter by provider id(s)'),
@@ -58,11 +58,15 @@ async def list_resources(
 ):
     stmt = select(Resource)
 
+    if auth.object_ids != '*':
+        stmt = stmt.where(Resource.provider_id.in_(auth.object_ids))
+
     if package_id:
         stmt = stmt.join(PackageResource)
         stmt = stmt.where(PackageResource.package_id == package_id)
 
     if provider_id:
+        auth.enforce_constraint(provider_id)
         stmt = stmt.where(Resource.provider_id.in_(provider_id))
 
     if archive_id:
@@ -93,13 +97,15 @@ async def list_resources(
 @router.get(
     '/{resource_id}',
     response_model=ResourceModel,
-    dependencies=[Depends(Authorize(ODPScope.RESOURCE_READ))],
 )
 async def get_resource(
         resource_id: str,
+        auth: Authorized = Depends(Authorize(ODPScope.RESOURCE_READ)),
 ):
     if not (resource := Session.get(Resource, resource_id)):
         raise HTTPException(HTTP_404_NOT_FOUND)
+
+    auth.enforce_constraint([resource.provider_id])
 
     return output_resource_model(resource)
 
@@ -107,13 +113,17 @@ async def get_resource(
 @router.post(
     '/',
     response_model=ResourceModel,
-    description='Register a new resource. It is up to the caller to '
-                'ensure the resource is stored in the specified archive.',
+    description='Register a new resource. It is up to the caller to ensure '
+                'that the resource is stored in the specified archive. '
+                f'The caller must have {ODPScope.RESOURCE_WRITE} access '
+                'with respect to the referenced provider.',
 )
 async def create_resource(
         resource_in: ResourceModelIn,
         auth: Authorized = Depends(Authorize(ODPScope.RESOURCE_WRITE)),
 ):
+    auth.enforce_constraint([resource_in.provider_id])
+
     if Session.execute(
             select(ArchiveResource).
             where(ArchiveResource.archive_id == resource_in.archive_id).
