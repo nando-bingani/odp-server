@@ -2,7 +2,7 @@
 -e file:../odp-ui
 
 sqlalchemy
-psycopg2
+psycopg2-binary
 alembic
 argon2-cffi
 pyyaml
