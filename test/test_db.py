@@ -13,6 +13,7 @@ from odp.db.models import (
     Collection,
     CollectionTag,
     Package,
+    PackageTag,
     Provider,
     ProviderUser,
     Record,
@@ -37,6 +38,7 @@ from test.factories import (
     CollectionFactory,
     CollectionTagFactory,
     PackageFactory,
+    PackageTagFactory,
     ProviderFactory,
     RecordFactory,
     RecordTagFactory,
@@ -158,23 +160,39 @@ def test_create_package():
     result = TestSession.execute(select(Package)).scalar_one()
     assert (
                result.id,
-               result.metadata_,
-               result.validity,
+               result.title,
+               result.status,
                result.notes,
                result.provider_id,
-               result.schema_id,
-               result.schema_type,
                result.timestamp,
            ) == (
                package.id,
-               package.metadata_,
-               package.validity,
+               package.title,
+               package.status,
                package.notes,
                package.provider_id,
-               package.schema_id,
-               package.schema_type,
                package.timestamp,
            )
+
+
+def test_create_package_tag():
+    package_tag = PackageTagFactory()
+    result = TestSession.execute(select(PackageTag).join(Package).join(Tag)).scalar_one()
+    assert (
+               result.package_id,
+               result.tag_id,
+               result.tag_type,
+               result.user_id,
+               result.data,
+               result.timestamp,
+           ) == (
+               package_tag.package.id,
+               package_tag.tag.id,
+               'package',
+               package_tag.user.id,
+               package_tag.data,
+               package_tag.timestamp,
+    )
 
 
 def test_create_provider():

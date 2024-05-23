@@ -17,6 +17,7 @@ from odp.db.models import (
     Collection,
     CollectionTag,
     Package,
+    PackageTag,
     Provider,
     Record,
     RecordTag,
@@ -197,14 +198,10 @@ class PackageFactory(ODPModelFactory):
         model = Package
 
     id = factory.Faker('uuid4')
-    metadata_ = factory.Sequence(lambda n: {'foo': f'test-{n}'})
-    validity = factory.LazyFunction(lambda: dict(valid=randint(0, 1)))
+    title = factory.Faker('catch_phrase')
+    status = factory.LazyFunction(lambda: choice(('pending', 'submitted', 'archived')))
     notes = factory.Faker('sentence')
     provider = factory.SubFactory(ProviderFactory)
-    schema_id = factory.LazyFunction(lambda: choice(('SAEON.DataCite4', 'SAEON.ISO19115')))
-    schema_type = 'metadata'
-    schema = factory.LazyAttribute(lambda p: FactorySession.get(Schema, (p.schema_id, 'metadata')) or
-                                             SchemaFactory(id=p.schema_id, type='metadata'))
     timestamp = factory.LazyFunction(lambda: datetime.now(timezone.utc))
 
     @factory.post_generation
@@ -334,6 +331,17 @@ class CollectionTagFactory(ODPModelFactory):
 
     collection = factory.SubFactory(CollectionFactory)
     tag = factory.SubFactory(TagFactory, type='collection')
+    user = factory.SubFactory(UserFactory)
+    data = {}
+    timestamp = factory.LazyFunction(lambda: datetime.now(timezone.utc))
+
+
+class PackageTagFactory(ODPModelFactory):
+    class Meta:
+        model = PackageTag
+
+    package = factory.SubFactory(PackageFactory)
+    tag = factory.SubFactory(TagFactory, type='package')
     user = factory.SubFactory(UserFactory)
     data = {}
     timestamp = factory.LazyFunction(lambda: datetime.now(timezone.utc))
