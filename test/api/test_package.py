@@ -56,12 +56,11 @@ def assert_db_state(packages):
     assert len(result) == len(packages)
     for n, row in enumerate(result):
         assert row.id == packages[n].id
-        assert row.metadata_ == packages[n].metadata_
+        assert row.title == packages[n].title
+        assert row.status == packages[n].status
         assert row.notes == packages[n].notes
         assert_new_timestamp(row.timestamp)
         assert row.provider_id == packages[n].provider_id
-        assert row.schema_id == packages[n].schema_id
-        assert row.schema_type == packages[n].schema_type == 'metadata'
 
     result = TestSession.execute(select(PackageResource.package_id, PackageResource.resource_id)).all()
     result.sort(key=lambda pr: (pr.package_id, pr.resource_id))
@@ -78,12 +77,12 @@ def assert_json_result(response, json, package):
     # todo: check linked record
     assert response.status_code == 200
     assert json['id'] == package.id
-    assert json['provider_id'] == package.provider_id
-    assert json['provider_key'] == package.provider.key
-    assert json['schema_id'] == package.schema_id
-    assert json['metadata'] == package.metadata_
+    assert json['title'] == package.title
+    assert json['status'] == package.status
     assert json['notes'] == package.notes
     assert_new_timestamp(datetime.fromisoformat(json['timestamp']))
+    assert json['provider_id'] == package.provider_id
+    assert json['provider_key'] == package.provider.key
     assert sorted(json['resource_ids']) == sorted(package.resource_ids)
 
 
@@ -247,15 +246,15 @@ def test_create_package(
         authorized = authorized and package_resource_provider == 'same'
 
     package = package_build(
+        status='pending',
         package_provider=package_batch[2].provider,
         resource_provider=package_batch[2].provider if package_resource_provider == 'same' else None,
     )
 
     r = api(scopes, **api_kwargs).post('/package/', json=dict(
-        provider_id=package.provider_id,
-        schema_id=package.schema_id,
-        metadata=package.metadata_,
+        title=package.title,
         notes=package.notes,
+        provider_id=package.provider_id,
         resource_ids=package.resource_ids,
     ))
 
@@ -309,15 +308,15 @@ def test_update_package(
     package_provider = package_batch[2].provider if package_new_provider == 'same' else ProviderFactory()
     package = package_build(
         id=package_batch[2].id,
+        status=package_batch[2].status,
         package_provider=package_provider,
         resource_provider=package_provider if package_new_resource_provider == 'same' else None,
     )
 
     r = api(scopes, **api_kwargs).put(f'/package/{package.id}', json=dict(
-        provider_id=package.provider_id,
-        schema_id=package.schema_id,
-        metadata=package.metadata_,
+        title=package.title,
         notes=package.notes,
+        provider_id=package.provider_id,
         resource_ids=package.resource_ids,
     ))
 
@@ -345,10 +344,9 @@ def test_update_package_not_found(
     package = package_build(id='foo')
 
     r = api(scopes, **api_kwargs).put(f'/package/{package.id}', json=dict(
-        provider_id=package.provider_id,
-        schema_id=package.schema_id,
-        metadata=package.metadata_,
+        title=package.title,
         notes=package.notes,
+        provider_id=package.provider_id,
         resource_ids=package.resource_ids,
     ))
 
