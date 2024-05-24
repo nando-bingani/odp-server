@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import CheckConstraint, Column, Enum, ForeignKey, ForeignKeyConstraint, Identity, Integer, String, TIMESTAMP
+from sqlalchemy import ARRAY, CheckConstraint, Column, Enum, ForeignKey, ForeignKeyConstraint, Identity, Integer, String, TIMESTAMP
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.associationproxy import association_proxy
 from sqlalchemy.orm import relationship
@@ -56,6 +56,7 @@ class PackageAudit(Base):
     _status = Column(String, nullable=False)
     _notes = Column(String)
     _provider_id = Column(String, nullable=False)
+    _resources = Column(ARRAY(String))
 
 
 class PackageResource(Base):

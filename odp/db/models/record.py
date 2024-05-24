@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import CheckConstraint, Column, Enum, ForeignKey, ForeignKeyConstraint, Identity, Index, Integer, String, TIMESTAMP, text
+from sqlalchemy import ARRAY, CheckConstraint, Column, Enum, ForeignKey, ForeignKeyConstraint, Identity, Index, Integer, String, TIMESTAMP, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.associationproxy import association_proxy
 from sqlalchemy.orm import relationship
@@ -89,6 +89,7 @@ class RecordAudit(Base):
     _collection_id = Column(String, nullable=False)
     _schema_id = Column(String, nullable=False)
     _parent_id = Column(String)
+    _packages = Column(ARRAY(String))
 
 
 class RecordPackage(Base):
