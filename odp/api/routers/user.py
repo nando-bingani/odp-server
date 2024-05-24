@@ -1,7 +1,7 @@
 from functools import partial
 
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import or_, select
 from sqlalchemy.exc import IntegrityError
 from starlette.status import HTTP_404_NOT_FOUND, HTTP_422_UNPROCESSABLE_ENTITY
 
@@ -11,7 +11,7 @@ from odp.api.models import IdentityAuditModel, Page, UserModel, UserModelIn
 from odp.const import ODPScope
 from odp.const.db import IdentityCommand
 from odp.db import Session
-from odp.db.models import IdentityAudit, Role, User
+from odp.db.models import IdentityAudit, ProviderUser, Role, User, UserRole
 
 router = APIRouter()
 
@@ -75,10 +75,30 @@ def output_audit_model(row) -> IdentityAuditModel:
     dependencies=[Depends(Authorize(ODPScope.USER_READ))],
 )
 async def list_users(
-        paginator: Paginator = Depends(partial(Paginator, sort='email')),
+        paginator: Paginator = Depends(partial(Paginator, sort='name')),
+        provider_id: str = Query(None, title='Filter by provider id'),
+        role_id: str = Query(None, title='Filter by role id'),
+        text_query: str = Query(None, title='Search by email or name'),
 ):
+    stmt = select(User)
+
+    if provider_id:
+        stmt = stmt.join(ProviderUser).where(ProviderUser.provider_id == provider_id)
+
+    if role_id:
+        stmt = stmt.join(UserRole).where(UserRole.role_id == role_id)
+
+    if text_query and (terms := text_query.split()):
+        exprs = []
+        for term in terms:
+            exprs += [
+                User.email.ilike(f'%{term}%'),
+                User.name.ilike(f'%{term}%'),
+            ]
+        stmt = stmt.where(or_(*exprs))
+
     return paginator.paginate(
-        select(User),
+        stmt,
         lambda row: output_user_model(row.User),
     )
 
