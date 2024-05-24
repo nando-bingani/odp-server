@@ -12,12 +12,13 @@ from sqlalchemy.orm import aliased
 from starlette.status import HTTP_403_FORBIDDEN, HTTP_404_NOT_FOUND, HTTP_409_CONFLICT, HTTP_422_UNPROCESSABLE_ENTITY
 
 from odp.api.lib.auth import Authorize, Authorized, TagAuthorize, UntagAuthorize
-from odp.api.lib.paging import Page, Paginator
+from odp.api.lib.paging import Paginator
 from odp.api.lib.schema import get_metadata_validity, get_record_schema, get_tag_schema
 from odp.api.lib.utils import output_published_record_model, output_tag_instance_model
 from odp.api.models import (
     AuditModel,
     CatalogRecordModel,
+    Page,
     RecordAuditModel,
     RecordModel,
     RecordModelIn,

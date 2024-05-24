@@ -3,8 +3,8 @@ from sqlalchemy import select
 from starlette.status import HTTP_404_NOT_FOUND, HTTP_409_CONFLICT, HTTP_422_UNPROCESSABLE_ENTITY
 
 from odp.api.lib.auth import Authorize, hydra_admin_api, select_scopes
-from odp.api.lib.paging import Page, Paginator
-from odp.api.models import ClientModel, ClientModelIn
+from odp.api.lib.paging import Paginator
+from odp.api.models import ClientModel, ClientModelIn, Page
 from odp.const import ODPScope
 from odp.db import Session
 from odp.db.models import Client

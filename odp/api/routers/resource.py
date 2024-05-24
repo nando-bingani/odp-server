@@ -5,8 +5,8 @@ from sqlalchemy import select
 from starlette.status import HTTP_404_NOT_FOUND, HTTP_409_CONFLICT
 
 from odp.api.lib.auth import Authorize, Authorized
-from odp.api.lib.paging import Page, Paginator
-from odp.api.models import ResourceModel, ResourceModelIn
+from odp.api.lib.paging import Paginator
+from odp.api.models import Page, ResourceModel, ResourceModelIn
 from odp.const import ODPScope
 from odp.const.db import AuditCommand
 from odp.db import Session

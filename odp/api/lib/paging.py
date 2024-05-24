@@ -1,25 +1,15 @@
 from math import ceil
-from typing import Callable, Generic, List, TypeVar
+from typing import Callable
 
 from fastapi import HTTPException, Query
-from pydantic import BaseModel
-from pydantic.generics import GenericModel
 from sqlalchemy import func, select, text
 from sqlalchemy.engine import Row
 from sqlalchemy.exc import CompileError
 from sqlalchemy.sql import Select
 from starlette.status import HTTP_422_UNPROCESSABLE_ENTITY
 
+from odp.api.models.paging import GenericAPIModel, Page
 from odp.db import Base, Session
-
-ModelT = TypeVar('ModelT', bound=BaseModel)
-
-
-class Page(GenericModel, Generic[ModelT]):
-    items: List[ModelT]
-    total: int
-    page: int
-    pages: int
 
 
 class Paginator:
@@ -36,16 +26,16 @@ class Paginator:
     def paginate(
             self,
             query: Select,
-            item_factory: Callable[[Row], ModelT],
+            item_factory: Callable[[Row], GenericAPIModel],
             *,
             sort: str = None,
             sort_model: Base = None,
-    ) -> Page[ModelT]:
-        """Return a page of API models of type ModelT.
+    ) -> Page[GenericAPIModel]:
+        """Return a page of API models of the type represented by GenericAPIModel.
 
         :param query: the select query for the total (unpaged) result set
         :param item_factory: a callable that takes a row from the result set
-            and produces an object of type ModelT
+            and produces an object of the type represented by GenericAPIModel
         :param sort: a custom sort column/clause; overrides the 'sort' request
             param and the API default
         :param sort_model: the ORM class associated with a given sort column,

@@ -7,9 +7,9 @@ from sqlalchemy import select
 from starlette.status import HTTP_404_NOT_FOUND, HTTP_409_CONFLICT, HTTP_422_UNPROCESSABLE_ENTITY
 
 from odp.api.lib.auth import Authorize, Authorized, VocabularyAuthorize
-from odp.api.lib.paging import Page, Paginator
+from odp.api.lib.paging import Paginator
 from odp.api.lib.schema import get_vocabulary_schema
-from odp.api.models import VocabularyModel, VocabularyTermAuditModel, VocabularyTermModel, VocabularyTermModelIn
+from odp.api.models import Page, VocabularyModel, VocabularyTermAuditModel, VocabularyTermModel, VocabularyTermModelIn
 from odp.const import ODPScope
 from odp.const.db import AuditCommand
 from odp.db import Session

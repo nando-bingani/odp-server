@@ -6,8 +6,8 @@ from sqlalchemy.exc import IntegrityError
 from starlette.status import HTTP_404_NOT_FOUND, HTTP_422_UNPROCESSABLE_ENTITY
 
 from odp.api.lib.auth import Authorize, Authorized
-from odp.api.lib.paging import Page, Paginator
-from odp.api.models import IdentityAuditModel, UserModel, UserModelIn
+from odp.api.lib.paging import Paginator
+from odp.api.models import IdentityAuditModel, Page, UserModel, UserModelIn
 from odp.const import ODPScope
 from odp.const.db import IdentityCommand
 from odp.db import Session

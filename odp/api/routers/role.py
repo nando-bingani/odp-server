@@ -3,8 +3,8 @@ from sqlalchemy import select
 from starlette.status import HTTP_404_NOT_FOUND, HTTP_409_CONFLICT, HTTP_422_UNPROCESSABLE_ENTITY
 
 from odp.api.lib.auth import Authorize, select_scopes
-from odp.api.lib.paging import Page, Paginator
-from odp.api.models import RoleModel, RoleModelIn
+from odp.api.lib.paging import Paginator
+from odp.api.models import Page, RoleModel, RoleModelIn
 from odp.const import ODPScope
 from odp.const.db import ScopeType
 from odp.db import Session

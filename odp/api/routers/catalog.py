@@ -17,10 +17,17 @@ from starlette.status import HTTP_404_NOT_FOUND, HTTP_422_UNPROCESSABLE_ENTITY
 
 from odp.api.lib.auth import Authorize
 from odp.api.lib.datacite import get_datacite_client
-from odp.api.lib.paging import Page, Paginator
+from odp.api.lib.paging import Paginator
 from odp.api.lib.utils import output_published_record_model
-from odp.api.models import (CatalogModel, CatalogModelWithData, PublishedDataCiteRecordModel, PublishedSAEONRecordModel, RetractedRecordModel,
-                            SearchResult)
+from odp.api.models import (
+    CatalogModel,
+    CatalogModelWithData,
+    Page,
+    PublishedDataCiteRecordModel,
+    PublishedSAEONRecordModel,
+    RetractedRecordModel,
+    SearchResult,
+)
 from odp.const import DOI_REGEX, ODPCatalog, ODPScope
 from odp.db import Session
 from odp.db.models import Catalog, CatalogRecord, CatalogRecordFacet, PublishedRecord, Record
