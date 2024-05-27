@@ -27,6 +27,7 @@ def provider_batch():
         ClientFactory.create_batch(randint(0, 3), provider=provider)
         CollectionFactory.create_batch(randint(0, 3), provider=provider)
         provider.user_names = {user.id: user.name for user in provider.users}
+        provider.user_ids = [user.id for user in provider.users]
         provider.client_ids = [client.id for client in provider.clients]
         provider.collection_keys = {collection.id: collection.key for collection in provider.collections}
 
@@ -41,6 +42,7 @@ def provider_build(**id):
         users=UserFactory.create_batch(randint(0, 3)),
     )
     provider.user_names = {user.id: user.name for user in provider.users}
+    provider.user_ids = [user.id for user in provider.users]
     provider.client_ids = []
     provider.collection_keys = {}
     return provider
@@ -93,6 +95,7 @@ def assert_json_result(response, json, provider):
     assert json['name'] == provider.name
     assert json['collection_keys'] == provider.collection_keys
     assert json['user_names'] == provider.user_names
+    assert sorted(json['user_ids']) == sorted(provider.user_ids)
     assert sorted(json['client_ids']) == sorted(provider.client_ids)
     assert_new_timestamp(datetime.fromisoformat(json['timestamp']))
 

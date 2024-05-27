@@ -28,10 +28,11 @@ def output_provider_model(result) -> ProviderModel:
             collection.id: collection.key
             for collection in result.Provider.collections
         },
-        user_names={
+        user_names=(user_names := {
             user.id: user.name
             for user in result.Provider.users
-        },
+        }),
+        user_ids=list(user_names),
         client_ids=[
             client.id
             for client in result.Provider.clients
