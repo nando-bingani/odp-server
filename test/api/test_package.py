@@ -170,6 +170,37 @@ def test_list_packages(
     assert_db_state(package_batch)
 
 
+@pytest.mark.require_scope(ODPScope.PACKAGE_READ_ALL)
+def test_list_all_packages(
+        api,
+        scopes,
+        package_batch,
+        client_provider_constraint,
+        user_provider_constraint,
+):
+    """Configured as for test_list_packages, but for this scope+endpoint
+    all packages can always be read unconditionally."""
+    api_kwargs = parameterize_api_fixture(
+        package_batch,
+        api.grant_type,
+        client_provider_constraint,
+        user_provider_constraint,
+        force_mismatch=True,
+    )
+    authorized = ODPScope.PACKAGE_READ_ALL in scopes
+    expected_result_batch = package_batch
+
+    # todo: test provider_id filter
+    r = api(scopes, **api_kwargs).get('/package/all/')
+
+    if authorized:
+        assert_json_results(r, r.json(), expected_result_batch)
+    else:
+        assert_forbidden(r)
+
+    assert_db_state(package_batch)
+
+
 @pytest.mark.require_scope(ODPScope.PACKAGE_READ)
 def test_get_package(
         api,
@@ -191,6 +222,34 @@ def test_get_package(
     )
 
     r = api(scopes, **api_kwargs).get(f'/package/{package_batch[2].id}')
+
+    if authorized:
+        assert_json_result(r, r.json(), package_batch[2])
+    else:
+        assert_forbidden(r)
+
+    assert_db_state(package_batch)
+
+
+@pytest.mark.require_scope(ODPScope.PACKAGE_READ_ALL)
+def test_get_any_package(
+        api,
+        scopes,
+        package_batch,
+        client_provider_constraint,
+        user_provider_constraint,
+):
+    """Configured as for test_get_package, but for this scope+endpoint
+    any package can always be read unconditionally."""
+    api_kwargs = parameterize_api_fixture(
+        package_batch,
+        api.grant_type,
+        client_provider_constraint,
+        user_provider_constraint,
+    )
+    authorized = ODPScope.PACKAGE_READ_ALL in scopes
+
+    r = api(scopes, **api_kwargs).get(f'/package/all/{package_batch[2].id}')
 
     if authorized:
         assert_json_result(r, r.json(), package_batch[2])

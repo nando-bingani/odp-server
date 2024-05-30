@@ -187,6 +187,37 @@ def test_list_resources(
     assert_db_state(resource_batch)
 
 
+@pytest.mark.require_scope(ODPScope.RESOURCE_READ_ALL)
+def test_list_all_resources(
+        api,
+        scopes,
+        resource_batch,
+        client_provider_constraint,
+        user_provider_constraint,
+):
+    """Configured as for test_list_resources, but for this scope+endpoint
+    all resources can always be read unconditionally."""
+    api_kwargs = parameterize_api_fixture(
+        resource_batch,
+        api.grant_type,
+        client_provider_constraint,
+        user_provider_constraint,
+        force_mismatch=True,
+    )
+    authorized = ODPScope.RESOURCE_READ_ALL in scopes
+    expected_result_batch = resource_batch
+
+    # todo: test the various list parameterizations
+    r = api(scopes, **api_kwargs).get('/resource/all/')
+
+    if authorized:
+        assert_json_results(r, r.json(), expected_result_batch)
+    else:
+        assert_forbidden(r)
+
+    assert_db_state(resource_batch)
+
+
 @pytest.mark.require_scope(ODPScope.RESOURCE_READ)
 def test_get_resource(
         api,
@@ -208,6 +239,34 @@ def test_get_resource(
     )
 
     r = api(scopes, **api_kwargs).get(f'/resource/{resource_batch[2].id}')
+
+    if authorized:
+        assert_json_result(r, r.json(), resource_batch[2])
+    else:
+        assert_forbidden(r)
+
+    assert_db_state(resource_batch)
+
+
+@pytest.mark.require_scope(ODPScope.RESOURCE_READ_ALL)
+def test_get_any_resource(
+        api,
+        scopes,
+        resource_batch,
+        client_provider_constraint,
+        user_provider_constraint,
+):
+    """Configured as for test_get_resource, but for this scope+endpoint
+    any resource can always be read unconditionally."""
+    api_kwargs = parameterize_api_fixture(
+        resource_batch,
+        api.grant_type,
+        client_provider_constraint,
+        user_provider_constraint,
+    )
+    authorized = ODPScope.RESOURCE_READ_ALL in scopes
+
+    r = api(scopes, **api_kwargs).get(f'/resource/all/{resource_batch[2].id}')
 
     if authorized:
         assert_json_result(r, r.json(), resource_batch[2])

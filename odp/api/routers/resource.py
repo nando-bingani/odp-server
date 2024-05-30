@@ -46,6 +46,7 @@ def create_audit_record(
 @router.get(
     '/',
     response_model=Page[ResourceModel],
+    description=f'List resources with provider access. Requires `{ODPScope.RESOURCE_READ}` scope.'
 )
 async def list_resources(
         auth: Authorized = Depends(Authorize(ODPScope.RESOURCE_READ)),
@@ -95,8 +96,40 @@ async def list_resources(
 
 
 @router.get(
+    '/all/',
+    response_model=Page[ResourceModel],
+    dependencies=[Depends(Authorize(ODPScope.RESOURCE_READ_ALL))],
+    description=f'List all resources. Requires `{ODPScope.RESOURCE_READ_ALL}` scope.'
+)
+async def list_all_resources(
+        paginator: Paginator = Depends(),
+        package_id: str = Query(None, title='Filter by package id'),
+        provider_id: list[str] = Query(None, title='Filter by provider id(s)'),
+        archive_id: str = Query(None, title='Only return resources stored in this archive'),
+):
+    stmt = select(Resource)
+
+    if package_id:
+        stmt = stmt.join(PackageResource)
+        stmt = stmt.where(PackageResource.package_id == package_id)
+
+    if provider_id:
+        stmt = stmt.where(Resource.provider_id.in_(provider_id))
+
+    if archive_id:
+        stmt = stmt.join(ArchiveResource)
+        stmt = stmt.where(ArchiveResource.archive_id == archive_id)
+
+    return paginator.paginate(
+        stmt,
+        lambda row: output_resource_model(row.Resource),
+    )
+
+
+@router.get(
     '/{resource_id}',
     response_model=ResourceModel,
+    description=f'Get a resource with provider access. Requires `{ODPScope.RESOURCE_READ}` scope.'
 )
 async def get_resource(
         resource_id: str,
@@ -110,13 +143,27 @@ async def get_resource(
     return output_resource_model(resource)
 
 
+@router.get(
+    '/all/{resource_id}',
+    response_model=ResourceModel,
+    dependencies=[Depends(Authorize(ODPScope.RESOURCE_READ_ALL))],
+    description=f'Get any resource. Requires `{ODPScope.RESOURCE_READ_ALL}` scope.'
+)
+async def get_any_resource(
+        resource_id: str,
+):
+    if not (resource := Session.get(Resource, resource_id)):
+        raise HTTPException(HTTP_404_NOT_FOUND)
+
+    return output_resource_model(resource)
+
+
 @router.post(
     '/',
     response_model=ResourceModel,
-    description='Register a new resource. It is up to the caller to ensure '
-                'that the resource is stored in the specified archive. '
-                f'The caller must have {ODPScope.RESOURCE_WRITE} access '
-                'with respect to the referenced provider.',
+    description='Register a new resource. It is up to the caller to ensure that the '
+                'resource is stored in the specified archive. Requires access to the '
+                f'referenced provider. Requires `{ODPScope.RESOURCE_WRITE}` scope.',
 )
 async def create_resource(
         resource_in: ResourceModelIn,

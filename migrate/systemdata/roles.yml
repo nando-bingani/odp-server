@@ -8,10 +8,10 @@ SAEON.Staff:
     - odp.catalog:read
     - odp.client:read
     - odp.collection:read
-    - odp.package:read
+    - odp.package:read_all
     - odp.provider:read
     - odp.record:read
-    - odp.resource:read
+    - odp.resource:read_all
     - odp.role:read
     - odp.schema:read
     - odp.scope:read
