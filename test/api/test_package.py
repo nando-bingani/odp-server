@@ -259,20 +259,22 @@ def test_get_any_package(
     assert_db_state(package_batch)
 
 
+@pytest.mark.parametrize('route', ['/package/', '/package/all/'])
 def test_get_package_not_found(
         api,
+        route,
         package_batch,
         client_provider_constraint,
         user_provider_constraint,
 ):
-    scopes = [ODPScope.PACKAGE_READ]
+    scopes = [ODPScope.PACKAGE_READ_ALL] if 'all' in route else [ODPScope.PACKAGE_READ]
     api_kwargs = parameterize_api_fixture(
         package_batch,
         api.grant_type,
         client_provider_constraint,
         user_provider_constraint,
     )
-    r = api(scopes, **api_kwargs).get('/package/foo')
+    r = api(scopes, **api_kwargs).get(f'{route}foo')
     assert_not_found(r)
     assert_db_state(package_batch)
 
@@ -495,13 +497,15 @@ def _test_update_package(
         assert_db_state(package_batch)
 
 
+@pytest.mark.parametrize('route', ['/package/', '/package/admin/'])
 def test_update_package_not_found(
         api,
+        route,
         package_batch,
         client_provider_constraint,
         user_provider_constraint,
 ):
-    scopes = [ODPScope.PACKAGE_WRITE]
+    scopes = [ODPScope.PACKAGE_ADMIN] if 'admin' in route else [ODPScope.PACKAGE_WRITE]
     api_kwargs = parameterize_api_fixture(
         package_batch,
         api.grant_type,
@@ -510,7 +514,7 @@ def test_update_package_not_found(
     )
     package = package_build(id='foo')
 
-    r = api(scopes, **api_kwargs).put(f'/package/{package.id}', json=dict(
+    r = api(scopes, **api_kwargs).put(f'{route}{package.id}', json=dict(
         title=package.title,
         notes=package.notes,
         provider_id=package.provider_id,
@@ -611,19 +615,21 @@ def _test_delete_package(
         assert_db_state(package_batch)
 
 
+@pytest.mark.parametrize('route', ['/package/', '/package/admin/'])
 def test_delete_package_not_found(
         api,
+        route,
         package_batch,
         client_provider_constraint,
         user_provider_constraint,
 ):
-    scopes = [ODPScope.PACKAGE_WRITE]
+    scopes = [ODPScope.PACKAGE_ADMIN] if 'admin' in route else [ODPScope.PACKAGE_WRITE]
     api_kwargs = parameterize_api_fixture(
         package_batch,
         api.grant_type,
         client_provider_constraint,
         user_provider_constraint,
     )
-    r = api(scopes, **api_kwargs).delete('/package/foo')
+    r = api(scopes, **api_kwargs).delete(f'{route}foo')
     assert_not_found(r)
     assert_db_state(package_batch)
