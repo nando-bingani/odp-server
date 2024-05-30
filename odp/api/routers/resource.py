@@ -46,7 +46,7 @@ def create_audit_record(
 @router.get(
     '/',
     response_model=Page[ResourceModel],
-    description=f'List resources with provider access. Requires `{ODPScope.RESOURCE_READ}` scope.'
+    description=f'List provider-accessible resources. Requires `{ODPScope.RESOURCE_READ}` scope.'
 )
 async def list_resources(
         auth: Authorized = Depends(Authorize(ODPScope.RESOURCE_READ)),
@@ -56,6 +56,35 @@ async def list_resources(
         archive_id: str = Query(None, title='Only return resources stored in this archive'),
         exclude_archive_id: str = Query(None, title='Exclude resources stored in this archive'),
         exclude_packaged: bool = Query(False, title='Exclude resources associated with any package'),
+):
+    return await _list_resources(auth, paginator, package_id, provider_id, archive_id, exclude_archive_id, exclude_packaged)
+
+
+@router.get(
+    '/all/',
+    response_model=Page[ResourceModel],
+    description=f'List all resources. Requires `{ODPScope.RESOURCE_READ_ALL}` scope.'
+)
+async def list_all_resources(
+        auth: Authorized = Depends(Authorize(ODPScope.RESOURCE_READ_ALL)),
+        paginator: Paginator = Depends(),
+        package_id: str = Query(None, title='Filter by package id'),
+        provider_id: list[str] = Query(None, title='Filter by provider id(s)'),
+        archive_id: str = Query(None, title='Only return resources stored in this archive'),
+        exclude_archive_id: str = Query(None, title='Exclude resources stored in this archive'),
+        exclude_packaged: bool = Query(False, title='Exclude resources associated with any package'),
+):
+    return await _list_resources(auth, paginator, package_id, provider_id, archive_id, exclude_archive_id, exclude_packaged)
+
+
+async def _list_resources(
+        auth: Authorized,
+        paginator: Paginator,
+        package_id: str,
+        provider_id: list[str],
+        archive_id: str,
+        exclude_archive_id: str,
+        exclude_packaged: bool,
 ):
     stmt = select(Resource)
 
@@ -96,40 +125,9 @@ async def list_resources(
 
 
 @router.get(
-    '/all/',
-    response_model=Page[ResourceModel],
-    dependencies=[Depends(Authorize(ODPScope.RESOURCE_READ_ALL))],
-    description=f'List all resources. Requires `{ODPScope.RESOURCE_READ_ALL}` scope.'
-)
-async def list_all_resources(
-        paginator: Paginator = Depends(),
-        package_id: str = Query(None, title='Filter by package id'),
-        provider_id: list[str] = Query(None, title='Filter by provider id(s)'),
-        archive_id: str = Query(None, title='Only return resources stored in this archive'),
-):
-    stmt = select(Resource)
-
-    if package_id:
-        stmt = stmt.join(PackageResource)
-        stmt = stmt.where(PackageResource.package_id == package_id)
-
-    if provider_id:
-        stmt = stmt.where(Resource.provider_id.in_(provider_id))
-
-    if archive_id:
-        stmt = stmt.join(ArchiveResource)
-        stmt = stmt.where(ArchiveResource.archive_id == archive_id)
-
-    return paginator.paginate(
-        stmt,
-        lambda row: output_resource_model(row.Resource),
-    )
-
-
-@router.get(
     '/{resource_id}',
     response_model=ResourceModel,
-    description=f'Get a resource with provider access. Requires `{ODPScope.RESOURCE_READ}` scope.'
+    description=f'Get a provider-accessible resource. Requires `{ODPScope.RESOURCE_READ}` scope.'
 )
 async def get_resource(
         resource_id: str,

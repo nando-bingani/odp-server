@@ -304,13 +304,62 @@ def test_create_package(
     ):
         authorized = authorized and package_resource_provider == 'same'
 
+    _test_create_package(
+        api,
+        scopes,
+        package_batch,
+        package_resource_provider,
+        '/package/',
+        authorized,
+        api_kwargs,
+    )
+
+
+@pytest.mark.require_scope(ODPScope.PACKAGE_ADMIN)
+@pytest.mark.parametrize('package_resource_provider', ['same', 'different'])
+def test_admin_create_package(
+        api,
+        scopes,
+        package_batch,
+        client_provider_constraint,
+        user_provider_constraint,
+        package_resource_provider,
+):
+    api_kwargs = parameterize_api_fixture(
+        package_batch,
+        api.grant_type,
+        client_provider_constraint,
+        user_provider_constraint,
+    )
+    authorized = ODPScope.PACKAGE_ADMIN in scopes
+
+    _test_create_package(
+        api,
+        scopes,
+        package_batch,
+        package_resource_provider,
+        '/package/admin/',
+        authorized,
+        api_kwargs,
+    )
+
+
+def _test_create_package(
+        api,
+        scopes,
+        package_batch,
+        package_resource_provider,
+        route,
+        authorized,
+        api_kwargs,
+):
     package = package_build(
         status='pending',
         package_provider=package_batch[2].provider,
         resource_provider=package_batch[2].provider if package_resource_provider == 'same' else None,
     )
 
-    r = api(scopes, **api_kwargs).post('/package/', json=dict(
+    r = api(scopes, **api_kwargs).post(route, json=dict(
         title=package.title,
         notes=package.notes,
         provider_id=package.provider_id,
@@ -360,6 +409,65 @@ def test_update_package(
                       package_new_resource_provider == 'same' and
                       package_existing_resource_provider == 'same')
 
+    _test_update_package(
+        api,
+        scopes,
+        package_batch,
+        package_new_provider,
+        package_new_resource_provider,
+        package_existing_resource_provider,
+        '/package/',
+        authorized,
+        api_kwargs,
+    )
+
+
+@pytest.mark.require_scope(ODPScope.PACKAGE_ADMIN)
+@pytest.mark.parametrize('package_new_provider', ['same', 'different'])
+@pytest.mark.parametrize('package_new_resource_provider', ['same', 'different'])
+@pytest.mark.parametrize('package_existing_resource_provider', ['same', 'different'])
+def test_admin_update_package(
+        api,
+        scopes,
+        package_batch,
+        client_provider_constraint,
+        user_provider_constraint,
+        package_new_provider,
+        package_new_resource_provider,
+        package_existing_resource_provider,
+):
+    api_kwargs = parameterize_api_fixture(
+        package_batch,
+        api.grant_type,
+        client_provider_constraint,
+        user_provider_constraint,
+    )
+    authorized = ODPScope.PACKAGE_ADMIN in scopes
+
+    _test_update_package(
+        api,
+        scopes,
+        package_batch,
+        package_new_provider,
+        package_new_resource_provider,
+        package_existing_resource_provider,
+        '/package/admin/',
+        authorized,
+        api_kwargs,
+    )
+
+
+def _test_update_package(
+        api,
+        scopes,
+        package_batch,
+        package_new_provider,
+        package_new_resource_provider,
+        package_existing_resource_provider,
+        route,
+        authorized,
+        api_kwargs,
+):
     if package_existing_resource_provider == 'different':
         package_batch[2].resources[0].provider = ProviderFactory()
         FactorySession.commit()
@@ -372,7 +480,7 @@ def test_update_package(
         resource_provider=package_provider if package_new_resource_provider == 'same' else None,
     )
 
-    r = api(scopes, **api_kwargs).put(f'/package/{package.id}', json=dict(
+    r = api(scopes, **api_kwargs).put(f'{route}{package.id}', json=dict(
         title=package.title,
         notes=package.notes,
         provider_id=package.provider_id,
@@ -440,11 +548,60 @@ def test_delete_package(
     ):
         authorized = authorized and package_resource_provider == 'same'
 
+    _test_delete_package(
+        api,
+        scopes,
+        package_batch,
+        package_resource_provider,
+        '/package/',
+        authorized,
+        api_kwargs,
+    )
+
+
+@pytest.mark.require_scope(ODPScope.PACKAGE_ADMIN)
+@pytest.mark.parametrize('package_resource_provider', ['same', 'different'])
+def test_admin_delete_package(
+        api,
+        scopes,
+        package_batch,
+        client_provider_constraint,
+        user_provider_constraint,
+        package_resource_provider,
+):
+    api_kwargs = parameterize_api_fixture(
+        package_batch,
+        api.grant_type,
+        client_provider_constraint,
+        user_provider_constraint,
+    )
+    authorized = ODPScope.PACKAGE_ADMIN in scopes
+
+    _test_delete_package(
+        api,
+        scopes,
+        package_batch,
+        package_resource_provider,
+        '/package/admin/',
+        authorized,
+        api_kwargs,
+    )
+
+
+def _test_delete_package(
+        api,
+        scopes,
+        package_batch,
+        package_resource_provider,
+        route,
+        authorized,
+        api_kwargs,
+):
     if package_resource_provider == 'different':
         package_batch[2].resources[0].provider = ProviderFactory()
         FactorySession.commit()
 
-    r = api(scopes, **api_kwargs).delete(f'/package/{package_batch[2].id}')
+    r = api(scopes, **api_kwargs).delete(f'{route}{package_batch[2].id}')
 
     if authorized:
         assert_empty_result(r)

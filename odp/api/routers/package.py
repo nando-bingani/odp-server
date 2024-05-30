@@ -44,7 +44,7 @@ def output_package_model(package: Package, *, detail=False) -> PackageModel | Pa
 @router.get(
     '/',
     response_model=Page[PackageModel],
-    description=f'List packages with provider access. Requires `{ODPScope.PACKAGE_READ}` scope.'
+    description=f'List provider-accessible packages. Requires `{ODPScope.PACKAGE_READ}` scope.'
 )
 async def list_packages(
         auth: Authorized = Depends(Authorize(ODPScope.PACKAGE_READ)),
@@ -90,7 +90,7 @@ async def list_all_packages(
 @router.get(
     '/{package_id}',
     response_model=PackageDetailModel,
-    description=f'Get a package with provider access. Requires `{ODPScope.PACKAGE_READ}` scope.'
+    description=f'Get a provider-accessible package. Requires `{ODPScope.PACKAGE_READ}` scope.'
 )
 async def get_package(
         package_id: str,
@@ -121,13 +121,32 @@ async def get_any_package(
 
 @router.post(
     '/',
-    response_model=PackageModel,
+    response_model=PackageDetailModel,
     description=f'Create a package. Requires access to the referenced provider and to the providers '
                 f'of all referenced resources. Requires `{ODPScope.PACKAGE_WRITE}` scope.'
 )
 async def create_package(
         package_in: PackageModelIn,
         auth: Authorized = Depends(Authorize(ODPScope.PACKAGE_WRITE)),
+):
+    return await _create_package(package_in, auth)
+
+
+@router.post(
+    '/admin/',
+    response_model=PackageDetailModel,
+    description=f'Create a package for any provider. Requires `{ODPScope.PACKAGE_ADMIN}` scope.'
+)
+async def admin_create_package(
+        package_in: PackageModelIn,
+        auth: Authorized = Depends(Authorize(ODPScope.PACKAGE_ADMIN)),
+):
+    return await _create_package(package_in, auth)
+
+
+async def _create_package(
+        package_in: PackageModelIn,
+        auth: Authorized,
 ):
     resources_in = [
         Session.get(Resource, resource_id)
@@ -148,12 +167,12 @@ async def create_package(
     )
     package.save()
 
-    return output_package_model(package)
+    return output_package_model(package, detail=True)
 
 
 @router.put(
     '/{package_id}',
-    response_model=PackageModel,
+    response_model=PackageDetailModel,
     description=f'Update a package. Requires access to the referenced provider (both existing '
                 f'and new, if different) and to the providers of all existing and newly referenced '
                 f'resources. Requires `{ODPScope.PACKAGE_WRITE}` scope.'
@@ -162,6 +181,27 @@ async def update_package(
         package_id: str,
         package_in: PackageModelIn,
         auth: Authorized = Depends(Authorize(ODPScope.PACKAGE_WRITE)),
+):
+    return await _update_package(package_id, package_in, auth)
+
+
+@router.put(
+    '/admin/{package_id}',
+    response_model=PackageDetailModel,
+    description=f'Update a package for any provider. Requires `{ODPScope.PACKAGE_ADMIN}` scope.'
+)
+async def admin_update_package(
+        package_id: str,
+        package_in: PackageModelIn,
+        auth: Authorized = Depends(Authorize(ODPScope.PACKAGE_ADMIN)),
+):
+    return await _update_package(package_id, package_in, auth)
+
+
+async def _update_package(
+        package_id: str,
+        package_in: PackageModelIn,
+        auth: Authorized,
 ):
     if not (package := Session.get(Package, package_id)):
         raise HTTPException(HTTP_404_NOT_FOUND)
@@ -189,7 +229,7 @@ async def update_package(
         package.resources = resources_in
         package.save()
 
-    return output_package_model(package)
+    return output_package_model(package, detail=True)
 
 
 @router.delete(
@@ -200,6 +240,24 @@ async def update_package(
 async def delete_package(
         package_id: str,
         auth: Authorized = Depends(Authorize(ODPScope.PACKAGE_WRITE)),
+):
+    return await _delete_package(package_id, auth)
+
+
+@router.delete(
+    '/admin/{package_id}',
+    description=f"Delete a package for any provider. Requires `{ODPScope.PACKAGE_ADMIN}` scope."
+)
+async def admin_delete_package(
+        package_id: str,
+        auth: Authorized = Depends(Authorize(ODPScope.PACKAGE_ADMIN)),
+):
+    return await _delete_package(package_id, auth)
+
+
+async def _delete_package(
+        package_id: str,
+        auth: Authorized,
 ):
     if not (package := Session.get(Package, package_id)):
         raise HTTPException(HTTP_404_NOT_FOUND)
