@@ -276,20 +276,22 @@ def test_get_any_resource(
     assert_db_state(resource_batch)
 
 
+@pytest.mark.parametrize('route', ['/resource/', '/resource/all/'])
 def test_get_resource_not_found(
         api,
+        route,
         resource_batch,
         client_provider_constraint,
         user_provider_constraint,
 ):
-    scopes = [ODPScope.RESOURCE_READ]
+    scopes = [ODPScope.RESOURCE_READ_ALL] if 'all' in route else [ODPScope.RESOURCE_READ]
     api_kwargs = parameterize_api_fixture(
         resource_batch,
         api.grant_type,
         client_provider_constraint,
         user_provider_constraint,
     )
-    r = api(scopes, **api_kwargs).get('/resource/foo')
+    r = api(scopes, **api_kwargs).get(f'{route}foo')
     assert_not_found(r)
     assert_db_state(resource_batch)
 
