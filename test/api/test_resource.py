@@ -314,10 +314,54 @@ def test_create_resource(
             (api.grant_type == 'client_credentials' or user_provider_constraint == 'user_provider_match')
     )
 
+    _test_create_resource(
+        api,
+        scopes,
+        resource_batch,
+        '/resource/',
+        authorized,
+        api_kwargs,
+    )
+
+
+@pytest.mark.require_scope(ODPScope.RESOURCE_ADMIN)
+def test_admin_create_resource(
+        api,
+        scopes,
+        resource_batch,
+        client_provider_constraint,
+        user_provider_constraint,
+):
+    api_kwargs = parameterize_api_fixture(
+        resource_batch,
+        api.grant_type,
+        client_provider_constraint,
+        user_provider_constraint,
+    )
+    authorized = ODPScope.RESOURCE_ADMIN in scopes
+
+    _test_create_resource(
+        api,
+        scopes,
+        resource_batch,
+        '/resource/admin/',
+        authorized,
+        api_kwargs,
+    )
+
+
+def _test_create_resource(
+        api,
+        scopes,
+        resource_batch,
+        route,
+        authorized,
+        api_kwargs,
+):
     resource = resource_build(provider=resource_batch[2].provider)
     archive = TestSession.get(Archive, list(resource.archive_urls)[0])
 
-    r = api(scopes, **api_kwargs).post('/resource/', json=dict(
+    r = api(scopes, **api_kwargs).post(route, json=dict(
         title=resource.title,
         description=resource.description,
         filename=resource.filename,

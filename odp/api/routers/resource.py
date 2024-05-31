@@ -167,6 +167,27 @@ async def create_resource(
         resource_in: ResourceModelIn,
         auth: Authorized = Depends(Authorize(ODPScope.RESOURCE_WRITE)),
 ):
+    return await _create_resource(resource_in, auth)
+
+
+@router.post(
+    '/admin/',
+    response_model=ResourceModel,
+    description='Register a new resource for any provider. It is up to the caller to '
+                'ensure that the resource is stored in the specified archive. '
+                f'Requires `{ODPScope.RESOURCE_ADMIN}` scope.',
+)
+async def admin_create_resource(
+        resource_in: ResourceModelIn,
+        auth: Authorized = Depends(Authorize(ODPScope.RESOURCE_ADMIN)),
+):
+    return await _create_resource(resource_in, auth)
+
+
+async def _create_resource(
+        resource_in: ResourceModelIn,
+        auth: Authorized,
+):
     auth.enforce_constraint([resource_in.provider_id])
 
     if Session.execute(
