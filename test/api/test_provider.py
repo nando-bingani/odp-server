@@ -87,17 +87,18 @@ def assert_no_audit_log():
     assert TestSession.execute(select(ProviderAudit)).first() is None
 
 
-def assert_json_result(response, json, provider):
+def assert_json_result(response, json, provider, detail=False):
     """Verify that the API result matches the given provider object."""
     assert response.status_code == 200
     assert json['id'] == provider.id
     assert json['key'] == provider.key
     assert json['name'] == provider.name
     assert json['collection_keys'] == provider.collection_keys
-    assert json['user_names'] == provider.user_names
-    assert sorted(json['user_ids']) == sorted(provider.user_ids)
-    assert sorted(json['client_ids']) == sorted(provider.client_ids)
     assert_new_timestamp(datetime.fromisoformat(json['timestamp']))
+    if detail:
+        assert json['user_names'] == provider.user_names
+        assert sorted(json['user_ids']) == sorted(provider.user_ids)
+        assert sorted(json['client_ids']) == sorted(provider.client_ids)
 
 
 def assert_json_results(response, json, providers):
@@ -127,7 +128,7 @@ def test_get_provider(api, provider_batch, scopes):
     authorized = ODPScope.PROVIDER_READ in scopes
     r = api(scopes).get(f'/provider/{provider_batch[2].id}')
     if authorized:
-        assert_json_result(r, r.json(), provider_batch[2])
+        assert_json_result(r, r.json(), provider_batch[2], detail=True)
     else:
         assert_forbidden(r)
     assert_db_state(provider_batch)

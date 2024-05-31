@@ -8,7 +8,7 @@ from starlette.status import HTTP_404_NOT_FOUND, HTTP_409_CONFLICT, HTTP_422_UNP
 
 from odp.api.lib.auth import Authorize, Authorized
 from odp.api.lib.paging import Paginator
-from odp.api.models import Page, ProviderAuditModel, ProviderModel, ProviderModelIn
+from odp.api.models import Page, ProviderAuditModel, ProviderDetailModel, ProviderModel, ProviderModelIn
 from odp.const import ODPScope
 from odp.const.db import AuditCommand
 from odp.db import Session
@@ -17,28 +17,41 @@ from odp.db.models import Package, Provider, ProviderAudit, Resource, User
 router = APIRouter()
 
 
-def output_provider_model(result) -> ProviderModel:
-    return ProviderModel(
+def output_provider_model(
+        result,
+        *,
+        detail=False,
+        resource_count=None,
+) -> ProviderModel | ProviderDetailModel:
+    cls = ProviderDetailModel if detail else ProviderModel
+
+    kwargs = dict(
         id=result.Provider.id,
         key=result.Provider.key,
         name=result.Provider.name,
         package_count=result.package_count,
-        resource_count=result.resource_count,
         collection_keys={
             collection.id: collection.key
             for collection in result.Provider.collections
         },
-        user_names=(user_names := {
-            user.id: user.name
-            for user in result.Provider.users
-        }),
-        user_ids=list(user_names),
-        client_ids=[
-            client.id
-            for client in result.Provider.clients
-        ],
         timestamp=result.Provider.timestamp.isoformat(),
     )
+
+    if detail:
+        kwargs |= dict(
+            resource_count=resource_count,
+            user_names=(user_names := {
+                user.id: user.name
+                for user in result.Provider.users
+            }),
+            user_ids=list(user_names),
+            client_ids=[
+                client.id
+                for client in result.Provider.clients
+            ],
+        )
+
+    return cls(**kwargs)
 
 
 def output_audit_model(row) -> ProviderAuditModel:
@@ -88,10 +101,8 @@ async def list_providers(
         select(
             Provider,
             func.count(Package.id).label('package_count'),
-            func.count(Resource.id).label('resource_count'),
         ).
         outerjoin(Package).
-        outerjoin(Resource).
         group_by(Provider)
     )
 
@@ -104,7 +115,7 @@ async def list_providers(
 
 @router.get(
     '/{provider_id}',
-    response_model=ProviderModel,
+    response_model=ProviderDetailModel,
     dependencies=[Depends(Authorize(ODPScope.PROVIDER_READ))],
 )
 async def get_provider(
@@ -114,10 +125,8 @@ async def get_provider(
         select(
             Provider,
             func.count(Package.id).label('package_count'),
-            func.count(Resource.id).label('resource_count'),
         ).
         outerjoin(Package).
-        outerjoin(Resource).
         where(Provider.id == provider_id).
         group_by(Provider)
     )
@@ -125,7 +134,11 @@ async def get_provider(
     if not (result := Session.execute(stmt).one_or_none()):
         raise HTTPException(HTTP_404_NOT_FOUND)
 
-    return output_provider_model(result)
+    resource_count = Session.execute(
+        select(func.count()).select_from(Resource).where(Resource.provider_id == provider_id)
+    ).scalar_one()
+
+    return output_provider_model(result, detail=True, resource_count=resource_count)
 
 
 @router.post(
@@ -158,7 +171,6 @@ async def create_provider(
         select(
             Provider,
             literal_column('0').label('package_count'),
-            literal_column('0').label('resource_count'),
         ).
         where(Provider.id == provider.id)
     ).first()
