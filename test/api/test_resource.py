@@ -388,7 +388,6 @@ def test_create_resource_conflict(
         client_provider_constraint,
         user_provider_constraint,
 ):
-    scopes = [ODPScope.RESOURCE_WRITE]
     api_kwargs = parameterize_api_fixture(
         resource_batch,
         api.grant_type,
@@ -400,10 +399,51 @@ def test_create_resource_conflict(
             (api.grant_type == 'client_credentials' or user_provider_constraint == 'user_provider_match')
     )
 
+    _test_create_resource_conflict(
+        api,
+        [ODPScope.RESOURCE_WRITE],
+        resource_batch,
+        '/resource/',
+        authorized,
+        api_kwargs,
+    )
+
+
+def test_admin_create_resource_conflict(
+        api,
+        resource_batch,
+        client_provider_constraint,
+        user_provider_constraint,
+):
+    api_kwargs = parameterize_api_fixture(
+        resource_batch,
+        api.grant_type,
+        client_provider_constraint,
+        user_provider_constraint,
+    )
+
+    _test_create_resource_conflict(
+        api,
+        [ODPScope.RESOURCE_ADMIN],
+        resource_batch,
+        '/resource/admin/',
+        True,
+        api_kwargs,
+    )
+
+
+def _test_create_resource_conflict(
+        api,
+        scopes,
+        resource_batch,
+        route,
+        authorized,
+        api_kwargs,
+):
     ar = ArchiveResourceFactory(archive=ArchiveFactory())
     resource = resource_build(archive=ar.archive, archive_path=ar.path, provider=resource_batch[2].provider)
 
-    r = api(scopes, **api_kwargs).post('/resource/', json=dict(
+    r = api(scopes, **api_kwargs).post(route, json=dict(
         title=resource.title,
         description=resource.description,
         filename=resource.filename,
