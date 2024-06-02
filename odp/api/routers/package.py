@@ -1,18 +1,21 @@
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
+from jschon import JSON, JSONSchema
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
-from starlette.status import HTTP_404_NOT_FOUND, HTTP_422_UNPROCESSABLE_ENTITY
+from starlette.status import HTTP_404_NOT_FOUND, HTTP_409_CONFLICT, HTTP_422_UNPROCESSABLE_ENTITY
 
-from odp.api.lib.auth import Authorize, Authorized
+from odp.api.lib.auth import Authorize, Authorized, TagAuthorize
 from odp.api.lib.paging import Paginator
-from odp.api.models import PackageDetailModel, PackageModel, PackageModelIn, Page
+from odp.api.lib.schema import get_tag_schema
+from odp.api.lib.utils import output_tag_instance_model
+from odp.api.models import PackageDetailModel, PackageModel, PackageModelIn, Page, TagInstanceModel, TagInstanceModelIn
 from odp.api.routers.resource import output_resource_model
 from odp.const import ODPScope
-from odp.const.db import PackageStatus
+from odp.const.db import AuditCommand, PackageStatus, TagCardinality, TagType
 from odp.db import Session
-from odp.db.models import Package, Resource
+from odp.db.models import Package, PackageTag, PackageTagAudit, Resource, Tag
 
 router = APIRouter()
 
@@ -39,6 +42,25 @@ def output_package_model(package: Package, *, detail=False) -> PackageModel | Pa
         )
 
     return cls(**kwargs)
+
+
+def create_tag_audit_record(
+        auth: Authorized,
+        package_tag: PackageTag,
+        timestamp: datetime,
+        command: AuditCommand,
+) -> None:
+    PackageTagAudit(
+        client_id=auth.client_id,
+        user_id=auth.user_id,
+        command=command,
+        timestamp=timestamp,
+        _id=package_tag.id,
+        _package_id=package_tag.package_id,
+        _tag_id=package_tag.tag_id,
+        _user_id=package_tag.user_id,
+        _data=package_tag.data,
+    ).save()
 
 
 @router.get(
@@ -273,3 +295,81 @@ async def _delete_package(
         raise HTTPException(
             HTTP_422_UNPROCESSABLE_ENTITY, 'A package cannot be deleted if it is associated with a record.'
         ) from e
+
+
+@router.post(
+    '/{package_id}/tag',
+    response_model=TagInstanceModel,
+)
+async def tag_package(
+        package_id: str,
+        tag_instance_in: TagInstanceModelIn,
+        tag_schema: JSONSchema = Depends(get_tag_schema),
+        auth: Authorized = Depends(TagAuthorize()),
+):
+    if not (package := Session.get(Package, package_id)):
+        raise HTTPException(HTTP_404_NOT_FOUND)
+
+    auth.enforce_constraint([package.provider_id])
+
+    if not (tag := Session.get(Tag, (tag_instance_in.tag_id, TagType.package))):
+        raise HTTPException(HTTP_404_NOT_FOUND)
+
+    # only one tag instance per package is allowed
+    # update allowed only by the user who did the insert
+    if tag.cardinality == TagCardinality.one:
+        if package_tag := Session.execute(
+                select(PackageTag).
+                where(PackageTag.package_id == package_id).
+                where(PackageTag.tag_id == tag_instance_in.tag_id)
+        ).scalar_one_or_none():
+            if package_tag.user_id != auth.user_id:
+                raise HTTPException(HTTP_409_CONFLICT, 'Cannot update a tag set by another user')
+            command = AuditCommand.update
+        else:
+            command = AuditCommand.insert
+
+    # one tag instance per user per package is allowed
+    # update a user's existing tag instance if found
+    elif tag.cardinality == TagCardinality.user:
+        if package_tag := Session.execute(
+                select(PackageTag).
+                where(PackageTag.package_id == package_id).
+                where(PackageTag.tag_id == tag_instance_in.tag_id).
+                where(PackageTag.user_id == auth.user_id)
+        ).scalar_one_or_none():
+            command = AuditCommand.update
+        else:
+            command = AuditCommand.insert
+
+    # multiple tag instances are allowed per user per package
+    # can only insert/delete
+    elif tag.cardinality == TagCardinality.multi:
+        command = AuditCommand.insert
+
+    else:
+        assert False
+
+    if command == AuditCommand.insert:
+        package_tag = PackageTag(
+            package_id=package_id,
+            tag_id=tag_instance_in.tag_id,
+            tag_type=TagType.package,
+            user_id=auth.user_id,
+        )
+
+    if package_tag.data != tag_instance_in.data:
+        validity = tag_schema.evaluate(JSON(tag_instance_in.data)).output('detailed')
+        if not validity['valid']:
+            raise HTTPException(HTTP_422_UNPROCESSABLE_ENTITY, validity)
+
+        package_tag.data = tag_instance_in.data
+        package_tag.timestamp = (timestamp := datetime.now(timezone.utc))
+        package_tag.save()
+
+        package.timestamp = timestamp
+        package.save()
+
+        create_tag_audit_record(auth, package_tag, timestamp, command)
+
+    return output_tag_instance_model(package_tag)

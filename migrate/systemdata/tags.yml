@@ -1,3 +1,10 @@
+Package.DOI:
+  type: package
+  cardinality: one
+  public: True
+  scope_id: odp.package:doi
+  schema_id: Tag.DOI
+
 Collection.Published:
   type: collection
   cardinality: one

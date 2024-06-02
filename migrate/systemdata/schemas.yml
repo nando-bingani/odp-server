@@ -42,6 +42,10 @@ Tag.Generic:
   type: tag
   uri: https://odp.saeon.ac.za/schema/tag/generic
 
+Tag.DOI:
+  type: tag
+  uri: https://odp.saeon.ac.za/schema/tag/doi
+
 Tag.Keyword:
   type: tag
   uri: https://odp.saeon.ac.za/schema/tag/keyword
