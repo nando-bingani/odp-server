@@ -15,7 +15,7 @@ from odp.api.routers.resource import output_resource_model
 from odp.const import ODPScope
 from odp.const.db import AuditCommand, PackageStatus, TagCardinality, TagType
 from odp.db import Session
-from odp.db.models import Package, PackageTag, PackageTagAudit, Resource, Tag
+from odp.db.models import Package, PackageAudit, PackageTag, PackageTagAudit, Resource, Tag
 
 router = APIRouter()
 
@@ -42,6 +42,26 @@ def output_package_model(package: Package, *, detail=False) -> PackageModel | Pa
         )
 
     return cls(**kwargs)
+
+
+def create_audit_record(
+        auth: Authorized,
+        package: Package,
+        timestamp: datetime,
+        command: AuditCommand,
+) -> None:
+    PackageAudit(
+        client_id=auth.client_id,
+        user_id=auth.user_id,
+        command=command,
+        timestamp=timestamp,
+        _id=package.id,
+        _title=package.title,
+        _status=package.status,
+        _notes=package.notes,
+        _provider_id=package.provider_id,
+        _resources=[resource.id for resource in package.resources],
+    ).save()
 
 
 def create_tag_audit_record(
@@ -183,11 +203,12 @@ async def _create_package(
         title=package_in.title,
         status=PackageStatus.pending,
         notes=package_in.notes,
-        timestamp=datetime.now(timezone.utc),
+        timestamp=(timestamp := datetime.now(timezone.utc)),
         provider_id=package_in.provider_id,
         resources=resources_in,
     )
     package.save()
+    create_audit_record(auth, package, timestamp, AuditCommand.insert)
 
     return output_package_model(package, detail=True)
 
@@ -246,10 +267,11 @@ async def _update_package(
     ):
         package.title = package_in.title
         package.notes = package_in.notes
-        package.timestamp = datetime.now(timezone.utc)
+        package.timestamp = (timestamp := datetime.now(timezone.utc))
         package.provider_id = package_in.provider_id
         package.resources = resources_in
         package.save()
+        create_audit_record(auth, package, timestamp, AuditCommand.update)
 
     return output_package_model(package, detail=True)
 
@@ -288,6 +310,8 @@ async def _delete_package(
         [package.provider_id] +
         [resource.provider_id for resource in package.resources]
     )
+
+    create_audit_record(auth, package, datetime.now(timezone.utc), AuditCommand.delete)
 
     try:
         package.delete()

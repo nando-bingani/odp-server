@@ -6,7 +6,7 @@ from sqlalchemy import select
 
 from odp.const import ODPScope
 from odp.const.db import ScopeType
-from odp.db.models import Package, PackageResource, PackageTag, PackageTagAudit, Scope
+from odp.db.models import Package, PackageAudit, PackageResource, PackageTag, PackageTagAudit, Scope
 from test import TestSession
 from test.api import assert_conflict, assert_empty_result, assert_forbidden, assert_new_timestamp, assert_not_found
 from test.api.conftest import try_skip_user_provider_constraint
@@ -91,6 +91,24 @@ def assert_db_tag_state(package_id, grant_type, *package_tags):
             assert row.tag_id == package_tag['tag_id']
             assert row.user_id == ('odp.test.user' if grant_type == 'authorization_code' else None)
             assert row.data == package_tag['data']
+
+
+def assert_audit_log(command, package, grant_type):
+    result = TestSession.execute(select(PackageAudit)).scalar_one()
+    assert result.client_id == 'odp.test.client'
+    assert result.user_id == ('odp.test.user' if grant_type == 'authorization_code' else None)
+    assert result.command == command
+    assert_new_timestamp(result.timestamp)
+    assert result._id == package.id
+    assert result._title == package.title
+    assert result._status == package.status
+    assert result._notes == package.notes
+    assert result._provider_id == package.provider_id
+    assert sorted(result._resources) == sorted(package.resource_ids)
+
+
+def assert_no_audit_log():
+    assert TestSession.execute(select(PackageAudit)).first() is None
 
 
 def assert_tag_audit_log(grant_type, *entries):
@@ -219,6 +237,7 @@ def test_list_packages(
         assert_forbidden(r)
 
     assert_db_state(package_batch)
+    assert_no_audit_log()
 
 
 @pytest.mark.require_scope(ODPScope.PACKAGE_READ_ALL)
@@ -250,6 +269,7 @@ def test_list_all_packages(
         assert_forbidden(r)
 
     assert_db_state(package_batch)
+    assert_no_audit_log()
 
 
 @pytest.mark.require_scope(ODPScope.PACKAGE_READ)
@@ -280,6 +300,7 @@ def test_get_package(
         assert_forbidden(r)
 
     assert_db_state(package_batch)
+    assert_no_audit_log()
 
 
 @pytest.mark.require_scope(ODPScope.PACKAGE_READ_ALL)
@@ -308,6 +329,7 @@ def test_get_any_package(
         assert_forbidden(r)
 
     assert_db_state(package_batch)
+    assert_no_audit_log()
 
 
 @pytest.mark.parametrize('route', ['/package/', '/package/all/'])
@@ -328,6 +350,7 @@ def test_get_package_not_found(
     r = api(scopes, **api_kwargs).get(f'{route}foo')
     assert_not_found(r)
     assert_db_state(package_batch)
+    assert_no_audit_log()
 
 
 @pytest.mark.require_scope(ODPScope.PACKAGE_WRITE)
@@ -423,9 +446,11 @@ def _test_create_package(
         package.id = r.json().get('id')
         assert_json_result(r, r.json(), package)
         assert_db_state(package_batch + [package])
+        assert_audit_log('insert', package, api.grant_type)
     else:
         assert_forbidden(r)
         assert_db_state(package_batch)
+        assert_no_audit_log()
 
 
 @pytest.mark.require_scope(ODPScope.PACKAGE_WRITE)
@@ -543,9 +568,11 @@ def _test_update_package(
     if authorized:
         assert_json_result(r, r.json(), package)
         assert_db_state(package_batch[:2] + [package] + package_batch[3:])
+        assert_audit_log('update', package, api.grant_type)
     else:
         assert_forbidden(r)
         assert_db_state(package_batch)
+        assert_no_audit_log()
 
 
 @pytest.mark.parametrize('route', ['/package/', '/package/admin/'])
@@ -574,6 +601,7 @@ def test_update_package_not_found(
 
     assert_not_found(r)
     assert_db_state(package_batch)
+    assert_no_audit_log()
 
 
 @pytest.mark.require_scope(ODPScope.PACKAGE_WRITE)
@@ -652,18 +680,22 @@ def _test_delete_package(
         authorized,
         api_kwargs,
 ):
+    deleted_package = package_batch[2]
+
     if package_resource_provider == 'different':
-        package_batch[2].resources[0].provider = ProviderFactory()
+        deleted_package.resources[0].provider = ProviderFactory()
         FactorySession.commit()
 
-    r = api(scopes, **api_kwargs).delete(f'{route}{package_batch[2].id}')
+    r = api(scopes, **api_kwargs).delete(f'{route}{deleted_package.id}')
 
     if authorized:
         assert_empty_result(r)
         assert_db_state(package_batch[:2] + package_batch[3:])
+        assert_audit_log('delete', deleted_package, api.grant_type)
     else:
         assert_forbidden(r)
         assert_db_state(package_batch)
+        assert_no_audit_log()
 
 
 @pytest.mark.parametrize('route', ['/package/', '/package/admin/'])
@@ -684,6 +716,7 @@ def test_delete_package_not_found(
     r = api(scopes, **api_kwargs).delete(f'{route}foo')
     assert_not_found(r)
     assert_db_state(package_batch)
+    assert_no_audit_log()
 
 
 def new_generic_tag(cardinality):
@@ -770,7 +803,7 @@ def test_tag_package(
         assert_no_tag_audit_log()
 
     assert_db_state(package_batch)
-    # assert_no_audit_log()
+    assert_no_audit_log()
 
 
 @pytest.mark.require_scope(ODPScope.PACKAGE_DOI)
@@ -828,4 +861,4 @@ def test_tag_package_user_conflict(
         assert_no_tag_audit_log()
 
     assert_db_state(package_batch)
-    # assert_no_audit_log()
+    assert_no_audit_log()
