@@ -49,7 +49,7 @@ def test_list_scopes(api, scope_batch, scopes):
     # add ODP scopes to the batch of expected scopes,
     # as they are created by the static_data fixture
     scope_batch += [ScopeFactory.build(id=s.value, type='odp') for s in ODPScope]
-    r = api(scopes).get('/scope/')
+    r = api(scopes).get('/scope/?size=0')
     if authorized:
         assert_json_results(r, r.json(), scope_batch)
     else:
