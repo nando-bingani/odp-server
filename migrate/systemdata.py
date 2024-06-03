@@ -15,6 +15,7 @@ from odp.const import (
     ODPCatalog,
     ODPCollectionTag,
     ODPMetadataSchema,
+    ODPPackageTag,
     ODPRecordTag,
     ODPScope,
     ODPSystemRole,
@@ -155,7 +156,9 @@ def init_tags():
     with open(datadir / 'tags.yml') as f:
         tag_data = yaml.safe_load(f)
 
-    for tag_id in (tag_ids := [t.value for t in ODPRecordTag] + [t.value for t in ODPCollectionTag]):
+    for tag_id in (tag_ids := [t.value for t in ODPRecordTag] +
+                              [t.value for t in ODPCollectionTag] +
+                              [t.value for t in ODPPackageTag]):
         tag_spec = tag_data[tag_id]
         tag_type = tag_spec['type']
         tag = Session.get(Tag, (tag_id, tag_type)) or Tag(id=tag_id, type=tag_type)
