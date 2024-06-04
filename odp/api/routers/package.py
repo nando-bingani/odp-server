@@ -35,14 +35,17 @@ def output_package_model(package: Package, *, detail=False) -> PackageModel | Pa
         record_id=record.id if record else None,
         record_doi=record.doi if record else None,
         record_sid=record.sid if record else None,
-        tags=[
-            output_tag_instance_model(package_tag)
-            for package_tag in package.tags
-        ],
     )
     if detail:
         kwargs |= dict(
-            resources=[output_resource_model(resource) for resource in package.resources],
+            resources=[
+                output_resource_model(resource)
+                for resource in package.resources
+            ],
+            tags=[
+                output_tag_instance_model(package_tag)
+                for package_tag in package.tags
+            ],
         )
 
     return cls(**kwargs)

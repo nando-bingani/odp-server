@@ -6,18 +6,20 @@ from sqlalchemy import select
 
 from odp.const import ODPScope
 from odp.const.db import ScopeType
-from odp.db.models import Package, PackageAudit, PackageResource, PackageTag, PackageTagAudit, Scope
+from odp.db.models import Package, PackageAudit, PackageResource, PackageTag, PackageTagAudit, Resource, Scope, Tag, User
 from test import TestSession
-from test.api import assert_conflict, assert_empty_result, assert_forbidden, assert_new_timestamp, assert_not_found
+from test.api import assert_conflict, assert_empty_result, assert_forbidden, assert_new_timestamp, assert_not_found, test_resource
 from test.api.conftest import try_skip_user_provider_constraint
 from test.factories import FactorySession, PackageFactory, PackageTagFactory, ProviderFactory, ResourceFactory, SchemaFactory, TagFactory
 
 
 @pytest.fixture
-def package_batch():
+def package_batch(request):
     """Create and commit a batch of Package instances, with
     associated resources. The #2 package's resources get the
     same provider as the package."""
+    with_tags = request.node.get_closest_marker('package_batch_with_tags') is not None
+
     packages = []
     for n in range(randint(3, 5)):
         packages += [package := PackageFactory(
@@ -28,6 +30,8 @@ def package_batch():
             )),
         )]
         package.resource_ids = [resource.id for resource in resources]
+        if with_tags:
+            PackageTagFactory.create_batch(randint(0, 3), package=package)
 
     return packages
 
@@ -129,7 +133,7 @@ def assert_no_tag_audit_log():
     assert TestSession.execute(select(PackageTagAudit)).first() is None
 
 
-def assert_json_result(response, json, package):
+def assert_json_result(response, json, package, detail=False):
     """Verify that the API result matches the given package object."""
     # todo: check linked record
     assert response.status_code == 200
@@ -141,6 +145,34 @@ def assert_json_result(response, json, package):
     assert json['provider_id'] == package.provider_id
     assert json['provider_key'] == package.provider.key
     assert sorted(json['resource_ids']) == sorted(package.resource_ids)
+
+    if detail:
+        json_resources = json['resources']
+        db_resources = TestSession.execute(
+            select(Resource).join(PackageResource).where(PackageResource.package_id == package.id)
+        ).scalars().all()
+        assert len(json_resources) == len(db_resources)
+        json_resources.sort(key=lambda r: r['id'])
+        db_resources.sort(key=lambda r: r.id)
+        for n, json_resource in enumerate(json_resources):
+            db_resources[n].archive_urls = {}  # stub for attr used locally in test_resource
+            test_resource.assert_json_result(response, json_resource, db_resources[n])
+
+        json_tags = json['tags']
+        db_tags = TestSession.execute(
+            select(PackageTag, Tag, User).join(Tag).join(User).where(PackageTag.package_id == package.id)
+        ).all()
+        assert len(json_tags) == len(db_tags)
+        json_tags.sort(key=lambda t: t['id'])
+        db_tags.sort(key=lambda t: t.PackageTag.id)
+        for n, json_tag in enumerate(json_tags):
+            assert json_tag['tag_id'] == db_tags[n].PackageTag.tag_id
+            assert json_tag['user_id'] == db_tags[n].PackageTag.user_id
+            assert json_tag['user_name'] == db_tags[n].User.name
+            assert json_tag['data'] == db_tags[n].PackageTag.data
+            assert_new_timestamp(db_tags[n].PackageTag.timestamp)
+            assert json_tag['cardinality'] == db_tags[n].Tag.cardinality
+            assert json_tag['public'] == db_tags[n].Tag.public
 
 
 def assert_json_tag_result(response, json, package_tag, grant_type):
@@ -273,6 +305,7 @@ def test_list_all_packages(
 
 
 @pytest.mark.require_scope(ODPScope.PACKAGE_READ)
+@pytest.mark.package_batch_with_tags
 def test_get_package(
         api,
         scopes,
@@ -295,7 +328,7 @@ def test_get_package(
     r = api(scopes, **api_kwargs).get(f'/package/{package_batch[2].id}')
 
     if authorized:
-        assert_json_result(r, r.json(), package_batch[2])
+        assert_json_result(r, r.json(), package_batch[2], detail=True)
     else:
         assert_forbidden(r)
 
@@ -304,6 +337,7 @@ def test_get_package(
 
 
 @pytest.mark.require_scope(ODPScope.PACKAGE_READ_ALL)
+@pytest.mark.package_batch_with_tags
 def test_get_any_package(
         api,
         scopes,
@@ -324,7 +358,7 @@ def test_get_any_package(
     r = api(scopes, **api_kwargs).get(f'/package/all/{package_batch[2].id}')
 
     if authorized:
-        assert_json_result(r, r.json(), package_batch[2])
+        assert_json_result(r, r.json(), package_batch[2], detail=True)
     else:
         assert_forbidden(r)
 
@@ -444,7 +478,7 @@ def _test_create_package(
 
     if authorized:
         package.id = r.json().get('id')
-        assert_json_result(r, r.json(), package)
+        assert_json_result(r, r.json(), package, detail=True)
         assert_db_state(package_batch + [package])
         assert_audit_log('insert', package, api.grant_type)
     else:
@@ -457,6 +491,7 @@ def _test_create_package(
 @pytest.mark.parametrize('package_new_provider', ['same', 'different'])
 @pytest.mark.parametrize('package_new_resource_provider', ['same', 'different'])
 @pytest.mark.parametrize('package_existing_resource_provider', ['same', 'different'])
+@pytest.mark.package_batch_with_tags
 def test_update_package(
         api,
         scopes,
@@ -504,6 +539,7 @@ def test_update_package(
 @pytest.mark.parametrize('package_new_provider', ['same', 'different'])
 @pytest.mark.parametrize('package_new_resource_provider', ['same', 'different'])
 @pytest.mark.parametrize('package_existing_resource_provider', ['same', 'different'])
+@pytest.mark.package_batch_with_tags
 def test_admin_update_package(
         api,
         scopes,
@@ -566,7 +602,7 @@ def _test_update_package(
     ))
 
     if authorized:
-        assert_json_result(r, r.json(), package)
+        assert_json_result(r, r.json(), package, detail=True)
         assert_db_state(package_batch[:2] + [package] + package_batch[3:])
         assert_audit_log('update', package, api.grant_type)
     else:

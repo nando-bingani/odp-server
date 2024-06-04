@@ -343,7 +343,7 @@ class PackageTagFactory(ODPModelFactory):
     package = factory.SubFactory(PackageFactory)
     tag = factory.SubFactory(TagFactory, type='package')
     user = factory.SubFactory(UserFactory)
-    data = {}
+    data = factory.LazyFunction(lambda: {'foo': fake.word()})
     timestamp = factory.LazyFunction(lambda: datetime.now(timezone.utc))
 
 
