@@ -574,15 +574,13 @@ async def tag_record(
         raise HTTPException(HTTP_404_NOT_FOUND)
 
     # only one tag instance per record is allowed
-    # update allowed only by the user who did the insert
+    # update existing tag instance if found
     if tag.cardinality == TagCardinality.one:
         if record_tag := Session.execute(
                 select(RecordTag).
                 where(RecordTag.record_id == record_id).
                 where(RecordTag.tag_id == tag_instance_in.tag_id)
         ).scalar_one_or_none():
-            if record_tag.user_id != auth.user_id:
-                raise HTTPException(HTTP_409_CONFLICT, 'Cannot update a tag set by another user')
             command = AuditCommand.update
         else:
             command = AuditCommand.insert
@@ -613,7 +611,6 @@ async def tag_record(
             record_id=record_id,
             tag_id=tag_instance_in.tag_id,
             tag_type=TagType.record,
-            user_id=auth.user_id,
         )
 
     if record_tag.data != tag_instance_in.data:
@@ -630,6 +627,7 @@ async def tag_record(
             if not Session.get(VocabularyTerm, (vocab_id, keyword_id)):
                 raise HTTPException(HTTP_422_UNPROCESSABLE_ENTITY, f'Vocabulary {vocab_id} does not contain keyword {keyword_id}')
 
+        record_tag.user_id = auth.user_id
         record_tag.data = tag_instance_in.data
         record_tag.timestamp = (timestamp := datetime.now(timezone.utc))
         record_tag.save()

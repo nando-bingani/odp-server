@@ -241,15 +241,13 @@ async def tag_collection(
         raise HTTPException(HTTP_404_NOT_FOUND)
 
     # only one tag instance per collection is allowed
-    # update allowed only by the user who did the insert
+    # update existing tag instance if found
     if tag.cardinality == TagCardinality.one:
         if collection_tag := Session.execute(
                 select(CollectionTag).
                 where(CollectionTag.collection_id == collection_id).
                 where(CollectionTag.tag_id == tag_instance_in.tag_id)
         ).scalar_one_or_none():
-            if collection_tag.user_id != auth.user_id:
-                raise HTTPException(HTTP_409_CONFLICT, 'Cannot update a tag set by another user')
             command = AuditCommand.update
         else:
             command = AuditCommand.insert
@@ -280,7 +278,6 @@ async def tag_collection(
             collection_id=collection_id,
             tag_id=tag_instance_in.tag_id,
             tag_type=TagType.collection,
-            user_id=auth.user_id,
         )
 
     if collection_tag.data != tag_instance_in.data:
@@ -288,6 +285,7 @@ async def tag_collection(
         if not validity['valid']:
             raise HTTPException(HTTP_422_UNPROCESSABLE_ENTITY, validity)
 
+        collection_tag.user_id = auth.user_id
         collection_tag.data = tag_instance_in.data
         collection_tag.timestamp = (timestamp := datetime.now(timezone.utc))
         collection_tag.save()

@@ -8,7 +8,7 @@ from odp.const import ODPScope
 from odp.const.db import ScopeType
 from odp.db.models import Package, PackageAudit, PackageResource, PackageTag, PackageTagAudit, Resource, Scope, Tag, User
 from test import TestSession
-from test.api import assert_conflict, assert_empty_result, assert_forbidden, assert_new_timestamp, assert_not_found, test_resource
+from test.api import assert_empty_result, assert_forbidden, assert_new_timestamp, assert_not_found, test_resource
 from test.api.conftest import try_skip_user_provider_constraint
 from test.factories import FactorySession, PackageFactory, PackageTagFactory, ProviderFactory, ResourceFactory, SchemaFactory, TagFactory
 
@@ -92,8 +92,9 @@ def assert_db_tag_state(package_id, grant_type, *package_tags):
             assert row.user_id == package_tag.user_id
             assert row.data == package_tag.data
         else:
+            user_id = package_tag.get('user_id', 'odp.test.user')
             assert row.tag_id == package_tag['tag_id']
-            assert row.user_id == ('odp.test.user' if grant_type == 'authorization_code' else None)
+            assert row.user_id == (user_id if grant_type == 'authorization_code' else None)
             assert row.data == package_tag['data']
 
 
@@ -119,13 +120,15 @@ def assert_tag_audit_log(grant_type, *entries):
     result = TestSession.execute(select(PackageTagAudit)).scalars().all()
     assert len(result) == len(entries)
     for n, row in enumerate(result):
-        assert row.client_id == 'odp.test.client'
-        assert row.user_id == ('odp.test.user' if grant_type == 'authorization_code' else None)
+        client_id = entries[n].get('client_id', 'odp.test.client')
+        user_id = entries[n].get('user_id', 'odp.test.user')
+        assert row.client_id == client_id
+        assert row.user_id == (user_id if grant_type == 'authorization_code' else None)
         assert row.command == entries[n]['command']
         assert_new_timestamp(row.timestamp)
         assert row._package_id == entries[n]['package_id']
         assert row._tag_id == entries[n]['package_tag']['tag_id']
-        assert row._user_id == entries[n]['package_tag'].get('user_id') or ('odp.test.user' if grant_type == 'authorization_code' else None)
+        assert row._user_id == (user_id if grant_type == 'authorization_code' else None)
         assert row._data == entries[n]['package_tag']['data']
 
 
@@ -177,9 +180,10 @@ def assert_json_result(response, json, package, detail=False):
 
 def assert_json_tag_result(response, json, package_tag, grant_type):
     """Verify that the API result matches the given package tag dict."""
+    user_id = package_tag.get('user_id', 'odp.test.user')
     assert response.status_code == 200
     assert json['tag_id'] == package_tag['tag_id']
-    assert json['user_id'] == ('odp.test.user' if grant_type == 'authorization_code' else None)
+    assert json['user_id'] == (user_id if grant_type == 'authorization_code' else None)
     assert json['user_name'] == ('Test User' if grant_type == 'authorization_code' else None)
     assert json['data'] == package_tag['data']
     assert_new_timestamp(datetime.fromisoformat(json['timestamp']))
@@ -789,34 +793,33 @@ def test_tag_package(
     client = api(scopes, **api_kwargs)
     tag = new_generic_tag(tag_cardinality)
 
+    # TAG 1
     r = client.post(
         f'/package/{(package_id := package_batch[2].id)}/tag',
         json=(package_tag_1 := dict(
             tag_id=tag.id,
             data={'comment': 'test1'},
+            cardinality=tag_cardinality, public=tag.public  # ignored on API input
         )))
 
     if authorized:
-        assert_json_tag_result(r, r.json(), package_tag_1 | dict(cardinality=tag_cardinality, public=tag.public), api.grant_type)
+        assert_json_tag_result(r, r.json(), package_tag_1, api.grant_type)
         assert_db_tag_state(package_id, api.grant_type, package_tag_1)
         assert_tag_audit_log(
             api.grant_type,
             dict(command='insert', package_id=package_id, package_tag=package_tag_1),
         )
-    else:
-        assert_forbidden(r)
-        assert_db_tag_state(package_id, api.grant_type)
-        assert_no_tag_audit_log()
 
-    r = client.post(
-        f'/package/{(package_id := package_batch[2].id)}/tag',
-        json=(package_tag_2 := dict(
-            tag_id=tag.id,
-            data={'comment': 'test2'},
-        )))
+        # TAG 2
+        r = client.post(
+            f'/package/{(package_id := package_batch[2].id)}/tag',
+            json=(package_tag_2 := dict(
+                tag_id=tag.id,
+                data={'comment': 'test2'},
+                cardinality=tag_cardinality, public=tag.public  # ignored on API input
+            )))
 
-    if authorized:
-        assert_json_tag_result(r, r.json(), package_tag_2 | dict(cardinality=tag_cardinality, public=tag.public), api.grant_type)
+        assert_json_tag_result(r, r.json(), package_tag_2, api.grant_type)
         if tag_cardinality in ('one', 'user'):
             assert_db_tag_state(package_id, api.grant_type, package_tag_2)
             assert_tag_audit_log(
@@ -831,69 +834,54 @@ def test_tag_package(
                 dict(command='insert', package_id=package_id, package_tag=package_tag_1),
                 dict(command='insert', package_id=package_id, package_tag=package_tag_2),
             )
-        else:
-            assert False
-    else:
-        assert_forbidden(r)
-        assert_db_tag_state(package_id, api.grant_type)
-        assert_no_tag_audit_log()
 
-    assert_db_state(package_batch)
-    assert_no_audit_log()
+        # TAG 3 - different client/user
+        client = api(scopes, **api_kwargs, client_id='testclient2', role_id='testrole2', user_id='testuser2')
+        r = client.post(
+            f'/package/{(package_id := package_batch[2].id)}/tag',
+            json=(package_tag_3 := dict(
+                tag_id=tag.id,
+                data={'comment': 'test3'},
+                cardinality=tag_cardinality, public=tag.public, user_id='testuser2'  # ignored on API input
+            )))
 
-
-@pytest.mark.require_scope(ODPScope.PACKAGE_DOI)
-def test_tag_package_user_conflict(
-        api,
-        scopes,
-        package_batch,
-        client_provider_constraint,
-        user_provider_constraint,
-        tag_cardinality,
-):
-    api_kwargs = parameterize_api_fixture(
-        package_batch,
-        api.grant_type,
-        client_provider_constraint,
-        user_provider_constraint,
-    )
-    authorized = (
-            ODPScope.PACKAGE_DOI in scopes and
-            client_provider_constraint in ('client_provider_any', 'client_provider_match') and
-            (api.grant_type == 'client_credentials' or user_provider_constraint == 'user_provider_match')
-    )
-
-    client = api(scopes, **api_kwargs)
-    tag = new_generic_tag(tag_cardinality)
-    package_tag_1 = PackageTagFactory(
-        package=package_batch[2],
-        tag=tag,
-    )
-
-    r = client.post(
-        f'/package/{(package_id := package_batch[2].id)}/tag',
-        json=(package_tag_2 := dict(
-            tag_id=tag.id,
-            data={'comment': 'test2'},
-        )))
-
-    if authorized:
+        assert_json_tag_result(r, r.json(), package_tag_3, api.grant_type)
         if tag_cardinality == 'one':
-            assert_conflict(r, 'Cannot update a tag set by another user')
-            assert_db_tag_state(package_id, api.grant_type, package_tag_1)
-            assert_no_tag_audit_log()
-        elif tag_cardinality in ('user', 'multi'):
-            assert_json_tag_result(r, r.json(), package_tag_2 | dict(cardinality=tag_cardinality, public=tag.public), api.grant_type)
-            assert_db_tag_state(package_id, api.grant_type, package_tag_1, package_tag_2)
+            assert_db_tag_state(package_id, api.grant_type, package_tag_3)
             assert_tag_audit_log(
                 api.grant_type,
-                dict(command='insert', package_id=package_id, package_tag=package_tag_2),
+                dict(command='insert', package_id=package_id, package_tag=package_tag_1),
+                dict(command='update', package_id=package_id, package_tag=package_tag_2),
+                dict(command='update', package_id=package_id, package_tag=package_tag_3, client_id='testclient2', user_id='testuser2'),
             )
-        else:
-            assert False
-    else:
+        elif tag_cardinality == 'user':
+            if api.grant_type == 'client_credentials':
+                # user_id is null so it's an update
+                package_tags = (package_tag_3,)
+                tag3_command = 'update'
+            else:
+                package_tags = (package_tag_2, package_tag_3,)
+                tag3_command = 'insert'
+
+            assert_db_tag_state(package_id, api.grant_type, *package_tags)
+            assert_tag_audit_log(
+                api.grant_type,
+                dict(command='insert', package_id=package_id, package_tag=package_tag_1),
+                dict(command='update', package_id=package_id, package_tag=package_tag_2),
+                dict(command=tag3_command, package_id=package_id, package_tag=package_tag_3, client_id='testclient2', user_id='testuser2'),
+            )
+        elif tag_cardinality == 'multi':
+            assert_db_tag_state(package_id, api.grant_type, package_tag_1, package_tag_2, package_tag_3)
+            assert_tag_audit_log(
+                api.grant_type,
+                dict(command='insert', package_id=package_id, package_tag=package_tag_1),
+                dict(command='insert', package_id=package_id, package_tag=package_tag_2),
+                dict(command='insert', package_id=package_id, package_tag=package_tag_3, client_id='testclient2', user_id='testuser2'),
+            )
+
+    else:  # not authorized
         assert_forbidden(r)
-        assert_db_tag_state(package_id, api.grant_type, package_tag_1)
+        assert_db_tag_state(package_id, api.grant_type)
         assert_no_tag_audit_log()
 
     assert_db_state(package_batch)

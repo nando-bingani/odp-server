@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from jschon import JSON, JSONSchema
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
-from starlette.status import HTTP_404_NOT_FOUND, HTTP_409_CONFLICT, HTTP_422_UNPROCESSABLE_ENTITY
+from starlette.status import HTTP_404_NOT_FOUND, HTTP_422_UNPROCESSABLE_ENTITY
 
 from odp.api.lib.auth import Authorize, Authorized, TagAuthorize
 from odp.api.lib.paging import Paginator
@@ -347,15 +347,13 @@ async def tag_package(
         raise HTTPException(HTTP_404_NOT_FOUND)
 
     # only one tag instance per package is allowed
-    # update allowed only by the user who did the insert
+    # update existing tag instance if found
     if tag.cardinality == TagCardinality.one:
         if package_tag := Session.execute(
                 select(PackageTag).
                 where(PackageTag.package_id == package_id).
                 where(PackageTag.tag_id == tag_instance_in.tag_id)
         ).scalar_one_or_none():
-            if package_tag.user_id != auth.user_id:
-                raise HTTPException(HTTP_409_CONFLICT, 'Cannot update a tag set by another user')
             command = AuditCommand.update
         else:
             command = AuditCommand.insert
@@ -386,7 +384,6 @@ async def tag_package(
             package_id=package_id,
             tag_id=tag_instance_in.tag_id,
             tag_type=TagType.package,
-            user_id=auth.user_id,
         )
 
     if package_tag.data != tag_instance_in.data:
@@ -394,6 +391,7 @@ async def tag_package(
         if not validity['valid']:
             raise HTTPException(HTTP_422_UNPROCESSABLE_ENTITY, validity)
 
+        package_tag.user_id = auth.user_id
         package_tag.data = tag_instance_in.data
         package_tag.timestamp = (timestamp := datetime.now(timezone.utc))
         package_tag.save()

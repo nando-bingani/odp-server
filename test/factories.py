@@ -281,7 +281,7 @@ class VocabularyFactory(ODPModelFactory):
     terms = factory.RelatedFactoryList(
         VocabularyTermFactory,
         factory_related_name='vocabulary',
-        size=lambda: randint(3, 5),
+        size=lambda: randint(4, 8),
     )
 
 

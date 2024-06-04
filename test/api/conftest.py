@@ -54,7 +54,10 @@ def api(request, monkeypatch):
     def api_test_client(
             scopes: list[ODPScope],
             *,
+            client_id: str = 'odp.test.client',
             client_provider: Provider = None,
+            role_id: str = 'odp.test.role',
+            user_id: str = 'odp.test.user',
             user_providers: list[Provider] = None,
             user_collections: list[Collection] = None,
     ):
@@ -65,10 +68,10 @@ def api(request, monkeypatch):
             all_scope_objects = [FactorySession.get(Scope, (s.value, 'odp')) for s in ODPScope]
 
             odp_user = UserFactory(
-                id='odp.test.user',
+                id=user_id,
                 name='Test User',
                 roles=[RoleFactory(
-                    id='odp.test.role',
+                    id=role_id,
                     scopes=scope_objects,
                     collection_specific=user_collections is not None,
                     collections=user_collections,
@@ -78,7 +81,7 @@ def api(request, monkeypatch):
                 provider.users += [odp_user]
 
         odp_client = ClientFactory(
-            id='odp.test.client',
+            id=client_id,
             scopes=scope_objects if request.param == 'client_credentials' else all_scope_objects,
             provider_specific=client_provider is not None,
             provider=client_provider,

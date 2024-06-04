@@ -182,8 +182,9 @@ def assert_db_tag_state(record_id, grant_type, *record_tags):
             assert row.user_id == record_tag.user_id
             assert row.data == record_tag.data
         else:
+            user_id = record_tag.get('user_id', 'odp.test.user')
             assert row.tag_id == record_tag['tag_id']
-            assert row.user_id == ('odp.test.user' if grant_type == 'authorization_code' else None)
+            assert row.user_id == (user_id if grant_type == 'authorization_code' else None)
             assert row.data == record_tag['data']
 
 
@@ -210,13 +211,15 @@ def assert_tag_audit_log(grant_type, *entries):
     result = TestSession.execute(select(RecordTagAudit).order_by('id')).scalars().all()
     assert len(result) == len(entries)
     for n, row in enumerate(result):
-        assert row.client_id == 'odp.test.client'
-        assert row.user_id == ('odp.test.user' if grant_type == 'authorization_code' else None)
+        client_id = entries[n].get('client_id', 'odp.test.client')
+        user_id = entries[n].get('user_id', 'odp.test.user')
+        assert row.client_id == client_id
+        assert row.user_id == (user_id if grant_type == 'authorization_code' else None)
         assert row.command == entries[n]['command']
         assert_new_timestamp(row.timestamp)
         assert row._record_id == entries[n]['record_id']
         assert row._tag_id == entries[n]['record_tag']['tag_id']
-        assert row._user_id == entries[n]['record_tag'].get('user_id') or ('odp.test.user' if grant_type == 'authorization_code' else None)
+        assert row._user_id == (user_id if grant_type == 'authorization_code' else None)
         assert row._data == entries[n]['record_tag']['data']
 
 
@@ -262,9 +265,10 @@ def assert_json_record_result(response, json, record):
 
 def assert_json_tag_result(response, json, record_tag, grant_type):
     """Verify that the API result matches the given record tag dict."""
+    user_id = record_tag.get('user_id', 'odp.test.user')
     assert response.status_code == 200
     assert json['tag_id'] == record_tag['tag_id']
-    assert json['user_id'] == ('odp.test.user' if grant_type == 'authorization_code' else None)
+    assert json['user_id'] == (user_id if grant_type == 'authorization_code' else None)
     assert json['user_name'] == ('Test User' if grant_type == 'authorization_code' else None)
     assert json['data'] == record_tag['data']
     assert_new_timestamp(datetime.fromisoformat(json['timestamp']))
@@ -952,30 +956,34 @@ def test_tag_record(api, record_batch_no_tags, scopes, collection_constraint, ta
     incorrect_vocab = None
     incorrect_keyword = None
 
+    # TAG 1
     r = client.post(
         f'/record/{(record_id := record_batch_no_tags[2].id)}/tag',
         json=(record_tag_1 := dict(
             tag_id=tag.id,
             data=tag_data(1),
+            cardinality=tag_cardinality, public=tag.public  # ignored on API input
         )))
 
     if authorized:
         if is_keyword in ('no', 'yes-valid'):
-            assert_json_tag_result(r, r.json(), record_tag_1 | dict(cardinality=tag_cardinality, public=tag.public), api.grant_type)
+            assert_json_tag_result(r, r.json(), record_tag_1, api.grant_type)
             assert_db_tag_state(record_id, api.grant_type, record_tag_1)
             assert_tag_audit_log(
                 api.grant_type,
                 dict(command='insert', record_id=record_id, record_tag=record_tag_1),
             )
 
+            # TAG 2
             r = client.post(
                 f'/record/{(record_id := record_batch_no_tags[2].id)}/tag',
                 json=(record_tag_2 := dict(
                     tag_id=tag.id,
                     data=tag_data(2),
+                    cardinality=tag_cardinality, public=tag.public  # ignored on API input
                 )))
 
-            assert_json_tag_result(r, r.json(), record_tag_2 | dict(cardinality=tag_cardinality, public=tag.public), api.grant_type)
+            assert_json_tag_result(r, r.json(), record_tag_2, api.grant_type)
             if tag_cardinality in ('one', 'user'):
                 assert_db_tag_state(record_id, api.grant_type, record_tag_2)
                 assert_tag_audit_log(
@@ -991,6 +999,50 @@ def test_tag_record(api, record_batch_no_tags, scopes, collection_constraint, ta
                     dict(command='insert', record_id=record_id, record_tag=record_tag_2),
                 )
 
+            # TAG 3 - different client/user
+            client = api(scopes, user_collections=authorized_collections, client_id='testclient2', role_id='testrole2', user_id='testuser2')
+            r = client.post(
+                f'/record/{(record_id := record_batch_no_tags[2].id)}/tag',
+                json=(record_tag_3 := dict(
+                    tag_id=tag.id,
+                    data=tag_data(3),
+                    cardinality=tag_cardinality, public=tag.public, user_id='testuser2'  # ignored on API input
+                )))
+
+            assert_json_tag_result(r, r.json(), record_tag_3, api.grant_type)
+            if tag_cardinality == 'one':
+                assert_db_tag_state(record_id, api.grant_type, record_tag_3)
+                assert_tag_audit_log(
+                    api.grant_type,
+                    dict(command='insert', record_id=record_id, record_tag=record_tag_1),
+                    dict(command='update', record_id=record_id, record_tag=record_tag_2),
+                    dict(command='update', record_id=record_id, record_tag=record_tag_3, client_id='testclient2', user_id='testuser2'),
+                )
+            elif tag_cardinality == 'user':
+                if api.grant_type == 'client_credentials':
+                    # user_id is null so it's an update
+                    record_tags = (record_tag_3,)
+                    tag3_command = 'update'
+                else:
+                    record_tags = (record_tag_2, record_tag_3,)
+                    tag3_command = 'insert'
+
+                assert_db_tag_state(record_id, api.grant_type, *record_tags)
+                assert_tag_audit_log(
+                    api.grant_type,
+                    dict(command='insert', record_id=record_id, record_tag=record_tag_1),
+                    dict(command='update', record_id=record_id, record_tag=record_tag_2),
+                    dict(command=tag3_command, record_id=record_id, record_tag=record_tag_3, client_id='testclient2', user_id='testuser2'),
+                )
+            elif tag_cardinality == 'multi':
+                assert_db_tag_state(record_id, api.grant_type, record_tag_1, record_tag_2, record_tag_3)
+                assert_tag_audit_log(
+                    api.grant_type,
+                    dict(command='insert', record_id=record_id, record_tag=record_tag_1),
+                    dict(command='insert', record_id=record_id, record_tag=record_tag_2),
+                    dict(command='insert', record_id=record_id, record_tag=record_tag_3, client_id='testclient2', user_id='testuser2'),
+                )
+
         elif is_keyword == 'yes-invalid-vocab':
             assert_unprocessable(r, f'Vocabulary {incorrect_vocab.id} not allowed for tag {tag.id}')
 
@@ -1000,56 +1052,6 @@ def test_tag_record(api, record_batch_no_tags, scopes, collection_constraint, ta
     else:
         assert_forbidden(r)
         assert_db_tag_state(record_id, api.grant_type)
-        assert_no_tag_audit_log()
-
-    assert_db_state(record_batch_no_tags)
-    assert_no_audit_log()
-
-
-@pytest.mark.require_scope(ODPScope.RECORD_QC)
-def test_tag_record_user_conflict(api, record_batch_no_tags, scopes, collection_constraint, tag_cardinality):
-    authorized = ODPScope.RECORD_QC in scopes and collection_constraint in ('collection_any', 'collection_match')
-
-    try_skip_collection_constraint(api.grant_type, collection_constraint)
-
-    if collection_constraint == 'collection_any':
-        authorized_collections = None  # => all
-    elif collection_constraint == 'collection_match':
-        authorized_collections = [r.collection for r in record_batch_no_tags[1:3]]
-    elif collection_constraint == 'collection_mismatch':
-        authorized_collections = [r.collection for r in record_batch_no_tags[0:2]]
-
-    client = api(scopes, user_collections=authorized_collections)
-    tag = new_generic_tag(tag_cardinality)
-    record_tag_1 = RecordTagFactory(
-        record=record_batch_no_tags[2],
-        tag=tag,
-    )
-
-    r = client.post(
-        f'/record/{(record_id := record_batch_no_tags[2].id)}/tag',
-        json=(record_tag_2 := dict(
-            tag_id=tag.id,
-            data={'comment': 'test2'},
-        )))
-
-    if authorized:
-        if tag_cardinality == 'one':
-            assert_conflict(r, 'Cannot update a tag set by another user')
-            assert_db_tag_state(record_id, api.grant_type, record_tag_1)
-            assert_no_tag_audit_log()
-        elif tag_cardinality in ('user', 'multi'):
-            assert_json_tag_result(r, r.json(), record_tag_2 | dict(cardinality=tag_cardinality, public=tag.public), api.grant_type)
-            assert_db_tag_state(record_id, api.grant_type, record_tag_1, record_tag_2)
-            assert_tag_audit_log(
-                api.grant_type,
-                dict(command='insert', record_id=record_id, record_tag=record_tag_2),
-            )
-        else:
-            assert False
-    else:
-        assert_forbidden(r)
-        assert_db_tag_state(record_id, api.grant_type, record_tag_1)
         assert_no_tag_audit_log()
 
     assert_db_state(record_batch_no_tags)
