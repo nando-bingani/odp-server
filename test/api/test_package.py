@@ -128,7 +128,7 @@ def assert_tag_audit_log(grant_type, *entries):
         assert_new_timestamp(row.timestamp)
         assert row._package_id == entries[n]['package_id']
         assert row._tag_id == entries[n]['package_tag']['tag_id']
-        assert row._user_id == (user_id if grant_type == 'authorization_code' else None)
+        assert row._user_id == entries[n]['package_tag'].get('user_id') or (user_id if grant_type == 'authorization_code' else None)
         assert row._data == entries[n]['package_tag']['data']
 
 
