@@ -211,15 +211,15 @@ def assert_tag_audit_log(grant_type, *entries):
     result = TestSession.execute(select(RecordTagAudit).order_by('id')).scalars().all()
     assert len(result) == len(entries)
     for n, row in enumerate(result):
-        client_id = entries[n].get('client_id', 'odp.test.client')
-        user_id = entries[n].get('user_id', 'odp.test.user')
-        assert row.client_id == client_id
-        assert row.user_id == (user_id if grant_type == 'authorization_code' else None)
+        auth_client_id = entries[n]['record_tag'].get('auth_client_id', 'odp.test.client')
+        auth_user_id = entries[n]['record_tag'].get('auth_user_id', 'odp.test.user' if grant_type == 'authorization_code' else None)
+        assert row.client_id == auth_client_id
+        assert row.user_id == auth_user_id
         assert row.command == entries[n]['command']
         assert_new_timestamp(row.timestamp)
         assert row._record_id == entries[n]['record_id']
         assert row._tag_id == entries[n]['record_tag']['tag_id']
-        assert row._user_id == entries[n]['record_tag'].get('user_id') or (user_id if grant_type == 'authorization_code' else None)
+        assert row._user_id == entries[n]['record_tag'].get('user_id', auth_user_id)
         assert row._data == entries[n]['record_tag']['data']
 
 
@@ -962,7 +962,8 @@ def test_tag_record(api, record_batch_no_tags, scopes, collection_constraint, ta
         json=(record_tag_1 := dict(
             tag_id=tag.id,
             data=tag_data(1),
-            cardinality=tag_cardinality, public=tag.public  # ignored on API input
+            cardinality=tag_cardinality,
+            public=tag.public,
         )))
 
     if authorized:
@@ -980,7 +981,8 @@ def test_tag_record(api, record_batch_no_tags, scopes, collection_constraint, ta
                 json=(record_tag_2 := dict(
                     tag_id=tag.id,
                     data=tag_data(2),
-                    cardinality=tag_cardinality, public=tag.public  # ignored on API input
+                    cardinality=tag_cardinality,
+                    public=tag.public,
                 )))
 
             assert_json_tag_result(r, r.json(), record_tag_2, api.grant_type)
@@ -1006,7 +1008,11 @@ def test_tag_record(api, record_batch_no_tags, scopes, collection_constraint, ta
                 json=(record_tag_3 := dict(
                     tag_id=tag.id,
                     data=tag_data(3),
-                    cardinality=tag_cardinality, public=tag.public, user_id='testuser2'  # ignored on API input
+                    cardinality=tag_cardinality,
+                    public=tag.public,
+                    auth_client_id='testclient2',
+                    auth_user_id='testuser2' if api.grant_type == 'authorization_code' else None,
+                    user_id='testuser2' if api.grant_type == 'authorization_code' else None,
                 )))
 
             assert_json_tag_result(r, r.json(), record_tag_3, api.grant_type)
@@ -1016,7 +1022,7 @@ def test_tag_record(api, record_batch_no_tags, scopes, collection_constraint, ta
                     api.grant_type,
                     dict(command='insert', record_id=record_id, record_tag=record_tag_1),
                     dict(command='update', record_id=record_id, record_tag=record_tag_2),
-                    dict(command='update', record_id=record_id, record_tag=record_tag_3, client_id='testclient2', user_id='testuser2'),
+                    dict(command='update', record_id=record_id, record_tag=record_tag_3),
                 )
             elif tag_cardinality == 'user':
                 if api.grant_type == 'client_credentials':
@@ -1032,7 +1038,7 @@ def test_tag_record(api, record_batch_no_tags, scopes, collection_constraint, ta
                     api.grant_type,
                     dict(command='insert', record_id=record_id, record_tag=record_tag_1),
                     dict(command='update', record_id=record_id, record_tag=record_tag_2),
-                    dict(command=tag3_command, record_id=record_id, record_tag=record_tag_3, client_id='testclient2', user_id='testuser2'),
+                    dict(command=tag3_command, record_id=record_id, record_tag=record_tag_3),
                 )
             elif tag_cardinality == 'multi':
                 assert_db_tag_state(record_id, api.grant_type, record_tag_1, record_tag_2, record_tag_3)
@@ -1040,7 +1046,7 @@ def test_tag_record(api, record_batch_no_tags, scopes, collection_constraint, ta
                     api.grant_type,
                     dict(command='insert', record_id=record_id, record_tag=record_tag_1),
                     dict(command='insert', record_id=record_id, record_tag=record_tag_2),
-                    dict(command='insert', record_id=record_id, record_tag=record_tag_3, client_id='testclient2', user_id='testuser2'),
+                    dict(command='insert', record_id=record_id, record_tag=record_tag_3),
                 )
 
         elif is_keyword == 'yes-invalid-vocab':
