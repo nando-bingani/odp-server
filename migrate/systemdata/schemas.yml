@@ -54,6 +54,10 @@ Vocabulary.Infrastructure:
   type: vocabulary
   uri: https://odp.saeon.ac.za/schema/vocabulary/infrastructure
 
+Vocabulary.Institution:
+  type: vocabulary
+  uri: https://odp.saeon.ac.za/schema/vocabulary/institution
+
 Vocabulary.Project:
   type: vocabulary
   uri: https://odp.saeon.ac.za/schema/vocabulary/project

@@ -2,6 +2,10 @@ Infrastructure:
   scope_id: odp.vocabulary:infrastructure
   schema_id: Vocabulary.Infrastructure
 
+Institution:
+  scope_id: odp.vocabulary:institution
+  schema_id: Vocabulary.Institution
+
 Project:
   scope_id: odp.vocabulary:project
   schema_id: Vocabulary.Project
