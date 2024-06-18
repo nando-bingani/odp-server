@@ -12,6 +12,7 @@ from odp.db.models import (
     ClientScope,
     Collection,
     CollectionTag,
+    Keyword,
     Package,
     PackageTag,
     Provider,
@@ -37,6 +38,7 @@ from test.factories import (
     ClientFactory,
     CollectionFactory,
     CollectionTagFactory,
+    KeywordFactory,
     PackageFactory,
     PackageTagFactory,
     ProviderFactory,
@@ -155,6 +157,33 @@ def test_create_collection_tag():
            == (collection_tag.collection.id, collection_tag.tag.id, 'collection', collection_tag.user.id, collection_tag.data)
 
 
+def test_create_keyword():
+    def assert_result(kw):
+        result = results.pop(kw.key)
+        assert (
+                   kw.key,
+                   kw.data,
+                   kw.status,
+                   kw.parent_key,
+                   kw.schema_id,
+                   kw.schema_type,
+               ) == (
+                   result.key,
+                   result.data,
+                   result.status,
+                   result.parent_key,
+                   result.schema_id,
+                   result.schema_type,
+               )
+        for child_kw in kw.children:
+            assert_result(child_kw)
+
+    keyword = KeywordFactory()
+    results = {row.key: row for row in TestSession.execute(select(Keyword)).scalars()}
+    assert_result(keyword)
+    assert not results  # should have popped all
+
+
 def test_create_package():
     package = PackageFactory()
     result = TestSession.execute(select(Package)).scalar_one()
@@ -192,7 +221,7 @@ def test_create_package_tag():
                package_tag.user.id,
                package_tag.data,
                package_tag.timestamp,
-    )
+           )
 
 
 def test_create_provider():

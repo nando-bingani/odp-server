@@ -16,6 +16,7 @@ from odp.db.models import (
     Client,
     Collection,
     CollectionTag,
+    Keyword,
     Package,
     PackageTag,
     Provider,
@@ -259,6 +260,32 @@ class ClientFactory(ODPModelFactory):
                 obj.scopes.append(scope)
             if create:
                 FactorySession.commit()
+
+
+class KeywordFactory(ODPModelFactory):
+    class Meta:
+        model = Keyword
+        exclude = ('has_schema',)
+
+    key = factory.Sequence(lambda n: f'{fake.word()}.{n}')
+    data = factory.LazyFunction(lambda: {'foo': fake.word()})
+    status = factory.LazyFunction(lambda: choice(('proposed', 'approved', 'rejected')))
+    has_schema = factory.LazyAttribute(lambda k: '/' not in k.key or randint(0, 1))
+    schema = factory.Maybe(
+        'has_schema',
+        yes_declaration=factory.SubFactory(SchemaFactory, type='keyword'),
+        no_declaration=None,
+    )
+
+    @factory.post_generation
+    def children(obj, create, _):
+        if len(obj.key.split('/')) < 4:
+            add_child = KeywordFactory.create if create else KeywordFactory.build
+            for n in range(randint(0, 5)):
+                add_child(
+                    parent_key=obj.key,
+                    key=f'{obj.key}/{fake.word()}.{n}',
+                )
 
 
 class VocabularyTermFactory(ODPModelFactory):
