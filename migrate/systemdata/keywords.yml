@@ -1,0 +1,11 @@
+Institution:
+  schema_id: Keyword.Institution
+  keywords:
+    - key: Institution/DFFE
+      abbr: DFFE
+      title: Department of Forestry, Fisheries and the Environment
+      url: https://www.environent.gov.za
+    - key: Institution/SAEON
+      abbr: SAEON
+      title: South African Environmental Observation Network
+      url: https://www.saeon.ac.za

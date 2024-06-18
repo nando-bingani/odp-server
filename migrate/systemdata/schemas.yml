@@ -18,6 +18,10 @@ RIS.Citation:
   type: metadata
   uri: https://odp.saeon.ac.za/schema/metadata/ris/citation
 
+Keyword.Institution:
+  type: keyword
+  uri: https://odp.saeon.ac.za/schema/keyword/institution
+
 Tag.Collection.Infrastructure:
   type: tag
   uri: https://odp.saeon.ac.za/schema/tag/collection/infrastructure
@@ -53,10 +57,6 @@ Tag.Keyword:
 Vocabulary.Infrastructure:
   type: vocabulary
   uri: https://odp.saeon.ac.za/schema/vocabulary/infrastructure
-
-Vocabulary.Institution:
-  type: vocabulary
-  uri: https://odp.saeon.ac.za/schema/vocabulary/institution
 
 Vocabulary.Project:
   type: vocabulary

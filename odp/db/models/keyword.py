@@ -13,50 +13,50 @@ class Keyword(Base):
     A keyword's key consists of its parent's key plus a non-empty
     suffix.
 
-    A vocabulary is a keyword that is a parent of a set of keywords.
-    One keyword in such a set may itself represent a vocabulary,
-    with an associated set of sub-keywords.
+    A vocabulary is simply a keyword that is a parent of a set of
+    keywords. One keyword in such a set may itself represent a
+    vocabulary, with an associated set of sub-keywords.
 
     Every root vocabulary must have a schema, which applies
     recursively to every keyword in its hierarchy. Any keyword
-    may introduce its own schema, which applies to itself and
-    recursively to every sub-keyword in its sub-hierarchy.
+    may introduce its own schema, which applies not to itself
+    but recursively to every sub-keyword in its sub-hierarchy.
     """
 
     __tablename__ = 'keyword'
 
     __table_args__ = (
-        ForeignKeyConstraint(
-            ('schema_id', 'schema_type'), ('schema.id', 'schema.type'),
-            name='keyword_schema_fkey', ondelete='RESTRICT',
-        ),
         CheckConstraint(
-            f"schema_type = '{SchemaType.keyword}'",
-            name='keyword_schema_type_check',
+            'parent_key is null or starts_with(key, parent_key)',
+            name='keyword_parent_suffix_check',
         ),
         CheckConstraint(
             'parent_key is not null or schema_id is not null',
             name='keyword_parent_schema_check',
         ),
         CheckConstraint(
-            'parent_key is null or starts_with(key, parent_key)',
-            name='keyword_parent_suffix_check',
+            f"schema_type = '{SchemaType.keyword}'",
+            name='keyword_schema_type_check',
+        ),
+        ForeignKeyConstraint(
+            ('schema_id', 'schema_type'), ('schema.id', 'schema.type'),
+            name='keyword_schema_fkey', ondelete='RESTRICT',
         ),
     )
 
-    parent_key = Column(String, ForeignKey('keyword.key', ondelete='RESTRICT'))
     key = Column(String, primary_key=True)
     data = Column(JSONB, nullable=False)
     status = Column(Enum(KeywordStatus), nullable=False)
+
+    parent_key = Column(String, ForeignKey('keyword.key', ondelete='RESTRICT'))
+    parent = relationship('Keyword', remote_side=key)
+    children = relationship('Keyword', order_by='Keyword.key', viewonly=True)
 
     schema_id = Column(String)
     schema_type = Column(Enum(SchemaType))
     schema = relationship('Schema')
 
-    parent = relationship('Keyword', remote_side=key)
-    children = relationship('Keyword', viewonly=True)
-
-    _repr_ = 'parent_key', 'key', 'status', 'schema_id'
+    _repr_ = 'key', 'status', 'schema_id'
 
 
 class KeywordAudit(Base):
@@ -70,7 +70,6 @@ class KeywordAudit(Base):
     command = Column(Enum(AuditCommand), nullable=False)
     timestamp = Column(TIMESTAMP(timezone=True), nullable=False)
 
-    _parent_key = Column(String)
     _key = Column(String, nullable=False)
     _data = Column(JSONB, nullable=False)
     _status = Column(String, nullable=False)

@@ -6,9 +6,10 @@ from sqlalchemy import func, select, text
 from sqlalchemy.engine import Row
 from sqlalchemy.exc import CompileError
 from sqlalchemy.sql import Select
-from starlette.status import HTTP_422_UNPROCESSABLE_ENTITY
+from starlette.status import HTTP_422_UNPROCESSABLE_ENTITY, HTTP_500_INTERNAL_SERVER_ERROR
 
 from odp.api.models.paging import GenericAPIModel, Page
+from odp.config import config
 from odp.db import Base, Session
 
 
@@ -61,7 +62,9 @@ class Paginator:
                     limit(limit)
                 )
             ]
-        except (AttributeError, CompileError):
+        except (AttributeError, CompileError) as e:
+            if config.ODP.ENV in ('development', 'testing'):
+                raise HTTPException(HTTP_500_INTERNAL_SERVER_ERROR, repr(e))
             raise HTTPException(HTTP_422_UNPROCESSABLE_ENTITY, 'Invalid sort column')
 
         return Page(

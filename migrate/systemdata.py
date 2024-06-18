@@ -14,6 +14,8 @@ from odp.const import (
     ODPArchive,
     ODPCatalog,
     ODPCollectionTag,
+    ODPKeyword,
+    ODPKeywordSchema,
     ODPMetadataSchema,
     ODPPackageTag,
     ODPRecordTag,
@@ -23,10 +25,10 @@ from odp.const import (
     ODPVocabulary,
     ODPVocabularySchema,
 )
-from odp.const.db import SchemaType, ScopeType
+from odp.const.db import KeywordStatus, SchemaType, ScopeType
 from odp.const.hydra import GrantType, HydraScope
 from odp.db import Base, Session, engine
-from odp.db.models import Archive, Catalog, Client, Role, Schema, Scope, Tag, Vocabulary, VocabularyTerm
+from odp.db.models import Archive, Catalog, Client, Keyword, Role, Schema, Scope, Tag, Vocabulary, VocabularyTerm
 from odp.lib.hydra import HydraAdminAPI
 from odp.lib.schema import schema_md5
 
@@ -46,6 +48,7 @@ def initialize():
         init_standard_scopes()
         init_system_roles()
         init_schemas()
+        init_keywords()
         init_vocabularies()
         init_tags()
         init_archives()
@@ -131,6 +134,7 @@ def init_schemas():
 
     for schema_id in (schema_ids := [s.value for s in ODPMetadataSchema] +
                                     [s.value for s in ODPTagSchema] +
+                                    [s.value for s in ODPKeywordSchema] +
                                     [s.value for s in ODPVocabularySchema]):
         schema_spec = schema_data[schema_id]
         schema_type = schema_spec['type']
@@ -176,6 +180,29 @@ def init_tags():
 
     if orphaned_db_tags := Session.execute(select(Tag.id).where(Tag.id.not_in(tag_ids))).scalars().all():
         logger.warning(f'Orphaned tag definitions in tag table {orphaned_db_tags}')
+
+
+def init_keywords():
+    """Create or update top-level keywords (vocabularies)."""
+    with open(datadir / 'keywords.yml') as f:
+        kw_data = yaml.safe_load(f)
+
+    for vocab_key in [k.value for k in ODPKeyword]:
+        vocab_spec = kw_data[vocab_key]
+        vocab_kw = Session.get(Keyword, vocab_key) or Keyword(key=vocab_key)
+        vocab_kw.schema_id = vocab_spec['schema_id']
+        vocab_kw.schema_type = SchemaType.keyword
+        vocab_kw.data = {}
+        vocab_kw.status = KeywordStatus.approved
+        vocab_kw.save()
+
+        for kw_spec in vocab_spec['keywords']:
+            key = kw_spec.pop('key')
+            kw = Session.get(Keyword, key) or Keyword(key=key)
+            kw.parent_key = vocab_key
+            kw.data = kw_spec
+            kw.status = KeywordStatus.approved
+            kw.save()
 
 
 def init_vocabularies():
