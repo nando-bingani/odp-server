@@ -10,8 +10,12 @@ def get_client_permissions(client_id: str) -> Permissions:
     associated with an access token via a client credentials grant."""
 
     def permission(scope_id: str) -> Permission:
-        if client.provider_specific and ODPScope(scope_id).constrainable_by == 'provider':
-            return [client.provider_id]
+        try:
+            if client.provider_specific and ODPScope(scope_id).constrainable_by == 'provider':
+                return [client.provider_id]
+        except ValueError:
+            pass  # non-ODP scope
+
         return '*'
 
     if not (client := Session.get(Client, client_id)):
@@ -47,12 +51,15 @@ def get_user_permissions(user_id: str, client_id: str) -> Permissions:
                 continue
 
             # set the scope access granted by this role
-            if ODPScope(scope.id).constrainable_by == 'collection' and role.collection_specific:
-                role_permission = [collection.id for collection in role.collections]
-            elif ODPScope(scope.id).constrainable_by == 'provider':
-                role_permission = [provider.id for provider in user.providers]
-            else:
-                role_permission = '*'
+            try:
+                if ODPScope(scope.id).constrainable_by == 'collection' and role.collection_specific:
+                    role_permission = [collection.id for collection in role.collections]
+                elif ODPScope(scope.id).constrainable_by == 'provider':
+                    role_permission = [provider.id for provider in user.providers]
+                else:
+                    role_permission = '*'
+            except ValueError:
+                role_permission = '*'  # non-ODP scope
 
             # the scope has not been granted by another role; add it
             if (base_permission := role_permissions.get(scope.id)) is None:

@@ -1,22 +1,40 @@
+from itertools import chain
 from random import sample
 
 import pytest
 
 import migrate.systemdata
-from odp.api.models.auth import Permissions, UserInfo
+from odp.api.models.auth import Permission, Permissions, UserInfo
 from odp.const import ODPScope
-from odp.db.models import Scope
+from odp.db.models import Collection, Provider, Scope
 from odp.lib.auth import get_client_permissions, get_user_info, get_user_permissions
-from test.factories import ClientFactory, CollectionFactory, FactorySession, ProviderFactory, RoleFactory, UserFactory
+from test.factories import ClientFactory, CollectionFactory, FactorySession, ProviderFactory, RoleFactory, ScopeFactory, UserFactory
 
 
-@pytest.fixture
-def scopes():
-    """Return a random sample of size 15 of ODP scope DB objects."""
+@pytest.fixture(params=['odp', 'any'])
+def scopes(request):
+    """Return a random sample of size 15 of scope DB objects.
+
+    For the 'odp' parameterization, the sample consists only
+    of ODP scopes.
+
+    For the 'any' parameterization, the sample may include
+    custom client scopes.
+    """
     migrate.systemdata.init_system_scopes()
     migrate.systemdata.Session.commit()
-    scope_ids = [s.value for s in sample(list(ODPScope.__members__.values()), 15)]
-    return [FactorySession.get(Scope, (scope_id, 'odp')) for scope_id in scope_ids]
+
+    population = [(s.value, 'odp') for s in ODPScope]
+    if request.param == 'any':
+        population += [
+            (custom_scope.id, 'client')
+            for custom_scope in ScopeFactory.create_batch(20, type='client')
+        ]
+
+    return [
+        FactorySession.get(Scope, scope_key)
+        for scope_key in sample(population, 15)
+    ]
 
 
 @pytest.fixture(params=[0, 1, 3])
@@ -56,6 +74,27 @@ def assert_compare(actual: Permissions, expected: Permissions):
     assert actual == expected
 
 
+def applicability(
+        scope: Scope,
+        provider_list: list[Provider],
+        *collection_lists: list[Collection],
+) -> Permission:
+    """Return the applicable object ids for a constrainable scope from
+    a provider list or series of collection lists (if given), otherwise
+    the generally appliable '*'."""
+    try:
+        if provider_list is not None and ODPScope(scope.id).constrainable_by == 'provider':
+            return [p.id for p in provider_list]
+
+        if collection_lists and ODPScope(scope.id).constrainable_by == 'collection':
+            return [c.id for c in chain(*collection_lists)]
+
+    except ValueError:
+        pass  # non-ODP scope
+
+    return '*'
+
+
 def test_unconstrained_roles(scopes, user_provider_count):
     """Test permissions calculations for unconstrained (not collection-specific) roles.
 
@@ -81,8 +120,7 @@ def test_unconstrained_roles(scopes, user_provider_count):
 
     actual_user_perm = get_user_permissions(user.id, client.id)
     expected_user_perm = {
-        scope.id: [p.id for p in providers]
-        if ODPScope(scope.id).constrainable_by == 'provider' else '*'
+        scope.id: applicability(scope, providers)
         for n, scope in enumerate(scopes)
         if (1 <= n < 5) or (10 <= n < 14)
     }
@@ -114,24 +152,15 @@ def test_collection_specific_roles(scopes, role1_collection_count, role2_collect
 
     actual_user_perm = get_user_permissions(user.id, client.id)
     expected_user_perm = {
-                             scope.id: [p.id for p in providers]
-                             if ODPScope(scope.id).constrainable_by == 'provider'
-                             else [c.id for c in role1.collections]
-                             if ODPScope(scope.id).constrainable_by == 'collection' else '*'
+                             scope.id: applicability(scope, providers, role1.collections)
                              for n, scope in enumerate(scopes)
                              if 1 <= n < 5
                          } | {
-                             scope.id: [p.id for p in providers]
-                             if ODPScope(scope.id).constrainable_by == 'provider'
-                             else [c.id for c in role1.collections] + [c.id for c in role2.collections]
-                             if ODPScope(scope.id).constrainable_by == 'collection' else '*'
+                             scope.id: applicability(scope, providers, role1.collections, role2.collections)
                              for n, scope in enumerate(scopes)
                              if 5 <= n < 10
                          } | {
-                             scope.id: [p.id for p in providers]
-                             if ODPScope(scope.id).constrainable_by == 'provider'
-                             else [c.id for c in role2.collections]
-                             if ODPScope(scope.id).constrainable_by == 'collection' else '*'
+                             scope.id: applicability(scope, providers, role2.collections)
                              for n, scope in enumerate(scopes)
                              if 10 <= n < 14
                          }
@@ -165,29 +194,19 @@ def test_unconstrained_and_collection_specific_role_mix(scopes, role1_collection
 
     actual_user_perm = get_user_permissions(user.id, client.id)
     expected_user_perm = {
-                             scope.id: [p.id for p in providers]
-                             if ODPScope(scope.id).constrainable_by == 'provider' else '*'
+                             scope.id: applicability(scope, providers)
                              for n, scope in enumerate(scopes)
                              if 1 <= n < 7
                          } | {
-                             scope.id: [p.id for p in providers]
-                             if ODPScope(scope.id).constrainable_by == 'provider'
-                             else [c.id for c in role2.collections]
-                             if ODPScope(scope.id).constrainable_by == 'collection' else '*'
+                             scope.id: applicability(scope, providers, role2.collections)
                              for n, scope in enumerate(scopes)
                              if 7 <= n < 9
                          } | {
-                             scope.id: [p.id for p in providers]
-                             if ODPScope(scope.id).constrainable_by == 'provider'
-                             else [c.id for c in role2.collections] + [c.id for c in role3.collections]
-                             if ODPScope(scope.id).constrainable_by == 'collection' else '*'
+                             scope.id: applicability(scope, providers, role2.collections, role3.collections)
                              for n, scope in enumerate(scopes)
                              if 9 <= n < 12
                          } | {
-                             scope.id: [p.id for p in providers]
-                             if ODPScope(scope.id).constrainable_by == 'provider'
-                             else [c.id for c in role3.collections]
-                             if ODPScope(scope.id).constrainable_by == 'collection' else '*'
+                             scope.id: applicability(scope, providers, role3.collections)
                              for n, scope in enumerate(scopes)
                              if 12 <= n < 14
                          }
@@ -220,16 +239,14 @@ def test_provider_specific_client(scopes, user_provider_count, user_has_client_p
 
     actual_client_perm = get_client_permissions(client.id)
     expected_client_perm = {
-        scope.id: [client.provider_id]
-        if ODPScope(scope.id).constrainable_by == 'provider' else '*'
+        scope.id: applicability(scope, [client.provider])
         for scope in scopes[1:14]
     }
     assert_compare(actual_client_perm, expected_client_perm)
 
     actual_user_perm = get_user_permissions(user.id, client.id)
     expected_user_perm = {
-        scope.id: [p.id for p in providers]
-        if ODPScope(scope.id).constrainable_by == 'provider' else '*'
+        scope.id: applicability(scope, providers)
         for n, scope in enumerate(scopes)
         if (1 <= n < 5) or (10 <= n < 14)
     }
@@ -265,38 +282,26 @@ def test_provider_specific_client_with_unconstrained_and_collection_specific_rol
 
     actual_client_perm = get_client_permissions(client.id)
     expected_client_perm = {
-        scope.id: [client.provider_id]
-        if ODPScope(scope.id).constrainable_by == 'provider' else '*'
+        scope.id: applicability(scope, [client.provider])
         for scope in scopes[1:14]
     }
     assert_compare(actual_client_perm, expected_client_perm)
 
     actual_user_perm = get_user_permissions(user.id, client.id)
     expected_user_perm = {
-                             scope.id: [p.id for p in providers]
-                             if ODPScope(scope.id).constrainable_by == 'provider'
-                             else [c.id for c in role1.collections]
-                             if ODPScope(scope.id).constrainable_by == 'collection' else '*'
+                             scope.id: applicability(scope, providers, role1.collections)
                              for n, scope in enumerate(scopes)
                              if 1 <= n < 3
                          } | {
-                             scope.id: [p.id for p in providers]
-                             if ODPScope(scope.id).constrainable_by == 'provider'
-                             else [c.id for c in role1.collections] + [c.id for c in role2.collections]
-                             if ODPScope(scope.id).constrainable_by == 'collection' else '*'
+                             scope.id: applicability(scope, providers, role1.collections, role2.collections)
                              for n, scope in enumerate(scopes)
                              if 3 <= n < 7
                          } | {
-                             scope.id: [p.id for p in providers]
-                             if ODPScope(scope.id).constrainable_by == 'provider'
-                             else [c.id for c in role2.collections]
-                             if ODPScope(scope.id).constrainable_by == 'collection' else '*'
+                             scope.id: applicability(scope, providers, role2.collections)
                              for n, scope in enumerate(scopes)
                              if 7 <= n < 9
                          } | {
-                             scope.id: [p.id for p in providers]
-                             if ODPScope(scope.id).constrainable_by == 'provider'
-                             else '*'
+                             scope.id: applicability(scope, providers)
                              for n, scope in enumerate(scopes)
                              if 9 <= n < 14
                          }
