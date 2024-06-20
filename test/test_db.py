@@ -165,15 +165,15 @@ def test_create_keyword():
                    kw.data,
                    kw.status,
                    kw.parent_key,
-                   kw.schema_id,
-                   kw.schema_type,
+                   kw.child_schema_id,
+                   kw.child_schema_type,
                ) == (
                    result.key,
                    result.data,
                    result.status,
                    result.parent_key,
-                   result.schema_id,
-                   result.schema_type,
+                   result.child_schema_id,
+                   result.child_schema_type,
                )
         for child_kw in kw.children:
             assert_result(child_kw)

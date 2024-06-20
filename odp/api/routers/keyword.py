@@ -9,7 +9,7 @@ from starlette.status import HTTP_404_NOT_FOUND, HTTP_409_CONFLICT, HTTP_422_UNP
 
 from odp.api.lib.auth import Authorize, Authorized
 from odp.api.lib.paging import Paginator
-from odp.api.models import KeywordModel, KeywordModelAdmin, KeywordModelIn, Page
+from odp.api.models import KeywordHierarchyModel, KeywordModel, KeywordModelAdmin, KeywordModelIn, Page
 from odp.const import KEYWORD_REGEX, ODPScope
 from odp.const.db import AuditCommand, KeywordStatus, SchemaType
 from odp.db import Session
@@ -28,15 +28,15 @@ def get_parent_key(key: str) -> str:
     return parent_key
 
 
-def get_validating_schema(parent: Keyword) -> Schema | None:
+def get_child_schema(parent: Keyword) -> Schema | None:
     """Get the validating schema for keywords in the given parent vocabulary."""
     if parent is None:
         return None
 
-    if parent.schema_id:
-        return parent.schema
+    if parent.child_schema_id:
+        return parent.child_schema
 
-    return get_validating_schema(parent.parent)
+    return get_child_schema(parent.parent)
 
 
 async def validate_keyword_data(
@@ -52,7 +52,7 @@ async def validate_keyword_data(
         )
 
     keyword_jsonschema = schema_catalog.get_schema(URI(
-        get_validating_schema(parent).uri
+        get_child_schema(parent).uri
     ))
 
     validity = keyword_jsonschema.evaluate(JSON(keyword_in.data)).output('basic')
@@ -62,21 +62,29 @@ async def validate_keyword_data(
         )
 
 
-def output_keyword_model(keyword: Keyword, recurse: bool = False) -> KeywordModel:
-    schema = get_validating_schema(keyword.parent)
-    kw = KeywordModel(
+def output_keyword_model(
+        keyword: Keyword,
+        recurse: bool = False,
+) -> KeywordModel | KeywordHierarchyModel:
+    cls = KeywordHierarchyModel if recurse else KeywordModel
+
+    schema = get_child_schema(keyword.parent)
+    kwargs = dict(
         key=keyword.key,
         data=keyword.data,
         status=keyword.status,
         schema_id=schema.id if schema else None,
     )
-    if recurse:
-        kw.keywords = [
-            output_keyword_model(child, True)
-            for child in keyword.children
-        ]
 
-    return kw
+    if recurse:
+        kwargs |= dict(
+            child_keywords=[
+                output_keyword_model(child, True)
+                for child in keyword.children
+            ]
+        )
+
+    return cls(**kwargs)
 
 
 def create_audit_record(
@@ -93,20 +101,20 @@ def create_audit_record(
         _key=keyword.key,
         _data=keyword.data,
         _status=keyword.status,
-        _schema_id=keyword.schema_id,
+        _child_schema_id=keyword.child_schema_id,
     ).save()
 
 
 @router.get(
     '/',
-    response_model=Page[KeywordModel],
     dependencies=[Depends(Authorize(ODPScope.KEYWORD_READ))],
-    description=f'List top-level keywords (root vocabularies). '
-                f'Requires `{ODPScope.KEYWORD_READ}` scope.'
 )
 async def list_vocabularies(
         paginator: Paginator = Depends(partial(Paginator, sort='key')),
-):
+) -> Page[KeywordModel]:
+    """
+    List top-level keywords (root vocabularies). Requires scope `odp.keyword:read`.
+    """
     stmt = (
         select(Keyword).
         where(Keyword.parent_key == None)
@@ -120,16 +128,16 @@ async def list_vocabularies(
 
 @router.get(
     '/{parent_key:path}/',
-    response_model=Page[KeywordModel],
     dependencies=[Depends(Authorize(ODPScope.KEYWORD_READ))],
-    description=f'List the keywords in a vocabulary. '
-                f'Requires `{ODPScope.KEYWORD_READ}` scope.'
 )
 async def list_keywords(
         parent_key: str = Path(..., title='Parent keyword (vocabulary) identifier', regex=KEYWORD_REGEX),
-        recurse: bool = Query(False, title='Populate sub-keywords for each keyword, recursively'),
+        recurse: bool = Query(False, title='Populate child keywords, recursively'),
         paginator: Paginator = Depends(partial(Paginator, sort='key')),
-):
+) -> Page[KeywordHierarchyModel] | Page[KeywordModel]:
+    """
+    List the keywords in a vocabulary. Requires scope `odp.keyword:read`.
+    """
     if not Session.get(Keyword, parent_key):
         raise HTTPException(
             HTTP_404_NOT_FOUND, f"Parent keyword '{parent_key}' does not exist"
@@ -148,15 +156,15 @@ async def list_keywords(
 
 @router.get(
     '/{key:path}',
-    response_model=KeywordModel,
     dependencies=[Depends(Authorize(ODPScope.KEYWORD_READ))],
-    description=f'Get a keyword, optionally with sub-keywords. '
-                f'Requires `{ODPScope.KEYWORD_READ}` scope.'
 )
 async def get_keyword(
         key: str = Path(..., title='Keyword identifier', regex=KEYWORD_REGEX),
-        recurse: bool = Query(False, title='Populate sub-keywords, recursively'),
-):
+        recurse: bool = Query(False, title='Populate child keywords, recursively'),
+) -> KeywordHierarchyModel | KeywordModel:
+    """
+    Get a keyword. Requires scope `odp.keyword:read`.
+    """
     if not (keyword := Session.get(Keyword, key)):
         raise HTTPException(
             HTTP_404_NOT_FOUND, f"Keyword '{key}' does not exist"
@@ -167,19 +175,17 @@ async def get_keyword(
 
 @router.post(
     '/{key:path}',
-    response_model=KeywordModel,
-    dependencies=[
-        Depends(validate_keyword_data),
-    ],
-    description=f'Create a keyword with status `{KeywordStatus.proposed}`. '
-                f'Requires `{ODPScope.KEYWORD_SUGGEST}` scope.'
+    dependencies=[Depends(validate_keyword_data)],
 )
 async def suggest_keyword(
         keyword_in: KeywordModelIn,
         key: str = Path(..., title='Keyword identifier', regex=KEYWORD_REGEX),
         parent_key: str = Depends(get_parent_key),
         auth: Authorized = Depends(Authorize(ODPScope.KEYWORD_SUGGEST)),
-):
+) -> KeywordModel:
+    """
+    Create a keyword with status `proposed`. Requires scope `odp.keyword:suggest`.
+    """
     if Session.get(Keyword, key):
         raise HTTPException(
             HTTP_409_CONFLICT, f"Keyword '{key}' already exists"
@@ -205,19 +211,17 @@ async def suggest_keyword(
 
 @router.put(
     '/{key:path}',
-    response_model=KeywordModel,
-    dependencies=[
-        Depends(validate_keyword_data),
-    ],
-    description=f'Create or update a keyword. '
-                f'Requires `{ODPScope.KEYWORD_ADMIN}` scope.'
+    dependencies=[Depends(validate_keyword_data)],
 )
 async def set_keyword(
         keyword_in: KeywordModelAdmin,
         key: str = Path(..., title='Keyword identifier', regex=KEYWORD_REGEX),
         parent_key: str = Depends(get_parent_key),
         auth: Authorized = Depends(Authorize(ODPScope.KEYWORD_ADMIN)),
-):
+) -> KeywordModel:
+    """
+    Create or update a keyword. Requires scope `odp.keyword:admin`.
+    """
     if keyword := Session.get(Keyword, key):
         command = AuditCommand.update
     else:
@@ -227,12 +231,12 @@ async def set_keyword(
     if (
             keyword.data != keyword_in.data or
             keyword.status != keyword_in.status or
-            keyword.schema_id != keyword_in.schema_id
+            keyword.child_schema_id != keyword_in.child_schema_id
     ):
         keyword.data = keyword_in.data
         keyword.status = keyword_in.status
-        keyword.schema_id = keyword_in.schema_id
-        keyword.schema_type = SchemaType.keyword if keyword_in.schema_id else None
+        keyword.child_schema_id = keyword_in.child_schema_id
+        keyword.child_schema_type = SchemaType.keyword if keyword_in.child_schema_id else None
 
         keyword.save()
 
@@ -248,13 +252,14 @@ async def set_keyword(
 
 @router.delete(
     '/{key:path}',
-    description=f'Delete a keyword. '
-                f'Requires `{ODPScope.KEYWORD_ADMIN}` scope.'
 )
 async def delete_keyword(
         key: str = Path(..., title='Keyword identifier', regex=KEYWORD_REGEX),
         auth: Authorized = Depends(Authorize(ODPScope.KEYWORD_ADMIN)),
-):
+) -> None:
+    """
+    Delete a keyword. Requires scope `odp.keyword:admin`.
+    """
     if not (keyword := Session.get(Keyword, key)):
         raise HTTPException(
             HTTP_404_NOT_FOUND, f"Keyword '{key}' does not exist"

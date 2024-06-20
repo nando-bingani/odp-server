@@ -265,14 +265,15 @@ class ClientFactory(ODPModelFactory):
 class KeywordFactory(ODPModelFactory):
     class Meta:
         model = Keyword
-        exclude = ('has_schema',)
+        exclude = ('has_child_schema',)
 
     key = factory.Sequence(lambda n: f'{fake.word()}.{n}')
     data = factory.LazyFunction(lambda: {'foo': fake.word()})
     status = factory.LazyFunction(lambda: choice(('proposed', 'approved', 'rejected')))
-    has_schema = factory.LazyAttribute(lambda k: '/' not in k.key or randint(0, 1))
-    schema = factory.Maybe(
-        'has_schema',
+
+    has_child_schema = factory.LazyAttribute(lambda k: '/' not in k.key or randint(0, 1))
+    child_schema = factory.Maybe(
+        'has_child_schema',
         yes_declaration=factory.SubFactory(SchemaFactory, type='keyword'),
         no_declaration=None,
     )

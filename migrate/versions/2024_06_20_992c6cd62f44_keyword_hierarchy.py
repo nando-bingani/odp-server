@@ -1,8 +1,8 @@
 """Keyword hierarchy
 
-Revision ID: a35198b2c633
+Revision ID: 992c6cd62f44
 Revises: 9a3e9cbc19d1
-Create Date: 2024-06-16 20:24:48.991384
+Create Date: 2024-06-20 10:25:31.153446
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision = 'a35198b2c633'
+revision = '992c6cd62f44'
 down_revision = '9a3e9cbc19d1'
 branch_labels = None
 depends_on = None
@@ -28,11 +28,10 @@ def upgrade():
                     sa.Column('user_id', sa.String(), nullable=True),
                     sa.Column('command', postgresql.ENUM(name='auditcommand', create_type=False), nullable=False),
                     sa.Column('timestamp', sa.TIMESTAMP(timezone=True), nullable=False),
-                    sa.Column('_parent_key', sa.String(), nullable=True),
                     sa.Column('_key', sa.String(), nullable=False),
                     sa.Column('_data', postgresql.JSONB(astext_type=sa.Text()), nullable=False),
                     sa.Column('_status', sa.String(), nullable=False),
-                    sa.Column('_schema_id', sa.String(), nullable=True),
+                    sa.Column('_child_schema_id', sa.String(), nullable=True),
                     sa.PrimaryKeyConstraint('id')
                     )
     op.create_table('keyword',
@@ -40,14 +39,14 @@ def upgrade():
                     sa.Column('data', postgresql.JSONB(astext_type=sa.Text()), nullable=False),
                     sa.Column('status', sa.Enum('proposed', 'approved', 'rejected', name='keywordstatus'), nullable=False),
                     sa.Column('parent_key', sa.String(), nullable=True),
-                    sa.Column('schema_id', sa.String(), nullable=True),
-                    sa.Column('schema_type', postgresql.ENUM(name='schematype', create_type=False), nullable=True),
-                    sa.CheckConstraint("schema_type = 'keyword'", name='keyword_schema_type_check'),
-                    sa.CheckConstraint('parent_key is not null or schema_id is not null', name='keyword_parent_schema_check'),
-                    sa.CheckConstraint('parent_key is null or starts_with(key, parent_key)', name='keyword_parent_suffix_check'),
-                    sa.ForeignKeyConstraint(['parent_key'], ['keyword.key'], ondelete='RESTRICT'),
-                    sa.ForeignKeyConstraint(['schema_id', 'schema_type'], ['schema.id', 'schema.type'], name='keyword_schema_fkey',
+                    sa.Column('child_schema_id', sa.String(), nullable=True),
+                    sa.Column('child_schema_type', postgresql.ENUM(name='schematype', create_type=False), nullable=True),
+                    sa.CheckConstraint("child_schema_type = 'keyword'", name='keyword_child_schema_type_check'),
+                    sa.CheckConstraint('parent_key is not null or child_schema_id is not null', name='keyword_root_child_schema_check'),
+                    sa.CheckConstraint('parent_key is null or starts_with(key, parent_key)', name='keyword_parent_key_suffix_check'),
+                    sa.ForeignKeyConstraint(['child_schema_id', 'child_schema_type'], ['schema.id', 'schema.type'], name='keyword_child_schema_fkey',
                                             ondelete='RESTRICT'),
+                    sa.ForeignKeyConstraint(['parent_key'], ['keyword.key'], ondelete='RESTRICT'),
                     sa.PrimaryKeyConstraint('key')
                     )
     # ### end Alembic commands ###

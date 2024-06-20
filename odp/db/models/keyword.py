@@ -17,10 +17,10 @@ class Keyword(Base):
     keywords. One keyword in such a set may itself represent a
     vocabulary, with an associated set of sub-keywords.
 
-    Every root vocabulary must have a schema, which applies
+    Every root vocabulary must have a child schema, which applies
     recursively to every keyword in its hierarchy. Any keyword
-    may introduce its own schema, which applies not to itself
-    but recursively to every sub-keyword in its sub-hierarchy.
+    may introduce its own child schema, which applies recursively
+    to every sub-keyword in its sub-hierarchy.
     """
 
     __tablename__ = 'keyword'
@@ -28,19 +28,19 @@ class Keyword(Base):
     __table_args__ = (
         CheckConstraint(
             'parent_key is null or starts_with(key, parent_key)',
-            name='keyword_parent_suffix_check',
+            name='keyword_parent_key_suffix_check',
         ),
         CheckConstraint(
-            'parent_key is not null or schema_id is not null',
-            name='keyword_parent_schema_check',
+            'parent_key is not null or child_schema_id is not null',
+            name='keyword_root_child_schema_check',
         ),
         CheckConstraint(
-            f"schema_type = '{SchemaType.keyword}'",
-            name='keyword_schema_type_check',
+            f"child_schema_type = '{SchemaType.keyword}'",
+            name='keyword_child_schema_type_check',
         ),
         ForeignKeyConstraint(
-            ('schema_id', 'schema_type'), ('schema.id', 'schema.type'),
-            name='keyword_schema_fkey', ondelete='RESTRICT',
+            ('child_schema_id', 'child_schema_type'), ('schema.id', 'schema.type'),
+            name='keyword_child_schema_fkey', ondelete='RESTRICT',
         ),
     )
 
@@ -52,11 +52,11 @@ class Keyword(Base):
     parent = relationship('Keyword', remote_side=key)
     children = relationship('Keyword', order_by='Keyword.key', viewonly=True)
 
-    schema_id = Column(String)
-    schema_type = Column(Enum(SchemaType))
-    schema = relationship('Schema')
+    child_schema_id = Column(String)
+    child_schema_type = Column(Enum(SchemaType))
+    child_schema = relationship('Schema')
 
-    _repr_ = 'key', 'status', 'schema_id'
+    _repr_ = 'key', 'status', 'child_schema_id'
 
 
 class KeywordAudit(Base):
@@ -73,4 +73,4 @@ class KeywordAudit(Base):
     _key = Column(String, nullable=False)
     _data = Column(JSONB, nullable=False)
     _status = Column(String, nullable=False)
-    _schema_id = Column(String)
+    _child_schema_id = Column(String)

@@ -190,8 +190,8 @@ def init_keywords():
     for vocab_key in [k.value for k in ODPKeyword]:
         vocab_spec = kw_data[vocab_key]
         vocab_kw = Session.get(Keyword, vocab_key) or Keyword(key=vocab_key)
-        vocab_kw.schema_id = vocab_spec['schema_id']
-        vocab_kw.schema_type = SchemaType.keyword
+        vocab_kw.child_schema_id = vocab_spec['schema_id']
+        vocab_kw.child_schema_type = SchemaType.keyword
         vocab_kw.data = {}
         vocab_kw.status = KeywordStatus.approved
         vocab_kw.save()
