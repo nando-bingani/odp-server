@@ -117,6 +117,10 @@ def schema_uri_from_type(schema):
             'https://odp.saeon.ac.za/schema/tag/collection/infrastructure',
             'https://odp.saeon.ac.za/schema/tag/collection/project',
         ))
+    elif schema.type == 'keyword':
+        return choice((
+            'https://odp.saeon.ac.za/schema/keyword/institution',
+        ))
     elif schema.type == 'vocabulary':
         return choice((
             'https://odp.saeon.ac.za/schema/vocabulary/infrastructure',
@@ -145,7 +149,7 @@ class SchemaFactory(ODPModelFactory):
         model = Schema
 
     id = factory.Sequence(lambda n: f'{fake.word()}.{n}')
-    type = factory.LazyFunction(lambda: choice(('metadata', 'tag', 'vocabulary')))
+    type = factory.LazyFunction(lambda: choice(('metadata', 'tag', 'keyword', 'vocabulary')))
     uri = factory.LazyAttribute(schema_uri_from_type)
     md5 = factory.Faker('md5')
     timestamp = factory.LazyFunction(lambda: datetime.now(timezone.utc))
@@ -267,8 +271,9 @@ class KeywordFactory(ODPModelFactory):
         model = Keyword
         exclude = ('has_child_schema',)
 
-    key = factory.Sequence(lambda n: f'{fake.word()}.{n}')
-    data = factory.LazyFunction(lambda: {'foo': fake.word()})
+    parent_key = None
+    key = factory.LazyAttributeSequence(lambda k, n: (f'{k.parent_key}/' if k.parent_key else '') + f'{fake.word()}.{n}')
+    data = factory.LazyFunction(lambda: {fake.word(): fake.word()})
     status = factory.LazyFunction(lambda: choice(('proposed', 'approved', 'rejected')))
 
     has_child_schema = factory.LazyAttribute(lambda k: '/' not in k.key or randint(0, 1))
@@ -283,10 +288,7 @@ class KeywordFactory(ODPModelFactory):
         if len(obj.key.split('/')) < 4:
             add_child = KeywordFactory.create if create else KeywordFactory.build
             for n in range(randint(0, 5)):
-                add_child(
-                    parent_key=obj.key,
-                    key=f'{obj.key}/{fake.word()}.{n}',
-                )
+                add_child(parent_key=obj.key)
 
 
 class VocabularyTermFactory(ODPModelFactory):
