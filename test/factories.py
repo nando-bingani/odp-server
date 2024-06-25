@@ -282,6 +282,8 @@ class KeywordFactory(ODPModelFactory):
         yes_declaration=factory.SubFactory(SchemaFactory, type='keyword'),
         no_declaration=None,
     )
+    child_schema_id = factory.LazyAttribute(lambda k: k.child_schema.id if k.child_schema else None)
+    child_schema_type = factory.LazyAttribute(lambda k: 'keyword' if k.child_schema else None)
 
     @factory.post_generation
     def children(obj, create, _):

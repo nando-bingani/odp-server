@@ -4,7 +4,7 @@ import pytest
 from sqlalchemy import select
 
 from odp.const import ODPScope
-from odp.db.models import Keyword, KeywordAudit
+from odp.db.models import Keyword, KeywordAudit, Schema
 from test import TestSession
 from test.api import assert_conflict, assert_forbidden, assert_new_timestamp, assert_not_found, assert_unprocessable
 from test.factories import FactorySession, KeywordFactory, fake
@@ -23,9 +23,8 @@ def keyword_batch(request):
 
 def keyword_build(**attr):
     """Build and return an uncommitted Keyword instance."""
-    return KeywordFactory.stub(
-        child_schema=None,
-        child_schema_id=None,
+    return KeywordFactory.build(
+        children=[],
         **attr,
     )
 
@@ -72,8 +71,11 @@ def assert_json_result(response, json, keyword, recurse=False):
     assert json['data'] == keyword.data
     assert json['status'] == keyword.status
 
+    # we have to get the parent using TestSession (rather than FactorySession)
+    # because the parent's schema might have changed in an earlier iteration
+    # in test_set_keyword
     schema = None
-    parent = FactorySession.get(Keyword, keyword.parent_key)
+    parent = TestSession.get(Keyword, keyword.parent_key)
     while parent is not None:
         if schema := parent.child_schema:
             break
@@ -250,6 +252,7 @@ def test_suggest_keyword(
         parent_key=keywords_top[2].key,
         data={'abbr': fake.word(), 'title': fake.company()},
         status='proposed',
+        child_schema=None,
     )
     r = client.post(f'/keyword/{keyword_1.key}', json=dict(
         data=keyword_1.data,
@@ -257,22 +260,18 @@ def test_suggest_keyword(
 
     if authorized:
         assert_json_result(r, r.json(), keyword_1)
-        assert_db_state(keywords_flat + [keyword_1])
-        assert_audit_log(
-            api.grant_type,
-            dict(command='insert', keyword=keyword_1),
-        )
 
         keyword_2 = keyword_build(
             parent_key=keyword_1.key,
             data={'abbr': fake.word(), 'title': fake.company()},
             status='proposed',
+            child_schema=None,
         )
         r = client.post(f'/keyword/{keyword_2.key}', json=dict(
             data=keyword_2.data,
         ))
-
         assert_json_result(r, r.json(), keyword_2)
+
         assert_db_state(keywords_flat + [keyword_1, keyword_2])
         assert_audit_log(
             api.grant_type,
@@ -382,3 +381,62 @@ def test_suggest_keyword_invalid_data(
 
     assert_db_state(keywords_flat)
     assert_no_audit_log()
+
+
+@pytest.mark.require_scope(ODPScope.KEYWORD_ADMIN)
+def test_set_keyword(
+        api,
+        scopes,
+        keyword_batch,
+):
+    keywords_top, keywords_flat = keyword_batch
+    authorized = ODPScope.KEYWORD_ADMIN in scopes
+    client = api(scopes)
+
+    keywords_flat.reverse()
+    audit = []
+    for n in range(4):
+        create = n == 0 or randint(0, 1)
+        for i, kw in enumerate(keywords_flat):
+            if kw.key.count('/') == n:
+                data = {'abbr': fake.word(), 'title': fake.company()}
+                child_schema = FactorySession.execute(select(Schema)).scalars().first() if randint(0, 1) else None
+
+                if create:
+                    kw_in = keyword_build(
+                        parent_key=kw.key,
+                        data=data,
+                        child_schema=child_schema,
+                    )
+                    audit += [dict(command='insert', keyword=kw_in)]
+                else:
+                    kw_in = keyword_build(
+                        parent_key=kw.parent_key,
+                        key=kw.key,
+                        data=data,
+                        child_schema=child_schema,
+                    )
+                    audit += [dict(command='update', keyword=kw_in, replace=i)]
+
+                r = client.put(f'/keyword/{kw_in.key}', json=dict(
+                    data=kw_in.data,
+                    status=kw_in.status,
+                    child_schema_id=kw_in.child_schema_id,
+                ))
+
+                if authorized:
+                    assert_json_result(r, r.json(), kw_in)
+                else:
+                    assert_forbidden(r)
+                break
+
+    if authorized:
+        replace_indices = [entry.pop('replace', None) for entry in audit]
+        for replace_index in reversed(sorted(filter(lambda i: i is not None, replace_indices))):
+            keywords_flat.pop(replace_index)
+        assert_db_state(keywords_flat + [entry.get('keyword') for entry in audit])
+        assert_audit_log(api.grant_type, *audit)
+
+    else:
+        assert_db_state(keywords_flat)
+        assert_no_audit_log()
