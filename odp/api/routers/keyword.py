@@ -175,13 +175,13 @@ async def get_keyword(
 
 @router.post(
     '/{key:path}',
-    dependencies=[Depends(validate_keyword_data)],
 )
 async def suggest_keyword(
         keyword_in: KeywordModelIn,
         key: str = Path(..., title='Keyword identifier', regex=KEYWORD_REGEX),
-        parent_key: str = Depends(get_parent_key),
         auth: Authorized = Depends(Authorize(ODPScope.KEYWORD_SUGGEST)),
+        parent_key: str = Depends(get_parent_key),
+        _=Depends(validate_keyword_data),
 ) -> KeywordModel:
     """
     Create a keyword with status `proposed`. Requires scope `odp.keyword:suggest`.

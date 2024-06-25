@@ -90,13 +90,13 @@ def assert_json_result(response, json, keyword, recurse=False):
         assert 'child_keywords' not in json
 
 
-def assert_json_results(response, json, keywords_top, recurse=False):
+def assert_json_results(response, json, keywords, recurse=False):
     """Verify that the API result list matches the given keyword batch."""
     items = json['items']
-    assert json['total'] == len(items) == len(keywords_top)
+    assert json['total'] == len(items) == len(keywords)
     items.sort(key=lambda i: i['key'])
-    keywords_top.sort(key=lambda k: k.key)
-    for n, keyword in enumerate(keywords_top):
+    keywords.sort(key=lambda k: k.key)
+    for n, keyword in enumerate(keywords):
         assert_json_result(response, items[n], keyword, recurse)
 
 
@@ -132,55 +132,47 @@ def test_list_keywords(
     authorized = ODPScope.KEYWORD_READ in scopes
     client = api(scopes)
 
-    r = client.get(f'/keyword/{keywords_top[2].key}/?recurse={recurse}')
-    if authorized:
-        assert_json_results(r, r.json(), keywords_top[2].children, recurse)
-    else:
-        assert_forbidden(r)
-
-    try:
-        r = client.get(f'/keyword/{keywords_top[1].children[1].key}/?recurse={recurse}')
-        if authorized:
-            assert_json_results(r, r.json(), keywords_top[1].children[1].children, recurse)
-        else:
-            assert_forbidden(r)
-    except IndexError:
-        pass
-
-    try:
-        r = client.get(f'/keyword/{keywords_top[0].children[0].children[0].key}/?recurse={recurse}')
-        if authorized:
-            assert_json_results(r, r.json(), keywords_top[0].children[0].children[0].children, recurse)
-        else:
-            assert_forbidden(r)
-    except IndexError:
-        pass
+    for n in range(4):
+        for kw in reversed(keywords_flat):
+            if kw.key.count('/') == n:
+                r = client.get(f'/keyword/{kw.key}/?recurse={recurse}')
+                if authorized:
+                    assert_json_results(r, r.json(), kw.children, recurse)
+                else:
+                    assert_forbidden(r)
+                break
 
     assert_db_state(keywords_flat)
     assert_no_audit_log()
 
 
+@pytest.mark.require_scope(ODPScope.KEYWORD_READ)
 @pytest.mark.parametrize('recurse', [False, True])
 def test_list_keywords_not_found(
         api,
+        scopes,
         keyword_batch,
         recurse,
 ):
     keywords_top, keywords_flat = keyword_batch
-    scopes = [ODPScope.KEYWORD_READ]
+    authorized = ODPScope.KEYWORD_READ in scopes
     client = api(scopes)
 
     r = client.get(f'/keyword/foo/?recurse={recurse}')
-    assert_not_found(r, "Parent keyword 'foo' does not exist")
+    if authorized:
+        assert_not_found(r, "Parent keyword 'foo' does not exist")
+    else:
+        assert_forbidden(r)
 
-    r = client.get(f'/keyword/{(key := keywords_top[2].key)}/foo/?recurse={recurse}')
-    assert_not_found(r, f"Parent keyword '{key}/foo' does not exist")
-
-    try:
-        r = client.get(f'/keyword/{(key := keywords_top[1].children[1].key)}/foo/?recurse={recurse}')
-        assert_not_found(r, f"Parent keyword '{key}/foo' does not exist")
-    except IndexError:
-        pass
+    for n in range(2):
+        for kw in reversed(keywords_flat):
+            if kw.key.count('/') == n:
+                r = client.get(f'/keyword/{kw.key}/foo/?recurse={recurse}')
+                if authorized:
+                    assert_not_found(r, f"Parent keyword '{kw.key}/foo' does not exist")
+                else:
+                    assert_forbidden(r)
+                break
 
     assert_db_state(keywords_flat)
     assert_no_audit_log()
@@ -198,55 +190,47 @@ def test_get_keyword(
     authorized = ODPScope.KEYWORD_READ in scopes
     client = api(scopes)
 
-    r = client.get(f'/keyword/{keywords_top[2].key}?recurse={recurse}')
-    if authorized:
-        assert_json_result(r, r.json(), keywords_top[2], recurse)
-    else:
-        assert_forbidden(r)
-
-    try:
-        r = client.get(f'/keyword/{keywords_top[1].children[1].key}?recurse={recurse}')
-        if authorized:
-            assert_json_result(r, r.json(), keywords_top[1].children[1], recurse)
-        else:
-            assert_forbidden(r)
-    except IndexError:
-        pass
-
-    try:
-        r = client.get(f'/keyword/{keywords_top[0].children[0].children[0].key}?recurse={recurse}')
-        if authorized:
-            assert_json_result(r, r.json(), keywords_top[0].children[0].children[0], recurse)
-        else:
-            assert_forbidden(r)
-    except IndexError:
-        pass
+    for n in range(4):
+        for kw in reversed(keywords_flat):
+            if kw.key.count('/') == n:
+                r = client.get(f'/keyword/{kw.key}?recurse={recurse}')
+                if authorized:
+                    assert_json_result(r, r.json(), kw, recurse)
+                else:
+                    assert_forbidden(r)
+                break
 
     assert_db_state(keywords_flat)
     assert_no_audit_log()
 
 
+@pytest.mark.require_scope(ODPScope.KEYWORD_READ)
 @pytest.mark.parametrize('recurse', [False, True])
 def test_get_keyword_not_found(
         api,
+        scopes,
         keyword_batch,
         recurse,
 ):
     keywords_top, keywords_flat = keyword_batch
-    scopes = [ODPScope.KEYWORD_READ]
+    authorized = ODPScope.KEYWORD_READ in scopes
     client = api(scopes)
 
     r = client.get(f'/keyword/foo?recurse={recurse}')
-    assert_not_found(r, "Keyword 'foo' does not exist")
+    if authorized:
+        assert_not_found(r, "Keyword 'foo' does not exist")
+    else:
+        assert_forbidden(r)
 
-    r = client.get(f'/keyword/{(key := keywords_top[2].key)}/foo?recurse={recurse}')
-    assert_not_found(r, f"Keyword '{key}/foo' does not exist")
-
-    try:
-        r = client.get(f'/keyword/{(key := keywords_top[1].children[1].key)}/foo?recurse={recurse}')
-        assert_not_found(r, f"Keyword '{key}/foo' does not exist")
-    except IndexError:
-        pass
+    for n in range(2):
+        for kw in reversed(keywords_flat):
+            if kw.key.count('/') == n:
+                r = client.get(f'/keyword/{kw.key}/foo?recurse={recurse}')
+                if authorized:
+                    assert_not_found(r, f"Keyword '{kw.key}/foo' does not exist")
+                else:
+                    assert_forbidden(r)
+                break
 
     assert_db_state(keywords_flat)
     assert_no_audit_log()
@@ -302,72 +286,99 @@ def test_suggest_keyword(
         assert_no_audit_log()
 
 
-def test_suggest_keyword_not_found(
+@pytest.mark.require_scope(ODPScope.KEYWORD_SUGGEST)
+def test_suggest_keyword_parent_not_found(
         api,
+        scopes,
         keyword_batch,
 ):
     keywords_top, keywords_flat = keyword_batch
-    scopes = [ODPScope.KEYWORD_SUGGEST]
+    authorized = ODPScope.KEYWORD_SUGGEST in scopes
     client = api(scopes)
 
     r = client.post('/keyword/foo/bar', json=dict(
         data={'abbr': fake.word(), 'title': fake.company()},
     ))
-    assert_not_found(r, "Parent keyword 'foo' does not exist")
+    if authorized:
+        assert_not_found(r, "Parent keyword 'foo' does not exist")
+    else:
+        assert_forbidden(r)
 
     r = client.post(f'/keyword/{(key := keywords_top[2].key)}/foo/bar', json=dict(
         data={'abbr': fake.word(), 'title': fake.company()},
     ))
-    assert_not_found(r, f"Parent keyword '{key}/foo' does not exist")
+    if authorized:
+        assert_not_found(r, f"Parent keyword '{key}/foo' does not exist")
+    else:
+        assert_forbidden(r)
 
     assert_db_state(keywords_flat)
     assert_no_audit_log()
 
 
+@pytest.mark.require_scope(ODPScope.KEYWORD_SUGGEST)
 def test_suggest_keyword_no_parent(
         api,
+        scopes,
         keyword_batch,
 ):
     keywords_top, keywords_flat = keyword_batch
-    scopes = [ODPScope.KEYWORD_SUGGEST]
+    authorized = ODPScope.KEYWORD_SUGGEST in scopes
+
     r = api(scopes).post('/keyword/foo', json=dict(
         data={'abbr': fake.word(), 'title': fake.company()},
     ))
-    assert_unprocessable(r, "key must be suffixed to a parent key")
+    if authorized:
+        assert_unprocessable(r, "key must be suffixed to a parent key")
+    else:
+        assert_forbidden(r)
+
     assert_db_state(keywords_flat)
     assert_no_audit_log()
 
 
+@pytest.mark.require_scope(ODPScope.KEYWORD_SUGGEST)
 def test_suggest_keyword_conflict(
         api,
+        scopes,
         keyword_batch,
 ):
     keywords_top, keywords_flat = keyword_batch
-    scopes = [ODPScope.KEYWORD_SUGGEST]
+    authorized = ODPScope.KEYWORD_SUGGEST in scopes
     client = api(scopes)
 
-    for n in (1, 2, 3):
-        for kw in keywords_flat:
+    for n in range(1, 4):
+        for kw in reversed(keywords_flat):
             if kw.key.count('/') == n:
                 r = client.post(f'/keyword/{kw.key}', json=dict(
                     data={'abbr': fake.word(), 'title': fake.company()},
                 ))
-                assert_conflict(r, f"Keyword '{kw.key}' already exists")
+                if authorized:
+                    assert_conflict(r, f"Keyword '{kw.key}' already exists")
+                else:
+                    assert_forbidden(r)
                 break
 
     assert_db_state(keywords_flat)
     assert_no_audit_log()
 
 
+@pytest.mark.require_scope(ODPScope.KEYWORD_SUGGEST)
 def test_suggest_keyword_invalid_data(
         api,
+        scopes,
         keyword_batch,
 ):
     keywords_top, keywords_flat = keyword_batch
-    scopes = [ODPScope.KEYWORD_SUGGEST]
+    authorized = ODPScope.KEYWORD_SUGGEST in scopes
+
     r = api(scopes).post(f'/keyword/{keywords_top[2].key}/foo', json=dict(
         data={'title': fake.company()},  # missing required property 'abbr'
     ))
-    assert_unprocessable(r, valid=False)
+    if authorized:
+        assert_unprocessable(r, valid=False)
+    else:
+        assert_forbidden(r)
+
     assert_db_state(keywords_flat)
     assert_no_audit_log()
