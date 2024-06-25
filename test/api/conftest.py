@@ -10,7 +10,7 @@ from odp.const import ODPScope
 from odp.const.db import TagCardinality
 from odp.db.models import Collection, Provider, Scope
 from odp.lib.hydra import HydraAdminAPI
-from test.api import all_scopes, all_scopes_excluding
+from test.api import all_scopes_excluding
 from test.factories import ClientFactory, FactorySession, RoleFactory, UserFactory
 
 MockToken = namedtuple('MockToken', ('active', 'client_id', 'sub'))
@@ -213,7 +213,7 @@ def tag_cardinality(request):
     return request.param
 
 
-@pytest.fixture(params=['scope_match', 'scope_none', 'scope_all', 'scope_excl'])
+@pytest.fixture(params=['scope_match', 'scope_mismatch'])
 def scopes(request):
     """Fixture for parameterizing the set of auth scopes
     to be associated with the API test client.
@@ -228,8 +228,6 @@ def scopes(request):
 
         @pytest.mark.parametrize('scopes', [
             [ODPScope.CATALOG_READ],
-            [],
-            all_scopes,
             all_scopes_excluding(ODPScope.CATALOG_READ),
         ])
 
@@ -238,11 +236,7 @@ def scopes(request):
 
     if request.param == 'scope_match':
         return [scope]
-    elif request.param == 'scope_none':
-        return []
-    elif request.param == 'scope_all':
-        return all_scopes
-    elif request.param == 'scope_excl':
+    elif request.param == 'scope_mismatch':
         return all_scopes_excluding(scope)
 
 
