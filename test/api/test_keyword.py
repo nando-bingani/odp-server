@@ -6,7 +6,7 @@ from sqlalchemy import select
 from odp.const import ODPScope
 from odp.db.models import Keyword, KeywordAudit, Schema
 from test import TestSession
-from test.api import assert_conflict, assert_forbidden, assert_new_timestamp, assert_not_found, assert_unprocessable
+from test.api import assert_conflict, assert_empty_result, assert_forbidden, assert_new_timestamp, assert_not_found, assert_unprocessable
 from test.factories import FactorySession, KeywordFactory, fake
 
 
@@ -509,6 +509,70 @@ def test_set_keyword_invalid_data(
         assert_unprocessable(r, valid=False)
     else:
         assert_forbidden(r)
+
+    assert_db_state(keywords_flat)
+    assert_no_audit_log()
+
+
+@pytest.mark.require_scope(ODPScope.KEYWORD_ADMIN)
+def test_delete_keyword(
+        api,
+        scopes,
+        keyword_batch,
+):
+    keywords_top, keywords_flat = keyword_batch
+    authorized = ODPScope.KEYWORD_ADMIN in scopes
+    client = api(scopes)
+
+    keywords_flat.reverse()
+    audit = []
+    for n in range(4):
+        for i, kw in enumerate(keywords_flat):
+            if kw.key.count('/') == n:
+                if can_delete := not kw.children:
+                    audit += [dict(command='delete', keyword=kw, index=i)]
+
+                r = client.delete(f'/keyword/{kw.key}')
+
+                if authorized:
+                    if can_delete:
+                        assert_empty_result(r)
+                    else:
+                        assert_unprocessable(r, f"Keyword '{kw.key}' cannot be deleted as it has sub-keywords")
+                else:
+                    assert_forbidden(r)
+                break
+
+    if authorized:
+        delete_indices = [entry.pop('index') for entry in audit]
+        for delete_index in reversed(sorted(delete_indices)):
+            keywords_flat.pop(delete_index)
+        assert_db_state(keywords_flat)
+        assert_audit_log(api.grant_type, *audit)
+    else:
+        assert_db_state(keywords_flat)
+        assert_no_audit_log()
+
+
+@pytest.mark.require_scope(ODPScope.KEYWORD_ADMIN)
+def test_delete_keyword_not_found(
+        api,
+        scopes,
+        keyword_batch,
+):
+    keywords_top, keywords_flat = keyword_batch
+    authorized = ODPScope.KEYWORD_ADMIN in scopes
+    client = api(scopes)
+
+    for n in range(2):
+        for kw in reversed(keywords_flat):
+            if kw.key.count('/') == n:
+                r = client.delete(f'/keyword/{kw.key}/foo')
+                if authorized:
+                    assert_not_found(r, f"Keyword '{kw.key}/foo' does not exist")
+                else:
+                    assert_forbidden(r)
+                break
 
     assert_db_state(keywords_flat)
     assert_no_audit_log()

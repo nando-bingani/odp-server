@@ -277,5 +277,5 @@ async def delete_keyword(
 
     except IntegrityError as e:
         raise HTTPException(
-            HTTP_422_UNPROCESSABLE_ENTITY, f"Keyword '{key}' cannot be deleted"
+            HTTP_422_UNPROCESSABLE_ENTITY, f"Keyword '{key}' cannot be deleted as it has sub-keywords"
         ) from e
