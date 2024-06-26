@@ -211,13 +211,13 @@ async def suggest_keyword(
 
 @router.put(
     '/{key:path}',
-    dependencies=[Depends(validate_keyword_data)],
 )
 async def set_keyword(
         keyword_in: KeywordModelAdmin,
         key: str = Path(..., title='Keyword identifier', regex=KEYWORD_REGEX),
-        parent_key: str = Depends(get_parent_key),
         auth: Authorized = Depends(Authorize(ODPScope.KEYWORD_ADMIN)),
+        parent_key: str = Depends(get_parent_key),
+        _=Depends(validate_keyword_data),
 ) -> KeywordModel:
     """
     Create or update a keyword. Requires scope `odp.keyword:admin`.

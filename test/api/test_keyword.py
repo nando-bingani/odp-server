@@ -440,3 +440,75 @@ def test_set_keyword(
     else:
         assert_db_state(keywords_flat)
         assert_no_audit_log()
+
+
+@pytest.mark.require_scope(ODPScope.KEYWORD_ADMIN)
+def test_set_keyword_parent_not_found(
+        api,
+        scopes,
+        keyword_batch,
+):
+    keywords_top, keywords_flat = keyword_batch
+    authorized = ODPScope.KEYWORD_ADMIN in scopes
+    client = api(scopes)
+
+    r = client.put('/keyword/foo/bar', json=dict(
+        data={'abbr': fake.word(), 'title': fake.company()},
+    ))
+    if authorized:
+        assert_not_found(r, "Parent keyword 'foo' does not exist")
+    else:
+        assert_forbidden(r)
+
+    r = client.put(f'/keyword/{(key := keywords_top[2].key)}/foo/bar', json=dict(
+        data={'abbr': fake.word(), 'title': fake.company()},
+    ))
+    if authorized:
+        assert_not_found(r, f"Parent keyword '{key}/foo' does not exist")
+    else:
+        assert_forbidden(r)
+
+    assert_db_state(keywords_flat)
+    assert_no_audit_log()
+
+
+@pytest.mark.require_scope(ODPScope.KEYWORD_ADMIN)
+def test_set_keyword_no_parent(
+        api,
+        scopes,
+        keyword_batch,
+):
+    keywords_top, keywords_flat = keyword_batch
+    authorized = ODPScope.KEYWORD_ADMIN in scopes
+
+    r = api(scopes).put('/keyword/foo', json=dict(
+        data={'abbr': fake.word(), 'title': fake.company()},
+    ))
+    if authorized:
+        assert_unprocessable(r, "key must be suffixed to a parent key")
+    else:
+        assert_forbidden(r)
+
+    assert_db_state(keywords_flat)
+    assert_no_audit_log()
+
+
+@pytest.mark.require_scope(ODPScope.KEYWORD_ADMIN)
+def test_set_keyword_invalid_data(
+        api,
+        scopes,
+        keyword_batch,
+):
+    keywords_top, keywords_flat = keyword_batch
+    authorized = ODPScope.KEYWORD_ADMIN in scopes
+
+    r = api(scopes).put(f'/keyword/{keywords_top[2].key}/foo', json=dict(
+        data={'abbr': fake.word()},  # missing required property 'title'
+    ))
+    if authorized:
+        assert_unprocessable(r, valid=False)
+    else:
+        assert_forbidden(r)
+
+    assert_db_state(keywords_flat)
+    assert_no_audit_log()
