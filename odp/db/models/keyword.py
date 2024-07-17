@@ -10,8 +10,7 @@ class Keyword(Base):
     """A keyword identifies and describes a term in a vocabulary,
     which may be hierarchical.
 
-    A keyword's key consists of its parent's key plus a non-empty
-    suffix.
+    A keyword id consists of the parent id plus a non-empty suffix.
 
     A vocabulary is simply a keyword that is a parent of a set of
     keywords. One keyword in such a set may itself represent a
@@ -27,11 +26,11 @@ class Keyword(Base):
 
     __table_args__ = (
         CheckConstraint(
-            'parent_key is null or starts_with(key, parent_key)',
-            name='keyword_parent_key_suffix_check',
+            'parent_id is null or starts_with(id, parent_id)',
+            name='keyword_parent_id_suffix_check',
         ),
         CheckConstraint(
-            'parent_key is not null or child_schema_id is not null',
+            'parent_id is not null or child_schema_id is not null',
             name='keyword_root_child_schema_check',
         ),
         CheckConstraint(
@@ -44,19 +43,19 @@ class Keyword(Base):
         ),
     )
 
-    key = Column(String, primary_key=True)
+    id = Column(String, primary_key=True)
     data = Column(JSONB, nullable=False)
     status = Column(Enum(KeywordStatus), nullable=False)
 
-    parent_key = Column(String, ForeignKey('keyword.key', ondelete='RESTRICT'))
-    parent = relationship('Keyword', remote_side=key)
-    children = relationship('Keyword', order_by='Keyword.key', viewonly=True)
+    parent_id = Column(String, ForeignKey('keyword.id', ondelete='RESTRICT'))
+    parent = relationship('Keyword', remote_side=id)
+    children = relationship('Keyword', order_by='Keyword.id', viewonly=True)
 
     child_schema_id = Column(String)
     child_schema_type = Column(Enum(SchemaType))
     child_schema = relationship('Schema')
 
-    _repr_ = 'key', 'status', 'child_schema_id'
+    _repr_ = 'id', 'status', 'parent_id', 'child_schema_id'
 
 
 class KeywordAudit(Base):
@@ -70,7 +69,8 @@ class KeywordAudit(Base):
     command = Column(Enum(AuditCommand), nullable=False)
     timestamp = Column(TIMESTAMP(timezone=True), nullable=False)
 
-    _key = Column(String, nullable=False)
+    _id = Column(String, nullable=False)
     _data = Column(JSONB, nullable=False)
     _status = Column(String, nullable=False)
+    _parent_id = Column(String)
     _child_schema_id = Column(String)

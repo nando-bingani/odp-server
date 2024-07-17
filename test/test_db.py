@@ -159,19 +159,19 @@ def test_create_collection_tag():
 
 def test_create_keyword():
     def assert_result(kw):
-        result = results.pop(kw.key)
+        result = results.pop(kw.id)
         assert (
-                   kw.key,
+                   kw.id,
                    kw.data,
                    kw.status,
-                   kw.parent_key,
+                   kw.parent_id,
                    kw.child_schema_id,
                    kw.child_schema_type,
                ) == (
-                   result.key,
+                   result.id,
                    result.data,
                    result.status,
-                   result.parent_key,
+                   result.parent_id,
                    result.child_schema_id,
                    result.child_schema_type,
                )
@@ -179,7 +179,7 @@ def test_create_keyword():
             assert_result(child_kw)
 
     keyword = KeywordFactory()
-    results = {row.key: row for row in TestSession.execute(select(Keyword)).scalars()}
+    results = {row.id: row for row in TestSession.execute(select(Keyword)).scalars()}
     assert_result(keyword)
     assert not results  # should have popped all
 

@@ -271,12 +271,12 @@ class KeywordFactory(ODPModelFactory):
         model = Keyword
         exclude = ('has_child_schema',)
 
-    parent_key = None
-    key = factory.LazyAttributeSequence(lambda k, n: (f'{k.parent_key}/' if k.parent_key else '') + f'{fake.word()}.{n}')
+    parent_id = None
+    id = factory.LazyAttributeSequence(lambda k, n: (f'{k.parent_id}/' if k.parent_id else '') + f'{fake.word()}.{n}')
     data = factory.LazyFunction(lambda: {fake.word(): fake.word()})
     status = factory.LazyFunction(lambda: choice(('proposed', 'approved', 'rejected')))
 
-    has_child_schema = factory.LazyAttribute(lambda k: '/' not in k.key or randint(0, 1))
+    has_child_schema = factory.LazyAttribute(lambda k: '/' not in k.id or randint(0, 1))
     child_schema = factory.Maybe(
         'has_child_schema',
         yes_declaration=factory.SubFactory(SchemaFactory, type='keyword'),
@@ -287,10 +287,10 @@ class KeywordFactory(ODPModelFactory):
 
     @factory.post_generation
     def children(obj, create, _):
-        if len(obj.key.split('/')) < 4:
+        if len(obj.id.split('/')) < 4:
             add_child = KeywordFactory.create if create else KeywordFactory.build
             for n in range(randint(0, 5)):
-                add_child(parent_key=obj.key)
+                add_child(parent_id=obj.id)
 
 
 class VocabularyTermFactory(ODPModelFactory):
