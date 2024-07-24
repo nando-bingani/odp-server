@@ -19,9 +19,9 @@ def assert_forbidden(response):
     assert response.json() == {'detail': 'Forbidden'}
 
 
-def assert_not_found(response):
+def assert_not_found(response, message='Not Found'):
     assert response.status_code == 404
-    assert response.json() == {'detail': 'Not Found'}
+    assert response.json() == {'detail': message}
 
 
 def assert_method_not_allowed(response):

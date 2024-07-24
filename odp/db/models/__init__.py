@@ -2,6 +2,7 @@ from .archive import Archive, ArchiveResource
 from .catalog import Catalog, CatalogRecord, CatalogRecordFacet
 from .client import Client, ClientScope
 from .collection import Collection, CollectionAudit, CollectionTag, CollectionTagAudit
+from .keyword import Keyword, KeywordAudit
 from .package import Package, PackageAudit, PackageResource, PackageTag, PackageTagAudit
 from .provider import Provider, ProviderAudit, ProviderUser
 from .record import PublishedRecord, Record, RecordAudit, RecordPackage, RecordTag, RecordTagAudit

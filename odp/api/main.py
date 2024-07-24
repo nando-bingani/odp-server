@@ -21,6 +21,7 @@ for route in (
         'catalog',
         'client',
         'collection',
+        'keyword',
         'package',
         'provider',
         'record',
