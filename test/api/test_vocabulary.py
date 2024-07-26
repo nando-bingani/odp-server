@@ -256,9 +256,11 @@ def test_update_term_not_found(api, vocabulary_batch):
     vocab = vocabulary_batch[2]
     vocab.terms  # load existing terms
 
+    unknown_term = VocabularyTermFactory.build(vocabulary=vocab)
+
     r = client.put(f'/vocabulary/{vocab.id}/term', json=dict(
-        id=fake.word(),
-        data={'title': 'Some Project'},
+        id=unknown_term.term_id,
+        data=unknown_term.data,
     ))
     assert_not_found(r)
     assert_db_state(vocabulary_batch)
