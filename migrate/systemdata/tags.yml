@@ -5,6 +5,13 @@ Package.DOI:
   scope_id: odp.package:doi
   schema_id: Tag.DOI
 
+Package.Contributor:
+  type: package
+  cardinality: multi
+  public: True
+  scope_id: odp.package:contributor
+  schema_id: Tag.Contributor
+
 Collection.Published:
   type: collection
   cardinality: one
