@@ -58,6 +58,7 @@ def api(request, monkeypatch):
             client_provider: Provider = None,
             role_id: str = 'odp.test.role',
             user_id: str = 'odp.test.user',
+            user_email: str = 'test@saeon.ac.za',
             user_providers: list[Provider] = None,
             user_collections: list[Collection] = None,
     ):
@@ -70,6 +71,7 @@ def api(request, monkeypatch):
             odp_user = UserFactory(
                 id=user_id,
                 name='Test User',
+                email=user_email,
                 roles=[RoleFactory(
                     id=role_id,
                     scopes=scope_objects,

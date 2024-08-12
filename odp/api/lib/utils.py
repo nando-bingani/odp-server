@@ -11,6 +11,7 @@ def output_tag_instance_model(tag_instance: CollectionTag | RecordTag) -> TagIns
         tag_id=tag_instance.tag_id,
         user_id=tag_instance.user_id,
         user_name=tag_instance.user.name if tag_instance.user_id else None,
+        user_email=tag_instance.user.email if tag_instance.user_id else None,
         data=tag_instance.data,
         timestamp=tag_instance.timestamp.isoformat(),
         cardinality=tag_instance.tag.cardinality,

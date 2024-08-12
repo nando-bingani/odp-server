@@ -10,8 +10,15 @@ from odp.const.db import ScopeType
 from odp.db.models import CollectionTag, PublishedRecord, Record, RecordAudit, RecordTag, RecordTagAudit, Scope, User
 from test import TestSession
 from test.api import (
-    all_scopes, all_scopes_excluding, assert_conflict, assert_empty_result, assert_forbidden, assert_new_timestamp,
-    assert_not_found, assert_unprocessable,
+    all_scopes,
+    all_scopes_excluding,
+    assert_conflict,
+    assert_empty_result,
+    assert_forbidden,
+    assert_new_timestamp,
+    assert_not_found,
+    assert_tag_instance_output,
+    assert_unprocessable,
 )
 from test.api.conftest import try_skip_collection_constraint
 from test.factories import (
@@ -261,19 +268,6 @@ def assert_json_record_result(response, json, record):
         assert json_tag['user_name'] == db_tags[n].user.name
         assert json_tag['data'] == db_tags[n].data
         assert_new_timestamp(datetime.fromisoformat(json_tag['timestamp']))
-
-
-def assert_json_tag_result(response, json, record_tag, grant_type):
-    """Verify that the API result matches the given record tag dict."""
-    user_id = record_tag.get('user_id', 'odp.test.user')
-    assert response.status_code == 200
-    assert json['tag_id'] == record_tag['tag_id']
-    assert json['user_id'] == (user_id if grant_type == 'authorization_code' else None)
-    assert json['user_name'] == ('Test User' if grant_type == 'authorization_code' else None)
-    assert json['data'] == record_tag['data']
-    assert_new_timestamp(datetime.fromisoformat(json['timestamp']))
-    assert json['cardinality'] == record_tag['cardinality']
-    assert json['public'] == record_tag['public']
 
 
 def assert_json_record_results(response, json, records):
@@ -968,7 +962,7 @@ def test_tag_record(api, record_batch_no_tags, scopes, collection_constraint, ta
 
     if authorized:
         if is_keyword in ('no', 'yes-valid'):
-            assert_json_tag_result(r, r.json(), record_tag_1, api.grant_type)
+            assert_tag_instance_output(r, record_tag_1, api.grant_type)
             assert_db_tag_state(record_id, api.grant_type, record_tag_1)
             assert_tag_audit_log(
                 api.grant_type,
@@ -985,7 +979,7 @@ def test_tag_record(api, record_batch_no_tags, scopes, collection_constraint, ta
                     public=tag.public,
                 )))
 
-            assert_json_tag_result(r, r.json(), record_tag_2, api.grant_type)
+            assert_tag_instance_output(r, record_tag_2, api.grant_type)
             if tag_cardinality in ('one', 'user'):
                 assert_db_tag_state(record_id, api.grant_type, record_tag_2)
                 assert_tag_audit_log(
@@ -1002,7 +996,14 @@ def test_tag_record(api, record_batch_no_tags, scopes, collection_constraint, ta
                 )
 
             # TAG 3 - different client/user
-            client = api(scopes, user_collections=authorized_collections, client_id='testclient2', role_id='testrole2', user_id='testuser2')
+            client = api(
+                scopes,
+                user_collections=authorized_collections,
+                client_id='testclient2',
+                role_id='testrole2',
+                user_id='testuser2',
+                user_email='test2@saeon.ac.za',
+            )
             r = client.post(
                 f'/record/{(record_id := record_batch_no_tags[2].id)}/tag',
                 json=(record_tag_3 := dict(
@@ -1013,9 +1014,10 @@ def test_tag_record(api, record_batch_no_tags, scopes, collection_constraint, ta
                     auth_client_id='testclient2',
                     auth_user_id='testuser2' if api.grant_type == 'authorization_code' else None,
                     user_id='testuser2' if api.grant_type == 'authorization_code' else None,
+                    user_email='test2@saeon.ac.za' if api.grant_type == 'authorization_code' else None,
                 )))
 
-            assert_json_tag_result(r, r.json(), record_tag_3, api.grant_type)
+            assert_tag_instance_output(r, record_tag_3, api.grant_type)
             if tag_cardinality == 'one':
                 assert_db_tag_state(record_id, api.grant_type, record_tag_3)
                 assert_tag_audit_log(
