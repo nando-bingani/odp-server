@@ -9,7 +9,7 @@ Package.Contributor:
   type: package
   cardinality: multi
   public: True
-  scope_id: odp.package:contributor
+  scope_id: odp.package:write
   schema_id: Tag.Contributor
 
 Collection.Published:
