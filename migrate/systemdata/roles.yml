@@ -16,6 +16,7 @@ SAEON.Staff:
     - odp.record:read
     - odp.resource:read
     - odp.resource:read_all
+    - odp.resource:write
     - odp.role:read
     - odp.schema:read
     - odp.scope:read

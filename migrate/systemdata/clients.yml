@@ -31,6 +31,7 @@ ODP.Web.UI:
     - odp.package:doi
     - odp.provider:read
     - odp.record:read
+    - odp.resource:write
     - odp.token:read
     - openid
     - offline_access
@@ -44,6 +45,7 @@ ODP.Web.CI:
   name: ODP Web Client Interface
   secret_env: ODP_WEB_CI_CLIENT_SECRET
   scopes:
+    - odp.archive:read
     - odp.catalog:read
     - odp.catalog:search
     - odp.vocabulary:read
