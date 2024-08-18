@@ -27,8 +27,8 @@ def output_resource_model(resource: Resource) -> ResourceModel:
         timestamp=resource.timestamp.isoformat(),
         provider_id=resource.provider_id,
         provider_key=resource.provider.key,
-        archive_urls={
-            ar.archive_id: ar.archive.url + ar.path
+        archive_paths={
+            ar.archive_id: ar.path
             for ar in resource.archive_resources
         }
     )
