@@ -16,8 +16,7 @@ class Archive(Base):
 
 
 class ArchiveResource(Base):
-    """Model of a many-to-many archive-resource association,
-    representing archived instances of a resource.
+    """An archived instance of a resource.
 
     `path` is relative to `url` of the archive.
     """
@@ -37,4 +36,4 @@ class ArchiveResource(Base):
     path = Column(String, nullable=False)
     timestamp = Column(TIMESTAMP(timezone=True), nullable=False)
 
-    _repr_ = 'archive_id', 'path'
+    _repr_ = 'archive_id', 'resource_id', 'path'

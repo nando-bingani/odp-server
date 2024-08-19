@@ -10,7 +10,7 @@ sys.path.append(str(rootdir))
 from odp.config import config
 from odp.const import ODPArchive
 from odp.db.models import Archive
-from test.factories import ArchiveResourceFactory, FactorySession, PackageFactory, ProviderFactory, ResourceFactory
+from test.factories import ArchiveResourceFactory, FactorySession, PackageFactory, ProviderFactory, ResourceFactory, PackageResourceFactory
 
 if __name__ == '__main__':
     if config.ODP.ENV not in ('development', 'testing'):
@@ -34,7 +34,11 @@ if __name__ == '__main__':
                     )
                     resources += [archive_resource.resource]
 
-                PackageFactory(
+                package = PackageFactory(
                     provider=provider,
-                    resources=resources,
                 )
+                for resource in resources:
+                    PackageResourceFactory(
+                        package=package,
+                        resource=resource,
+                    )

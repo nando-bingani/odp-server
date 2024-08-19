@@ -8,9 +8,7 @@ from odp.db import Base
 
 
 class Resource(Base):
-    """A resource is a descriptive reference to a file, folder or dataset
-    that may be stored in one or more archives, and which may be composed
-    into a package constituting a digital object."""
+    """A resource comprises the metadata for an individual file, folder or dataset."""
 
     __tablename__ = 'resource'
 
@@ -34,4 +32,4 @@ class Resource(Base):
     archive_resources = relationship('ArchiveResource', viewonly=True)
     archives = association_proxy('archive_resources', 'archive')
 
-    _repr_ = 'id', 'title', 'description', 'filename', 'mimetype', 'size', 'provider_id'
+    _repr_ = 'id', 'title', 'filename', 'mimetype', 'size', 'md5', 'provider_id'

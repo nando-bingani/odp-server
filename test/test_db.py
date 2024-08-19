@@ -191,14 +191,12 @@ def test_create_package():
                result.id,
                result.title,
                result.status,
-               result.notes,
                result.provider_id,
                result.timestamp,
            ) == (
                package.id,
                package.title,
                package.status,
-               package.notes,
                package.provider_id,
                package.timestamp,
            )
