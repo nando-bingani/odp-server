@@ -63,7 +63,6 @@ def assert_db_state(packages):
         assert row.id == packages[n].id
         assert row.title == packages[n].title
         assert row.status == packages[n].status
-        assert row.notes == packages[n].notes
         assert_new_timestamp(row.timestamp)
         assert row.provider_id == packages[n].provider_id
 
@@ -107,7 +106,6 @@ def assert_audit_log(command, package, grant_type):
     assert result._id == package.id
     assert result._title == package.title
     assert result._status == package.status
-    assert result._notes == package.notes
     assert result._provider_id == package.provider_id
     assert sorted(result._resources) == sorted(package.resource_ids)
 
@@ -143,7 +141,6 @@ def assert_json_result(response, json, package, detail=False):
     assert json['id'] == package.id
     assert json['title'] == package.title
     assert json['status'] == package.status
-    assert json['notes'] == package.notes
     assert_new_timestamp(datetime.fromisoformat(json['timestamp']))
     assert json['provider_id'] == package.provider_id
     assert json['provider_key'] == package.provider.key
@@ -462,7 +459,6 @@ def _test_create_package(
 
     r = api(scopes, **api_kwargs).post(route, json=dict(
         title=package.title,
-        notes=package.notes,
         provider_id=package.provider_id,
         resource_ids=package.resource_ids,
     ))
@@ -587,7 +583,6 @@ def _test_update_package(
 
     r = api(scopes, **api_kwargs).put(f'{route}{package.id}', json=dict(
         title=package.title,
-        notes=package.notes,
         provider_id=package.provider_id,
         resource_ids=package.resource_ids,
     ))
@@ -621,7 +616,6 @@ def test_update_package_not_found(
 
     r = api(scopes, **api_kwargs).put(f'{route}{package.id}', json=dict(
         title=package.title,
-        notes=package.notes,
         provider_id=package.provider_id,
         resource_ids=package.resource_ids,
     ))

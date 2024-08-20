@@ -27,7 +27,6 @@ def output_package_model(package: Package, *, detail=False) -> PackageModel | Pa
         id=package.id,
         title=package.title,
         status=package.status,
-        notes=package.notes,
         timestamp=package.timestamp.isoformat(),
         provider_id=package.provider_id,
         provider_key=package.provider.key,
@@ -65,7 +64,6 @@ def create_audit_record(
         _id=package.id,
         _title=package.title,
         _status=package.status,
-        _notes=package.notes,
         _provider_id=package.provider_id,
         _resources=[resource.id for resource in package.resources],
     ).save()
@@ -209,7 +207,6 @@ async def _create_package(
     package = Package(
         title=package_in.title,
         status=PackageStatus.pending,
-        notes=package_in.notes,
         timestamp=(timestamp := datetime.now(timezone.utc)),
         provider_id=package_in.provider_id,
         resources=resources_in,
@@ -268,12 +265,10 @@ async def _update_package(
 
     if (
             package.title != package_in.title or
-            package.notes != package_in.notes or
             package.provider_id != package_in.provider_id or
             set(res.id for res in package.resources) != set(res_in.id for res_in in resources_in)
     ):
         package.title = package_in.title
-        package.notes = package_in.notes
         package.timestamp = (timestamp := datetime.now(timezone.utc))
         package.provider_id = package_in.provider_id
         package.resources = resources_in
