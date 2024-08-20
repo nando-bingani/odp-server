@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime, timezone
 
 from sqlalchemy import ARRAY, CheckConstraint, Column, Enum, ForeignKey, ForeignKeyConstraint, Identity, Integer, String, TIMESTAMP, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
@@ -25,9 +26,14 @@ class Package(Base):
     provider_id = Column(String, ForeignKey('provider.id', ondelete='RESTRICT'), nullable=False)
     provider = relationship('Provider')
 
-    # view of associated resources via many-to-many package_resource relation
-    package_resources = relationship('PackageResource', viewonly=True)
-    resources = association_proxy('package_resources', 'resource')
+    # many-to-many package_resource entities are persisted by
+    # assigning/removing Resource instances to/from resources
+    package_resources = relationship('PackageResource', cascade='all, delete-orphan', passive_deletes=True)
+    resources = association_proxy('package_resources', 'resource', creator=lambda r: PackageResource(
+        resource=r, path=r.filename, timestamp=datetime.now(timezone.utc)
+    ))
+    # N.B. the above only works if all the package's resources have filenames;
+    # for other use cases PackageResource entities must be created explicitly
 
     # view of associated tags (one-to-many)
     tags = relationship('PackageTag', viewonly=True)

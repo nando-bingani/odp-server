@@ -10,7 +10,7 @@ sys.path.append(str(rootdir))
 from odp.config import config
 from odp.const import ODPArchive
 from odp.db.models import Archive
-from test.factories import ArchiveResourceFactory, FactorySession, PackageFactory, ProviderFactory, ResourceFactory, PackageResourceFactory
+from test.factories import ArchiveResourceFactory, FactorySession, PackageFactory, ProviderFactory, ResourceFactory
 
 if __name__ == '__main__':
     if config.ODP.ENV not in ('development', 'testing'):
@@ -19,11 +19,11 @@ if __name__ == '__main__':
     mims_archive = FactorySession.get(Archive, ODPArchive.MIMS_ARCHIVE)
     saeon_archive = FactorySession.get(Archive, ODPArchive.SAEON_REPOSITORY)
 
-    for provider in ProviderFactory.create_batch(10):
+    for provider in ProviderFactory.create_batch(5):
         print(f'Creating packages and resources for {provider.key}...')
 
         for archive in mims_archive, saeon_archive:
-            for _ in range(randint(0, 15)):
+            for _ in range(randint(0, 10)):
                 resources = []
                 for _ in range(randint(1, 20)):
                     archive_resource = ArchiveResourceFactory(
@@ -34,11 +34,7 @@ if __name__ == '__main__':
                     )
                     resources += [archive_resource.resource]
 
-                package = PackageFactory(
+                PackageFactory(
                     provider=provider,
+                    resources=resources,
                 )
-                for resource in resources:
-                    PackageResourceFactory(
-                        package=package,
-                        resource=resource,
-                    )

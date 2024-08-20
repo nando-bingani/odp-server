@@ -18,7 +18,6 @@ from odp.db.models import (
     CollectionTag,
     Keyword,
     Package,
-    PackageResource,
     PackageTag,
     Provider,
     Record,
@@ -230,16 +229,6 @@ class ResourceFactory(ODPModelFactory):
     size = factory.LazyFunction(lambda: randint(1, sys.maxsize))
     md5 = factory.Faker('md5')
     provider = factory.SubFactory(ProviderFactory)
-    timestamp = factory.LazyFunction(lambda: datetime.now(timezone.utc))
-
-
-class PackageResourceFactory(ODPModelFactory):
-    class Meta:
-        model = PackageResource
-
-    package = factory.SubFactory(PackageFactory)
-    resource = factory.SubFactory(ResourceFactory)
-    path = factory.LazyAttribute(lambda a: f'{fake.uri_path(deep=randint(1, 5))}/{a.resource.filename}')
     timestamp = factory.LazyFunction(lambda: datetime.now(timezone.utc))
 
 
