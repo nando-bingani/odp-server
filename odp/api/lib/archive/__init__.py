@@ -18,21 +18,22 @@ class ArchiveAdapter:
     def __init__(self, url: str | PathLike) -> None:
         self.url = url
 
-    def get(self, path: str | PathLike) -> FileResponse | RedirectResponse:
+    async def get(self, path: str | PathLike) -> FileResponse | RedirectResponse:
         """Send the contents of the file at `path` to the client,
         or return a redirect."""
         raise NotImplementedError
 
-    def get_zip(self, *paths: str | PathLike) -> FileResponse:
+    async def get_zip(self, *paths: str | PathLike) -> FileResponse:
         """Send a zip file of the directories (recursively) and
         files at `paths` to the client."""
         raise NotImplementedError
 
-    def put(self, path: str | PathLike, file: UploadFile) -> None:
-        """Store the contents of the incoming `file` at `path`."""
+    async def put(self, path: str | PathLike, file: UploadFile, md5: str) -> None:
+        """Store the contents of the incoming `file` at `path` and
+        verify the stored file against the given checksum."""
         raise NotImplementedError
 
-    def put_zip(self, path: str | PathLike, file: UploadFile) -> None:
+    async def put_zip(self, path: str | PathLike, file: UploadFile) -> None:
         """Unpack the contents of the incoming `file` into the
         directory at `path`."""
         raise NotImplementedError

@@ -1,9 +1,10 @@
 import hashlib
+import pathlib
 from datetime import datetime, timezone
-from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Path, Query, UploadFile
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from starlette.status import HTTP_404_NOT_FOUND, HTTP_405_METHOD_NOT_ALLOWED, HTTP_422_UNPROCESSABLE_ENTITY
 
 from odp.api.lib.archive import ArchiveAdapter, get_archive_adapter
@@ -114,16 +115,28 @@ async def list_resources(
 async def add_resource(
         archive_id: str,
         package_id: str,
-        path: str,
-        title: str,
-        description: str = None,
-        filename: str = None,
-        mimetype: str = None,
-        size: int = None,
-        md5: str = None,
-        file: UploadFile = None,
+        path: str = Path(..., title='Archival path, relative to the archive base URL'),
+        title: str = Query(..., title='Resource title'),
+        description: str = Query(None, title='Resource description'),
+        filename: str = Query(None, title='File name'),
+        mimetype: str = Query(None, title='Content type'),
+        size: int = Query(None, title='File size'),
+        md5: str = Query(None, title='MD5 checksum'),
+        file: UploadFile = File(None, title='File upload'),
         archive_adapter: ArchiveAdapter = Depends(get_archive_adapter),
 ) -> ResourceModel:
+    """
+    Add a resource to a package and register it as archived.
+    Resource metadata may be provided via query parameters.
+
+    If the request includes a file upload, it is stored to the
+    archive; upload size and computed checksum are verified
+    against the size and md5 parameters, if supplied.
+
+    The relative path to the resource within the package is set
+    to the filename, if supplied; otherwise, the archival path
+    is used.
+    """
     # todo: archive-specific scopes
     if not (archive := Session.get(Archive, archive_id)):
         raise HTTPException(
@@ -146,29 +159,26 @@ async def add_resource(
             HTTP_422_UNPROCESSABLE_ENTITY, "'..' not allowed in path"
         )
 
-    if Path(path).is_absolute():
+    if pathlib.Path(path).is_absolute():
         raise HTTPException(
             HTTP_422_UNPROCESSABLE_ENTITY, 'path must be relative'
         )
 
     if file is not None:
-        if filename is None:
-            filename = file.filename
-
-        if mimetype is None:
-            mimetype = file.content_type
-
         if size is not None and size != file.size:
             raise HTTPException(
                 HTTP_422_UNPROCESSABLE_ENTITY,
                 f'Upload file size ({file.size}) does not match the given size ({size})'
             )
+        size = file.size
 
-        if md5 is not None and md5 != (file_md5 := hashlib.md5(await file.read()).hexdigest()):
+        file_md5 = hashlib.md5(await file.read()).hexdigest()
+        if md5 is not None and md5 != file_md5:
             raise HTTPException(
                 HTTP_422_UNPROCESSABLE_ENTITY,
                 f"Upload file MD5 checksum '{file_md5}' does not match the given MD5 checksum '{md5}'"
             )
+        md5 = file_md5
 
     resource = Resource(
         title=title,
@@ -182,25 +192,35 @@ async def add_resource(
     )
     resource.save()
 
-    archive_resource = ArchiveResource(
-        archive_id=archive_id,
-        resource_id=resource.id,
-        path=path,
-        timestamp=timestamp,
-    )
-    archive_resource.save()
+    try:
+        archive_resource = ArchiveResource(
+            archive_id=archive_id,
+            resource_id=resource.id,
+            path=path,
+            timestamp=timestamp,
+        )
+        archive_resource.save()
+    except IntegrityError:
+        raise HTTPException(
+            HTTP_422_UNPROCESSABLE_ENTITY, f'Path {path} already exists in archive'
+        )
 
-    package_resource = PackageResource(
-        package_id=package_id,
-        resource_id=resource.id,
-    )
-    package_resource.save()
+    try:
+        package_resource = PackageResource(
+            package_id=package_id,
+            resource_id=resource.id,
+            path=(package_path := (filename or path)),
+            timestamp=timestamp,
+        )
+        package_resource.save()
+    except IntegrityError:
+        raise HTTPException(
+            HTTP_422_UNPROCESSABLE_ENTITY, f'Path {package_path} already exists in package'
+        )
 
     if file is not None:
         try:
-            archive_adapter.put(
-                f'{package_id}/{path}', file
-            )
+            await archive_adapter.put(path, file, md5)
         except NotImplementedError:
             raise HTTPException(
                 HTTP_405_METHOD_NOT_ALLOWED, f'Operation not supported for {archive_id}'

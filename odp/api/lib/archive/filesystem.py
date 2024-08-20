@@ -1,3 +1,4 @@
+import hashlib
 import shutil
 from os import PathLike
 from pathlib import Path
@@ -17,12 +18,13 @@ class FileSystemArchiveAdapter(ArchiveAdapter):
         super().__init__(url)
         self.dir = Path(urlparse(url).path)
 
-    def get(self, path: str | PathLike) -> FileResponse:
+    async def get(self, path: str | PathLike) -> FileResponse:
         """Send the contents of the file at `path` to the client."""
         return FileResponse(self.dir / path)
 
-    def put(self, path: str | PathLike, file: UploadFile) -> None:
-        """Store the contents of the incoming `file` at `path`."""
+    async def put(self, path: str | PathLike, file: UploadFile, md5: str) -> None:
+        """Store the contents of the incoming `file` at `path` and
+        verify the stored file against the given checksum."""
         try:
             (self.dir / path).parent.mkdir(mode=0o755, parents=True, exist_ok=True)
         except OSError as e:
@@ -31,10 +33,16 @@ class FileSystemArchiveAdapter(ArchiveAdapter):
             )
 
         try:
-            file.seek(0)
+            await file.seek(0)
             with open(self.dir / path, 'wb') as f:
                 shutil.copyfileobj(file.file, f)
         except OSError as e:
             raise HTTPException(
                 HTTP_422_UNPROCESSABLE_ENTITY, f'Error creating file at {path}: {e}'
             )
+
+        with open(self.dir / path, 'rb') as f:
+            if md5 != hashlib.md5(f.read()).hexdigest():
+                raise HTTPException(
+                    HTTP_422_UNPROCESSABLE_ENTITY, f'Error creating file at {path}: checksum verification failed'
+                )
