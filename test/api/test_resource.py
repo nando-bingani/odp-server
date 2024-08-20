@@ -21,14 +21,14 @@ def resource_batch():
 
     # optionally put each resource in one or more of the archives
     for resource in resources:
-        resource.archive_urls = {}
+        resource.archive_paths = {}
         for archive in archives:
             if randint(0, 1):
                 ar = ArchiveResourceFactory(
                     archive=archive,
                     resource=resource,
                 )
-                resource.archive_urls[archive.id] = archive.url + ar.path
+                resource.archive_paths[archive.id] = ar.path
 
     return resources
 
@@ -42,8 +42,8 @@ def resource_build(archive=None, archive_path=None, provider=None):
         provider_id=provider.id,
     )
     path = archive_path or f'{fake.uri_path(deep=randint(1, 5))}/{resource.filename}'
-    resource.archive_urls = {
-        archive.id: archive.url + path
+    resource.archive_paths = {
+        archive.id: path
     }
     return resource
 
@@ -71,11 +71,11 @@ def assert_db_state(resources):
 
     archive_resources = []
     for resource in resources:
-        for archive_id, resource_url in resource.archive_urls.items():
+        for archive_id, resource_path in resource.archive_paths.items():
             archive_resources += [ArchiveResourceFactory.stub(
                 archive_id=archive_id,
                 resource_id=resource.id,
-                path=resource_url.removeprefix(TestSession.get(Archive, archive_id).url),
+                path=resource_path,
             )]
     archive_resources.sort(key=lambda ar: (ar.archive_id, ar.resource_id))
 
@@ -99,7 +99,7 @@ def assert_json_result(response, json, resource):
     assert json['md5'] == resource.md5
     assert json['provider_id'] == resource.provider_id
     assert json['provider_key'] == resource.provider.key
-    assert json['archive_urls'] == resource.archive_urls
+    assert json['archive_paths'] == resource.archive_paths
     assert_new_timestamp(datetime.fromisoformat(json['timestamp']))
 
 
@@ -361,7 +361,7 @@ def _test_create_resource(
         api_kwargs,
 ):
     resource = resource_build(provider=resource_batch[2].provider)
-    archive = TestSession.get(Archive, list(resource.archive_urls)[0])
+    archive = TestSession.get(Archive, list(resource.archive_paths)[0])
 
     r = api(scopes, **api_kwargs).post(route, json=dict(
         title=resource.title,
@@ -372,7 +372,7 @@ def _test_create_resource(
         md5=resource.md5,
         provider_id=resource.provider_id,
         archive_id=archive.id,
-        archive_path=resource.archive_urls[archive.id].removeprefix(archive.url),
+        archive_path=resource.archive_paths[archive.id],
     ))
 
     if authorized:
@@ -457,8 +457,8 @@ def _test_create_resource_conflict(
         archive_path=ar.path,
     ))
 
-    # set expected archive_urls here; somehow ar.resource is reloaded by above
-    ar.resource.archive_urls = {ar.archive_id: ar.archive.url + ar.path}
+    # set expected archive_paths here; somehow ar.resource is reloaded by above
+    ar.resource.archive_paths = {ar.archive_id: ar.path}
 
     if authorized:
         assert_conflict(r, f'path {ar.path} already exists in archive {ar.archive_id}')

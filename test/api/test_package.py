@@ -155,7 +155,7 @@ def assert_json_result(response, json, package, detail=False):
         json_resources.sort(key=lambda r: r['id'])
         db_resources.sort(key=lambda r: r.id)
         for n, json_resource in enumerate(json_resources):
-            db_resources[n].archive_urls = {}  # stub for attr used locally in test_resource
+            db_resources[n].archive_paths = {}  # stub for attr used locally in test_resource
             test_resource.assert_json_result(response, json_resource, db_resources[n])
 
         json_tags = json['tags']
