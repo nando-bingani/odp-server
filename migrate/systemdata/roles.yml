@@ -13,6 +13,7 @@ SAEON.Staff:
     - odp.package:read_all
     - odp.package:write
     - odp.provider:read
+    - odp.provider:read_all
     - odp.record:read
     - odp.resource:read
     - odp.resource:read_all

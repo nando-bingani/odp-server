@@ -12,6 +12,7 @@ from test.api import (
     assert_conflict, assert_empty_result, assert_forbidden, assert_new_timestamp,
     assert_not_found, assert_unprocessable,
 )
+from test.api.conftest import try_skip_user_provider_constraint
 from test.factories import ClientFactory, CollectionFactory, PackageFactory, ProviderFactory, RecordFactory, ResourceFactory, UserFactory
 
 
@@ -65,7 +66,7 @@ def assert_db_state(providers):
     result.sort(key=lambda pu: (pu.provider_id, pu.user_id))
     provider_users = []
     for provider in providers:
-        for user_id in provider.user_names:
+        for user_id in provider.user_ids:
             provider_users += [(provider.id, user_id)]
     provider_users.sort()
     assert result == provider_users
@@ -80,7 +81,7 @@ def assert_audit_log(command, provider, grant_type):
     assert result._id == provider.id
     assert result._key == provider.key
     assert result._name == provider.name
-    assert sorted(result._users) == sorted(provider.user_names)
+    assert sorted(result._users) == sorted(provider.user_ids)
 
 
 def assert_no_audit_log():
@@ -111,34 +112,207 @@ def assert_json_results(response, json, providers):
         assert_json_result(response, items[n], provider)
 
 
+def parameterize_api_fixture(
+        providers,
+        grant_type,
+        client_provider_constraint,
+        user_provider_constraint,
+):
+    """Return tuple(client_provider, user_providers) for parameterizing the
+    api fixture, based on constraint params and batch-generated providers.
+
+    In the list tests, match and mismatch have the same behaviour.
+    """
+    try_skip_user_provider_constraint(grant_type, user_provider_constraint)
+
+    if client_provider_constraint == 'client_provider_any':
+        client_provider = None
+    elif client_provider_constraint == 'client_provider_match':
+        client_provider = providers[2]
+    elif client_provider_constraint == 'client_provider_mismatch':
+        client_provider = providers[0]
+
+    if client_provider:
+        client_provider.client_ids += ['odp.test.client']
+
+    if user_provider_constraint == 'user_provider_none':
+        user_providers = None
+    elif user_provider_constraint == 'user_provider_match':
+        user_providers = providers[1:3]
+    elif user_provider_constraint == 'user_provider_mismatch':
+        user_providers = providers[0:2]
+
+    if user_providers:
+        for user_provider in user_providers:
+            user_provider.user_ids += ['odp.test.user']
+            user_provider.user_names['odp.test.user'] = 'Test User'
+
+    return dict(client_provider=client_provider, user_providers=user_providers)
+
+
 @pytest.mark.require_scope(ODPScope.PROVIDER_READ)
-def test_list_providers(api, provider_batch, scopes):
+def test_list_providers(
+        api,
+        scopes,
+        provider_batch,
+        client_provider_constraint,
+        user_provider_constraint,
+):
+    api_kwargs = parameterize_api_fixture(
+        provider_batch,
+        api.grant_type,
+        client_provider_constraint,
+        user_provider_constraint,
+    )
     authorized = ODPScope.PROVIDER_READ in scopes
-    r = api(scopes).get('/provider/')
+
+    if client_provider_constraint == 'client_provider_any':
+        expected_result_batch = provider_batch
+    elif client_provider_constraint == 'client_provider_match':
+        expected_result_batch = [provider_batch[2]]
+    elif client_provider_constraint == 'client_provider_mismatch':
+        expected_result_batch = [provider_batch[0]]
+
+    if api.grant_type == 'authorization_code':
+        if user_provider_constraint == 'user_provider_none':
+            expected_result_batch = []
+        elif user_provider_constraint == 'user_provider_match':
+            expected_result_batch = list(set(provider_batch[1:3]).intersection(expected_result_batch))
+        elif user_provider_constraint == 'user_provider_mismatch':
+            expected_result_batch = list(set(provider_batch[0:2]).intersection(expected_result_batch))
+
+    r = api(scopes, **api_kwargs).get('/provider/')
+
     if authorized:
-        assert_json_results(r, r.json(), provider_batch)
+        assert_json_results(r, r.json(), expected_result_batch)
     else:
         assert_forbidden(r)
+
+    assert_db_state(provider_batch)
+    assert_no_audit_log()
+
+
+@pytest.mark.require_scope(ODPScope.PROVIDER_READ_ALL)
+def test_list_all_providers(
+        api,
+        scopes,
+        provider_batch,
+        client_provider_constraint,
+        user_provider_constraint,
+):
+    """Configured as for test_list_providers, but for this scope+endpoint
+    all providers can always be read unconditionally."""
+    api_kwargs = parameterize_api_fixture(
+        provider_batch,
+        api.grant_type,
+        client_provider_constraint,
+        user_provider_constraint,
+    )
+    authorized = ODPScope.PROVIDER_READ_ALL in scopes
+    expected_result_batch = provider_batch
+
+    r = api(scopes, **api_kwargs).get('/provider/all/')
+
+    if authorized:
+        assert_json_results(r, r.json(), expected_result_batch)
+    else:
+        assert_forbidden(r)
+
     assert_db_state(provider_batch)
     assert_no_audit_log()
 
 
 @pytest.mark.require_scope(ODPScope.PROVIDER_READ)
-def test_get_provider(api, provider_batch, scopes):
-    authorized = ODPScope.PROVIDER_READ in scopes
-    r = api(scopes).get(f'/provider/{provider_batch[2].id}')
+def test_get_provider(
+        api,
+        scopes,
+        provider_batch,
+        client_provider_constraint,
+        user_provider_constraint,
+):
+    api_kwargs = parameterize_api_fixture(
+        provider_batch,
+        api.grant_type,
+        client_provider_constraint,
+        user_provider_constraint,
+    )
+    authorized = (
+            ODPScope.PROVIDER_READ in scopes and
+            client_provider_constraint in ('client_provider_any', 'client_provider_match') and
+            (api.grant_type == 'client_credentials' or user_provider_constraint == 'user_provider_match')
+    )
+
+    r = api(scopes, **api_kwargs).get(f'/provider/{provider_batch[2].id}')
+
     if authorized:
         assert_json_result(r, r.json(), provider_batch[2], detail=True)
     else:
         assert_forbidden(r)
+
     assert_db_state(provider_batch)
     assert_no_audit_log()
 
 
-def test_get_provider_not_found(api, provider_batch):
-    scopes = [ODPScope.PROVIDER_READ]
-    r = api(scopes).get('/provider/foo')
-    assert_not_found(r)
+@pytest.mark.require_scope(ODPScope.PROVIDER_READ_ALL)
+def test_get_any_provider(
+        api,
+        scopes,
+        provider_batch,
+        client_provider_constraint,
+        user_provider_constraint,
+):
+    """Configured as for test_get_provider, but for this scope+endpoint
+    any provider can always be read unconditionally."""
+    api_kwargs = parameterize_api_fixture(
+        provider_batch,
+        api.grant_type,
+        client_provider_constraint,
+        user_provider_constraint,
+    )
+    authorized = ODPScope.PROVIDER_READ_ALL in scopes
+
+    r = api(scopes, **api_kwargs).get(f'/provider/all/{provider_batch[2].id}')
+
+    if authorized:
+        assert_json_result(r, r.json(), provider_batch[2], detail=True)
+    else:
+        assert_forbidden(r)
+
+    assert_db_state(provider_batch)
+    assert_no_audit_log()
+
+
+@pytest.mark.parametrize('route', ['/provider/', '/provider/all/'])
+def test_get_provider_not_found(
+        api,
+        route,
+        provider_batch,
+        client_provider_constraint,
+        user_provider_constraint,
+):
+    scopes = [ODPScope.PROVIDER_READ_ALL] if 'all' in route else [ODPScope.PROVIDER_READ]
+    api_kwargs = parameterize_api_fixture(
+        provider_batch,
+        api.grant_type,
+        client_provider_constraint,
+        user_provider_constraint,
+    )
+    # for the constrainable scope 'odp.provider:read', auth will only ever
+    # succeed for client_credentials with a non-provider-specific client;
+    # all other 'odp.provider:read' cases will fail with a 403 because 'foo'
+    # will never appear in the authorized set of providers
+    authorized = ODPScope.PROVIDER_READ_ALL in scopes or (
+            client_provider_constraint == 'client_provider_any' and
+            api.grant_type == 'client_credentials'
+    )
+
+    r = api(scopes, **api_kwargs).get(f'{route}foo')
+
+    if authorized:
+        assert_not_found(r)
+    else:
+        assert_forbidden(r)
+
     assert_db_state(provider_batch)
     assert_no_audit_log()
 
@@ -151,7 +325,7 @@ def test_create_provider(api, provider_batch, scopes):
     r = api(scopes).post('/provider/', json=dict(
         key=provider.key,
         name=provider.name,
-        user_ids=list(provider.user_names),
+        user_ids=provider.user_ids,
     ))
 
     if authorized:
@@ -174,7 +348,7 @@ def test_create_provider_conflict(api, provider_batch):
     r = api(scopes).post('/provider/', json=dict(
         key=provider.key,
         name=provider.name,
-        user_ids=list(provider.user_names),
+        user_ids=provider.user_ids,
     ))
 
     assert_conflict(r, 'Provider key is already in use')
@@ -192,7 +366,7 @@ def test_update_provider(api, provider_batch, scopes):
     r = api(scopes).put(f'/provider/{provider.id}', json=dict(
         key=provider.key,
         name=provider.name,
-        user_ids=list(provider.user_names),
+        user_ids=provider.user_ids,
     ))
 
     if authorized:
@@ -214,7 +388,7 @@ def test_update_provider_not_found(api, provider_batch):
     r = api(scopes).put(f'/provider/{provider.id}', json=dict(
         key=provider.key,
         name=provider.name,
-        user_ids=list(provider.user_names),
+        user_ids=provider.user_ids,
     ))
 
     assert_not_found(r)
@@ -232,7 +406,7 @@ def test_update_provider_conflict(api, provider_batch):
     r = api(scopes).put(f'/provider/{provider.id}', json=dict(
         key=provider.key,
         name=provider.name,
-        user_ids=list(provider.user_names),
+        user_ids=provider.user_ids,
     ))
 
     assert_conflict(r, 'Provider key is already in use')

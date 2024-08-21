@@ -91,11 +91,33 @@ def create_audit_record(
 
 @router.get(
     '/',
-    response_model=Page[ProviderModel],
-    dependencies=[Depends(Authorize(ODPScope.PROVIDER_READ))],
 )
 async def list_providers(
+        auth: Authorized = Depends(Authorize(ODPScope.PROVIDER_READ)),
         paginator: Paginator = Depends(partial(Paginator, sort='key')),
+) -> Page[ProviderModel]:
+    """
+    List providers accessible to the caller. Requires scope `odp.provider:read`.
+    """
+    return await _list_providers(auth, paginator)
+
+
+@router.get(
+    '/all/',
+)
+async def list_all_providers(
+        auth: Authorized = Depends(Authorize(ODPScope.PROVIDER_READ_ALL)),
+        paginator: Paginator = Depends(partial(Paginator, sort='key')),
+) -> Page[ProviderModel]:
+    """
+    List all providers. Requires scope `odp.provider:read_all`.
+    """
+    return await _list_providers(auth, paginator)
+
+
+async def _list_providers(
+        auth: Authorized,
+        paginator: Paginator,
 ):
     stmt = (
         select(
@@ -106,6 +128,9 @@ async def list_providers(
         group_by(Provider)
     )
 
+    if auth.object_ids != '*':
+        stmt = stmt.where(Provider.id.in_(auth.object_ids))
+
     return paginator.paginate(
         stmt,
         lambda row: output_provider_model(row),
@@ -115,12 +140,36 @@ async def list_providers(
 
 @router.get(
     '/{provider_id}',
-    response_model=ProviderDetailModel,
-    dependencies=[Depends(Authorize(ODPScope.PROVIDER_READ))],
 )
 async def get_provider(
         provider_id: str,
+        auth: Authorized = Depends(Authorize(ODPScope.PROVIDER_READ)),
+) -> ProviderDetailModel:
+    """
+    Get a provider accessible to the caller. Requires scope `odp.provider:read`.
+    """
+    return await _get_provider(provider_id, auth)
+
+
+@router.get(
+    '/all/{provider_id}',
+)
+async def get_any_provider(
+        provider_id: str,
+        auth: Authorized = Depends(Authorize(ODPScope.PROVIDER_READ_ALL)),
+) -> ProviderDetailModel:
+    """
+    Get any provider. Requires scope `odp.provider:read_all`.
+    """
+    return await _get_provider(provider_id, auth)
+
+
+async def _get_provider(
+        provider_id: str,
+        auth: Authorized,
 ):
+    auth.enforce_constraint([provider_id])
+
     stmt = (
         select(
             Provider,
@@ -143,12 +192,14 @@ async def get_provider(
 
 @router.post(
     '/',
-    response_model=ProviderModel,
 )
 async def create_provider(
         provider_in: ProviderModelIn,
         auth: Authorized = Depends(Authorize(ODPScope.PROVIDER_ADMIN)),
-):
+) -> ProviderModel:
+    """
+    Create a provider. Requires scope `odp.provider:admin`.
+    """
     if Session.execute(
             select(Provider).
             where(Provider.key == provider_in.key)
@@ -185,7 +236,10 @@ async def update_provider(
         provider_id: str,
         provider_in: ProviderModelIn,
         auth: Authorized = Depends(Authorize(ODPScope.PROVIDER_ADMIN)),
-):
+) -> None:
+    """
+    Update a provider. Requires scope `odp.provider:admin`.
+    """
     if not (provider := Session.get(Provider, provider_id)):
         raise HTTPException(HTTP_404_NOT_FOUND)
 
@@ -218,7 +272,10 @@ async def update_provider(
 async def delete_provider(
         provider_id: str,
         auth: Authorized = Depends(Authorize(ODPScope.PROVIDER_ADMIN)),
-):
+) -> None:
+    """
+    Delete a provider. Requires scope `odp.provider:admin`.
+    """
     if not (provider := Session.get(Provider, provider_id)):
         raise HTTPException(HTTP_404_NOT_FOUND)
 
@@ -235,13 +292,15 @@ async def delete_provider(
 
 @router.get(
     '/{provider_id}/audit',
-    response_model=Page[ProviderAuditModel],
-    dependencies=[Depends(Authorize(ODPScope.PROVIDER_READ))],
+    dependencies=[Depends(Authorize(ODPScope.PROVIDER_READ_ALL))],
 )
 async def get_provider_audit_log(
         provider_id: str,
         paginator: Paginator = Depends(partial(Paginator, sort='timestamp')),
-):
+) -> Page[ProviderAuditModel]:
+    """
+    Get a provider audit log. Requires scope `odp.provider:read_all`.
+    """
     stmt = (
         select(ProviderAudit, User.name.label('user_name')).
         outerjoin(User, ProviderAudit.user_id == User.id).
@@ -256,13 +315,15 @@ async def get_provider_audit_log(
 
 @router.get(
     '/{provider_id}/audit/{audit_id}',
-    response_model=ProviderAuditModel,
-    dependencies=[Depends(Authorize(ODPScope.PROVIDER_READ))],
+    dependencies=[Depends(Authorize(ODPScope.PROVIDER_READ_ALL))],
 )
 async def get_provider_audit_detail(
         provider_id: str,
         audit_id: int,
-):
+) -> ProviderAuditModel:
+    """
+    Get a provider audit log entry. Requires scope `odp.provider:read_all`.
+    """
     if not (row := Session.execute(
             select(ProviderAudit, User.name.label('user_name')).
             outerjoin(User, ProviderAudit.user_id == User.id).
