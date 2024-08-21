@@ -1,4 +1,3 @@
-import hashlib
 import pathlib
 from datetime import datetime, timezone
 
@@ -14,7 +13,7 @@ from odp.api.models import ArchiveModel, ArchiveResourceModel, Page, ResourceMod
 from odp.api.routers.resource import output_resource_model
 from odp.const import ODPScope
 from odp.db import Session
-from odp.db.models import Archive, ArchiveResource, Package, PackageResource, Resource
+from odp.db.models import Archive, ArchiveResource, Package, PackageResource, Provider, Resource
 
 router = APIRouter()
 
@@ -110,43 +109,35 @@ async def list_resources(
 
 
 @router.put(
-    '/{archive_id}/{package_id}/{path:path}',
+    '/{archive_id}/{provider_id}/{path:path}',
 )
-async def add_resource(
+async def upload_resource(
         archive_id: str,
-        package_id: str,
-        path: str = Path(..., title='Archival path, relative to the archive base URL'),
+        provider_id: str,
+        path: str = Path(..., title="Resource path relative to the provider's directory in the archive"),
         title: str = Query(..., title='Resource title'),
         description: str = Query(None, title='Resource description'),
-        filename: str = Query(None, title='File name'),
-        mimetype: str = Query(None, title='Content type'),
-        size: int = Query(None, title='File size'),
-        md5: str = Query(None, title='MD5 checksum'),
-        file: UploadFile = File(None, title='File upload'),
+        file: UploadFile = File(..., title='File upload'),
+        filename: str = Query(..., title='File name'),
+        mimetype: str = Query(..., title='Content type'),
+        md5: str = Query(..., title='MD5 checksum'),
+        package_id: str = None,
+        package_path: str = Query(None, title='Path to the resource in the package (default: filename)'),
         archive_adapter: ArchiveAdapter = Depends(get_archive_adapter),
 ) -> ResourceModel:
     """
-    Add a resource to a package and register it as archived.
-    Resource metadata may be provided via query parameters.
-
-    If the request includes a file upload, it is stored to the
-    archive; upload size and computed checksum are verified
-    against the size and md5 parameters, if supplied.
-
-    The relative path to the resource within the package is set
-    to the filename, if supplied; otherwise, the archival path
-    is used.
+    Upload a file to an archive and optionally add it to a package.
     """
     # todo: archive-specific scopes
-    if not (archive := Session.get(Archive, archive_id)):
+    if not Session.get(Archive, archive_id):
         raise HTTPException(
             HTTP_404_NOT_FOUND, 'Archive not found'
         )
 
-    # todo: check provider auth
-    if not (package := Session.get(Package, package_id)):
+    # todo: auth.enforce_constraint([provider_id])
+    if not Session.get(Provider, provider_id):
         raise HTTPException(
-            HTTP_404_NOT_FOUND, 'Package not found'
+            HTTP_404_NOT_FOUND, 'Provider not found'
         )
 
     if not path:
@@ -164,31 +155,15 @@ async def add_resource(
             HTTP_422_UNPROCESSABLE_ENTITY, 'path must be relative'
         )
 
-    if file is not None:
-        if size is not None and size != file.size:
-            raise HTTPException(
-                HTTP_422_UNPROCESSABLE_ENTITY,
-                f'Upload file size ({file.size}) does not match the given size ({size})'
-            )
-        size = file.size
-
-        file_md5 = hashlib.md5(await file.read()).hexdigest()
-        if md5 is not None and md5 != file_md5:
-            raise HTTPException(
-                HTTP_422_UNPROCESSABLE_ENTITY,
-                f"Upload file MD5 checksum '{file_md5}' does not match the given MD5 checksum '{md5}'"
-            )
-        md5 = file_md5
-
     resource = Resource(
         title=title,
         description=description,
         filename=filename,
         mimetype=mimetype,
-        size=size,
+        size=file.size,
         md5=md5,
         timestamp=(timestamp := datetime.now(timezone.utc)),
-        provider_id=package.provider_id,
+        provider_id=provider_id,
     )
     resource.save()
 
@@ -196,7 +171,7 @@ async def add_resource(
         archive_resource = ArchiveResource(
             archive_id=archive_id,
             resource_id=resource.id,
-            path=path,
+            path=(archive_path := f'{provider_id}/{path}'),
             timestamp=timestamp,
         )
         archive_resource.save()
@@ -205,25 +180,33 @@ async def add_resource(
             HTTP_422_UNPROCESSABLE_ENTITY, f'Path {path} already exists in archive'
         )
 
-    try:
-        package_resource = PackageResource(
-            package_id=package_id,
-            resource_id=resource.id,
-            path=(package_path := (filename or path)),
-            timestamp=timestamp,
-        )
-        package_resource.save()
-    except IntegrityError:
-        raise HTTPException(
-            HTTP_422_UNPROCESSABLE_ENTITY, f'Path {package_path} already exists in package'
-        )
-
-    if file is not None:
-        try:
-            await archive_adapter.put(path, file, md5)
-        except NotImplementedError:
+    if package_id:
+        if not (package := Session.get(Package, package_id)):
             raise HTTPException(
-                HTTP_405_METHOD_NOT_ALLOWED, f'Operation not supported for {archive_id}'
+                HTTP_404_NOT_FOUND, 'Package not found'
             )
+        # todo: auth.enforce_constraint([package.provider_id])
+
+        try:
+            package_resource = PackageResource(
+                package_id=package_id,
+                resource_id=resource.id,
+                path=package_path or filename,
+                timestamp=timestamp,
+            )
+            package_resource.save()
+        except IntegrityError:
+            raise HTTPException(
+                HTTP_422_UNPROCESSABLE_ENTITY, f'Path {package_path or filename} already exists in package'
+            )
+
+    try:
+        await archive_adapter.put(
+            archive_path, file, md5
+        )
+    except NotImplementedError:
+        raise HTTPException(
+            HTTP_405_METHOD_NOT_ALLOWED, f'Operation not supported for {archive_id}'
+        )
 
     return output_resource_model(resource)
