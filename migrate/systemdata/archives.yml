@@ -1,9 +1,3 @@
-ODP.Upload:
-  url_env: ODP_UPLOAD_URL
-
-MIMS.Upload:
-  url_env: MIMS_UPLOAD_URL
-
 MIMS.Archive:
   url_env: MIMS_ARCHIVE_URL
 
