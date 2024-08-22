@@ -224,7 +224,7 @@ class ResourceFactory(ODPModelFactory):
     id = factory.Faker('uuid4')
     title = factory.Faker('catch_phrase')
     description = factory.Faker('sentence')
-    filename = factory.Faker('file_name')
+    filename = factory.Sequence(lambda n: f'{fake.file_name()}.{n}')
     mimetype = factory.Faker('mime_type')
     size = factory.LazyFunction(lambda: randint(1, sys.maxsize))
     md5 = factory.Faker('md5')
