@@ -22,6 +22,8 @@ def output_archive_model(result) -> ArchiveModel:
     return ArchiveModel(
         id=result.Archive.id,
         url=result.Archive.url,
+        adapter=result.Archive.adapter,
+        scope_id=result.Archive.scope_id,
         resource_count=result.count,
     )
 
@@ -45,12 +47,14 @@ def output_archive_resource_model(result) -> ArchiveResourceModel:
 
 @router.get(
     '/',
-    response_model=Page[ArchiveModel],
     dependencies=[Depends(Authorize(ODPScope.ARCHIVE_READ))],
 )
 async def list_archives(
         paginator: Paginator = Depends(),
-):
+) -> Page[ArchiveModel]:
+    """
+    List all archive configurations. Requires scope `odp.archive:read`.
+    """
     stmt = (
         select(Archive, func.count(ArchiveResource.archive_id)).
         outerjoin(ArchiveResource).
@@ -66,12 +70,14 @@ async def list_archives(
 
 @router.get(
     '/{archive_id}',
-    response_model=ArchiveModel,
     dependencies=[Depends(Authorize(ODPScope.ARCHIVE_READ))],
 )
 async def get_archive(
         archive_id: str,
-):
+) -> ArchiveModel:
+    """
+    Get an archive configuration. Requires scope `odp.archive:read`.
+    """
     stmt = (
         select(Archive, func.count(ArchiveResource.archive_id)).
         outerjoin(ArchiveResource).
@@ -87,13 +93,15 @@ async def get_archive(
 
 @router.get(
     '/{archive_id}/resources',
-    response_model=Page[ArchiveResourceModel],
     dependencies=[Depends(Authorize(ODPScope.ARCHIVE_READ))],
 )
 async def list_resources(
         archive_id: str,
         paginator: Paginator = Depends(),
-):
+) -> Page[ArchiveResourceModel]:
+    """
+    List the resources in an archive. Requires scope `odp.archive:read`.
+    """
     if not Session.get(Archive, archive_id):
         raise HTTPException(HTTP_404_NOT_FOUND)
 

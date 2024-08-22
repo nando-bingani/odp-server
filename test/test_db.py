@@ -96,7 +96,17 @@ def test_db_setup():
 def test_create_archive():
     archive = ArchiveFactory()
     result = TestSession.execute(select(Archive)).scalar_one()
-    assert (result.id, result.url) == (archive.id, archive.url)
+    assert (
+               result.id,
+               result.url,
+               result.adapter,
+               result.scope_id,
+           ) == (
+               archive.id,
+               archive.url,
+               archive.adapter,
+               archive.scope_id,
+           )
 
 
 def test_create_catalog():

@@ -35,6 +35,8 @@ def assert_json_result(response, json, archive):
     assert response.status_code == 200
     assert json['id'] == archive.id
     assert json['url'] == archive.url
+    assert json['adapter'] == archive.adapter
+    assert json['scope_id'] == archive.scope_id
     assert json['resource_count'] == archive.resource_count
 
 

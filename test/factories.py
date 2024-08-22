@@ -448,6 +448,8 @@ class ArchiveFactory(ODPModelFactory):
 
     id = factory.Sequence(lambda n: f'{fake.slug()}.{n}')
     url = factory.Faker('url')
+    adapter = factory.LazyFunction(lambda: choice(('filesystem', 'nextcloud', 'website')))
+    scope = factory.SubFactory(ScopeFactory, type='odp')
 
 
 class ArchiveResourceFactory(ODPModelFactory):
