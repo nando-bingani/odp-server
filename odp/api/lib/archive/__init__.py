@@ -4,7 +4,7 @@ from fastapi import HTTPException, UploadFile
 from fastapi.responses import FileResponse, RedirectResponse
 from starlette.status import HTTP_404_NOT_FOUND
 
-from odp.const import ODPArchive
+from odp.const.db import ArchiveAdapter as Adapter
 from odp.db import Session
 from odp.db.models import Archive
 
@@ -48,11 +48,9 @@ async def get_archive_adapter(archive_id: str) -> ArchiveAdapter:
         raise HTTPException(HTTP_404_NOT_FOUND)
 
     adapter_cls = {
-        ODPArchive.ODP_UPLOAD: FileSystemArchiveAdapter,
-        ODPArchive.MIMS_UPLOAD: FileSystemArchiveAdapter,
-        ODPArchive.MIMS_ARCHIVE: NextcloudArchiveAdapter,
-        ODPArchive.SAEON_OBSERVATIONS: WebsiteArchiveAdapter,
-        ODPArchive.SAEON_REPOSITORY: NextcloudArchiveAdapter,
-    }[archive_id]
+        Adapter.filesystem: FileSystemArchiveAdapter,
+        Adapter.nextcloud: NextcloudArchiveAdapter,
+        Adapter.website: WebsiteArchiveAdapter,
+    }[archive.adapter]
 
     return adapter_cls(archive.url)

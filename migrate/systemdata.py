@@ -251,6 +251,9 @@ def init_archives():
         archive_spec = archive_data[archive_id]
         archive = Session.get(Archive, archive_id) or Archive(id=archive_id)
         archive.url = os.environ[archive_spec['url_env']]
+        archive.adapter = archive_spec['adapter']
+        archive.scope_id = archive_spec['scope_id']
+        archive.scope_type = ScopeType.odp
         archive.save()
 
     if orphaned_yml_archives := [archive_id for archive_id in archive_data if archive_id not in archive_ids]:

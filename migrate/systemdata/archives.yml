@@ -1,8 +1,14 @@
 MIMS.Archive:
   url_env: MIMS_ARCHIVE_URL
+  scope_id: odp.archive:mims
+  adapter: nextcloud
 
 SAEON.Observations:
   url_env: SAEON_OBSERVATIONS_URL
+  scope_id: odp.archive:saeon_observations
+  adapter: website
 
 SAEON.Repository:
   url_env: SAEON_REPOSITORY_URL
+  scope_id: odp.archive:saeon_repository
+  adapter: filesystem
