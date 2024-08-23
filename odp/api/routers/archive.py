@@ -7,7 +7,7 @@ from sqlalchemy.exc import IntegrityError
 from starlette.status import HTTP_404_NOT_FOUND, HTTP_405_METHOD_NOT_ALLOWED, HTTP_422_UNPROCESSABLE_ENTITY
 
 from odp.api.lib.archive import ArchiveAdapter, get_archive_adapter
-from odp.api.lib.auth import Authorize
+from odp.api.lib.auth import ArchiveAuthorize, Authorize, Authorized
 from odp.api.lib.paging import Paginator
 from odp.api.models import ArchiveModel, ArchiveResourceModel, Page, ResourceModel
 from odp.api.routers.resource import output_resource_model
@@ -117,40 +117,47 @@ async def list_resources(
 
 
 @router.put(
-    '/{archive_id}/{provider_id}/{path:path}',
+    '/{archive_id}/{provider_id}/{package_id}/{path:path}',
+    dependencies=[Depends(ArchiveAuthorize())],
 )
 async def upload_resource(
         archive_id: str,
         provider_id: str,
-        path: str = Path(..., title="Resource path relative to the provider's directory in the archive"),
+        package_id: str,
+        path: str = Path(..., title='Resource path relative to the package root'),
         title: str = Query(..., title='Resource title'),
         description: str = Query(None, title='Resource description'),
         file: UploadFile = File(..., title='File upload'),
         filename: str = Query(..., title='File name'),
         mimetype: str = Query(..., title='Content type'),
         md5: str = Query(..., title='MD5 checksum'),
-        package_id: str = None,
-        package_path: str = Query(None, title='Path to the resource in the package (default: filename)'),
         archive_adapter: ArchiveAdapter = Depends(get_archive_adapter),
+        provider_auth: Authorized = Depends(Authorize(ODPScope.PROVIDER_READ)),
+        package_auth: Authorized = Depends(Authorize(ODPScope.PACKAGE_WRITE)),
 ) -> ResourceModel:
     """
-    Upload a file to an archive and optionally add it to a package.
+    Upload a file to an archive and add it to a package.
     """
-    # todo: archive-specific scopes
     if not Session.get(Archive, archive_id):
         raise HTTPException(
             HTTP_404_NOT_FOUND, 'Archive not found'
         )
 
-    # todo: auth.enforce_constraint([provider_id])
+    provider_auth.enforce_constraint([provider_id])
     if not Session.get(Provider, provider_id):
         raise HTTPException(
             HTTP_404_NOT_FOUND, 'Provider not found'
         )
 
+    if not (package := Session.get(Package, package_id)):
+        raise HTTPException(
+            HTTP_404_NOT_FOUND, 'Package not found'
+        )
+    package_auth.enforce_constraint([package.provider_id])
+
     if not path:
         raise HTTPException(
-            HTTP_422_UNPROCESSABLE_ENTITY, "path cannot be blank"
+            HTTP_422_UNPROCESSABLE_ENTITY, 'path cannot be blank'
         )
 
     if '..' in path:
@@ -179,34 +186,27 @@ async def upload_resource(
         archive_resource = ArchiveResource(
             archive_id=archive_id,
             resource_id=resource.id,
-            path=(archive_path := f'{provider_id}/{path}'),
+            path=(archive_path := f'{provider_id}/{package_id}/{path}'),
             timestamp=timestamp,
         )
         archive_resource.save()
     except IntegrityError:
         raise HTTPException(
-            HTTP_422_UNPROCESSABLE_ENTITY, f'Path {path} already exists in archive'
+            HTTP_422_UNPROCESSABLE_ENTITY, f"Path '{archive_path}' already exists in archive"
         )
 
-    if package_id:
-        if not (package := Session.get(Package, package_id)):
-            raise HTTPException(
-                HTTP_404_NOT_FOUND, 'Package not found'
-            )
-        # todo: auth.enforce_constraint([package.provider_id])
-
-        try:
-            package_resource = PackageResource(
-                package_id=package_id,
-                resource_id=resource.id,
-                path=package_path or filename,
-                timestamp=timestamp,
-            )
-            package_resource.save()
-        except IntegrityError:
-            raise HTTPException(
-                HTTP_422_UNPROCESSABLE_ENTITY, f'Path {package_path or filename} already exists in package'
-            )
+    try:
+        package_resource = PackageResource(
+            package_id=package_id,
+            resource_id=resource.id,
+            path=path,
+            timestamp=timestamp,
+        )
+        package_resource.save()
+    except IntegrityError:
+        raise HTTPException(
+            HTTP_422_UNPROCESSABLE_ENTITY, f"Path '{path}' already exists in package"
+        )
 
     try:
         await archive_adapter.put(

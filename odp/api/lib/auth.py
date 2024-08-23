@@ -15,7 +15,7 @@ from odp.config import config
 from odp.const import ODPScope
 from odp.const.db import ScopeType, TagType
 from odp.db import Session
-from odp.db.models import CollectionTag, RecordTag, Scope, Tag, Vocabulary
+from odp.db.models import Archive, CollectionTag, RecordTag, Scope, Tag, Vocabulary
 from odp.lib.auth import get_client_permissions, get_user_permissions
 from odp.lib.hydra import HydraAdminAPI, OAuth2TokenIntrospection
 
@@ -125,6 +125,17 @@ class Authorize(BaseAuthorize):
 
     async def __call__(self, request: Request) -> Authorized:
         return _authorize_request(request, self.scope)
+
+
+class ArchiveAuthorize(BaseAuthorize):
+    async def __call__(self, request: Request, archive_id: str) -> Authorized:
+        if not (archive_scope_id := Session.execute(
+                select(Archive.scope_id).
+                where(Archive.id == archive_id)
+        ).scalar_one_or_none()):
+            raise HTTPException(HTTP_404_NOT_FOUND)
+
+        return _authorize_request(request, ODPScope(archive_scope_id))
 
 
 class TagAuthorize(BaseAuthorize):

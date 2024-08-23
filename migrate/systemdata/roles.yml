@@ -5,6 +5,7 @@ ODP.Admin:
 SAEON.Staff:
   scopes:
     - odp.archive:read
+    - odp.archive:saeon_repository
     - odp.catalog:read
     - odp.client:read
     - odp.collection:read
