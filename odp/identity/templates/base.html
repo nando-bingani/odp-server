@@ -69,9 +69,14 @@
 
 {% block footer %}
     {% if brand == 'saeon' %}
-        {{ footer(color='light', hr=False) }}
+        {{ footer(
+            color='light', hr=False,
+            repos=['odp-server', 'odp-core', 'odp-ui']
+        ) }}
     {% elif brand == 'nccrd' %}
-        {{ footer() }}
+        {{ footer(
+            repos=['odp-server', 'odp-core', 'odp-ui']
+        ) }}
     {% endif %}
 {% endblock %}
 
