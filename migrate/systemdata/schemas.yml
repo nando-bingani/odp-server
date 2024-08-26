@@ -58,6 +58,10 @@ Tag.Keyword:
   type: tag
   uri: https://odp.saeon.ac.za/schema/tag/keyword
 
+Tag.BoundingBox:
+  type: tag
+  uri: https://odp.saeon.ac.za/schema/tag/bounding_box
+
 Vocabulary.Infrastructure:
   type: vocabulary
   uri: https://odp.saeon.ac.za/schema/vocabulary/infrastructure

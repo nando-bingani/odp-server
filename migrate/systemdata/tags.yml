@@ -12,6 +12,13 @@ Package.Contributor:
   scope_id: odp.package:write
   schema_id: Tag.Contributor
 
+Package.BoundingBox:
+  type: package
+  cardinality: one
+  public: True
+  scope_id: odp.package:write
+  schema_id: Tag.BoundingBox
+
 Collection.Published:
   type: collection
   cardinality: one
