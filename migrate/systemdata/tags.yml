@@ -12,12 +12,12 @@ Package.Contributor:
   scope_id: odp.package:write
   schema_id: Tag.Contributor
 
-Package.BoundingBox:
+Package.GeoLocation:
   type: package
   cardinality: one
   public: True
   scope_id: odp.package:write
-  schema_id: Tag.BoundingBox
+  schema_id: Tag.GeoLocation
 
 Collection.Published:
   type: collection

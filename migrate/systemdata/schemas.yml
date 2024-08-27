@@ -58,9 +58,9 @@ Tag.Keyword:
   type: tag
   uri: https://odp.saeon.ac.za/schema/tag/keyword
 
-Tag.BoundingBox:
+Tag.GeoLocation:
   type: tag
-  uri: https://odp.saeon.ac.za/schema/tag/bounding_box
+  uri: https://odp.saeon.ac.za/schema/tag/geolocation
 
 Vocabulary.Infrastructure:
   type: vocabulary
