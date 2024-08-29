@@ -19,6 +19,13 @@ Package.GeoLocation:
   scope_id: odp.package:write
   schema_id: Tag.GeoLocation
 
+Package.DateRange:
+  type: package
+  cardinality: one
+  public: True
+  scope_id: odp.package:write
+  schema_id: Tag.DateRange
+
 Collection.Published:
   type: collection
   cardinality: one
