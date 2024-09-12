@@ -13,12 +13,19 @@ from odp.db import Base
 class Package(Base):
     """A submission information package originating from a data provider.
 
+    The package `key` is unique to the provider.
+
     All package metadata - besides the title - are supplied via tags.
     """
 
     __tablename__ = 'package'
 
+    __table_args__ = (
+        UniqueConstraint('provider_id', 'key'),
+    )
+
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    key = Column(String, nullable=False)
     title = Column(String, nullable=False)
     status = Column(Enum(PackageStatus), nullable=False)
     timestamp = Column(TIMESTAMP(timezone=True), nullable=False)

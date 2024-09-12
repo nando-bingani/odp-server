@@ -1,9 +1,10 @@
 import uuid
 
-from sqlalchemy import BigInteger, Column, ForeignKey, String, TIMESTAMP
+from sqlalchemy import BigInteger, CheckConstraint, Column, Enum, ForeignKey, String, TIMESTAMP
 from sqlalchemy.ext.associationproxy import association_proxy
 from sqlalchemy.orm import relationship
 
+from odp.const.db import HashAlgorithm
 from odp.db import Base
 
 
@@ -12,13 +13,25 @@ class Resource(Base):
 
     __tablename__ = 'resource'
 
+    __table_args__ = (
+        CheckConstraint(
+            'hash is null or hash_algorithm is not null',
+            name='resource_hash_algorithm_check',
+        ),
+        CheckConstraint(
+            'title is not null or filename is not null',
+            name='resource_title_or_filename_check',
+        ),
+    )
+
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    title = Column(String, nullable=False)
+    title = Column(String)
     description = Column(String)
     filename = Column(String)
     mimetype = Column(String)
     size = Column(BigInteger)
-    md5 = Column(String)
+    hash = Column(String)
+    hash_algorithm = Column(Enum(HashAlgorithm))
     timestamp = Column(TIMESTAMP(timezone=True), nullable=False)
 
     provider_id = Column(String, ForeignKey('provider.id', ondelete='RESTRICT'), nullable=False)
