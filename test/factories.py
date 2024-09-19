@@ -203,6 +203,7 @@ class PackageFactory(ODPModelFactory):
         model = Package
 
     id = factory.Faker('uuid4')
+    key = factory.Sequence(lambda n: id_from_fake('catch_phrase', n))
     title = factory.Faker('catch_phrase')
     status = factory.LazyFunction(lambda: choice(('pending', 'submitted', 'archived')))
     provider = factory.SubFactory(ProviderFactory)
@@ -227,7 +228,8 @@ class ResourceFactory(ODPModelFactory):
     filename = factory.Sequence(lambda n: f'{fake.file_name()}.{n}')
     mimetype = factory.Faker('mime_type')
     size = factory.LazyFunction(lambda: randint(1, sys.maxsize))
-    md5 = factory.Faker('md5')
+    hash = factory.LazyAttribute(lambda r: fake.md5() if r.hash_algorithm == 'md5' else fake.sha256())
+    hash_algorithm = factory.LazyFunction(lambda: choice(('md5', 'sha256')))
     provider = factory.SubFactory(ProviderFactory)
     timestamp = factory.LazyFunction(lambda: datetime.now(timezone.utc))
 

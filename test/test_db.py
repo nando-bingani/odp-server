@@ -199,12 +199,14 @@ def test_create_package():
     result = TestSession.execute(select(Package)).scalar_one()
     assert (
                result.id,
+               result.key,
                result.title,
                result.status,
                result.provider_id,
                result.timestamp,
            ) == (
                package.id,
+               package.key,
                package.title,
                package.status,
                package.provider_id,
@@ -298,7 +300,8 @@ def test_create_resource():
                result.filename,
                result.mimetype,
                result.size,
-               result.md5,
+               result.hash,
+               result.hash_algorithm,
                result.timestamp,
                result.provider_id,
            ) == (
@@ -308,7 +311,8 @@ def test_create_resource():
                resource.filename,
                resource.mimetype,
                resource.size,
-               resource.md5,
+               resource.hash,
+               resource.hash_algorithm,
                resource.timestamp,
                resource.provider_id,
            )
