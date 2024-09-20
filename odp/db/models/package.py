@@ -66,6 +66,7 @@ class PackageAudit(Base):
     timestamp = Column(TIMESTAMP(timezone=True), nullable=False)
 
     _id = Column(String, nullable=False)
+    _key = Column(String, nullable=False)
     _title = Column(String, nullable=False)
     _status = Column(String, nullable=False)
     _provider_id = Column(String, nullable=False)

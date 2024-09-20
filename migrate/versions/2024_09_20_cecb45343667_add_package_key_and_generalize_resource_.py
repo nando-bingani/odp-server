@@ -1,8 +1,8 @@
 """Add package key and generalize resource hash
 
-Revision ID: c8c1df35dea4
+Revision ID: cecb45343667
 Revises: 23e051502f55
-Create Date: 2024-09-12 15:08:58.593167
+Create Date: 2024-09-20 14:14:16.286347
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision = 'c8c1df35dea4'
+revision = 'cecb45343667'
 down_revision = '23e051502f55'
 branch_labels = None
 depends_on = None
@@ -21,6 +21,7 @@ def upgrade():
     op.execute("create type hashalgorithm as enum ('md5', 'sha256')")
     op.add_column('package', sa.Column('key', sa.String(), nullable=False))
     op.create_unique_constraint('package_provider_id_package_key', 'package', ['provider_id', 'key'])
+    op.add_column('package_audit', sa.Column('_key', sa.String(), nullable=False))
     op.add_column('resource', sa.Column('hash', sa.String(), nullable=True))
     op.add_column('resource', sa.Column('hash_algorithm', postgresql.ENUM(name='hashalgorithm', create_type=False), nullable=True))
     op.alter_column('resource', 'title',
@@ -46,6 +47,7 @@ def downgrade():
                     nullable=False)
     op.drop_column('resource', 'hash_algorithm')
     op.drop_column('resource', 'hash')
+    op.drop_column('package_audit', '_key')
     op.drop_constraint('package_provider_id_package_key', 'package', type_='unique')
     op.drop_column('package', 'key')
     op.execute('drop type hashalgorithm')
