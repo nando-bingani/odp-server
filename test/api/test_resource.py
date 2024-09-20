@@ -62,7 +62,8 @@ def assert_db_state(resources):
         assert row.filename == resources[n].filename
         assert row.mimetype == resources[n].mimetype
         assert row.size == resources[n].size
-        assert row.md5 == resources[n].md5
+        assert row.hash == resources[n].hash
+        assert row.hash_algorithm == resources[n].hash_algorithm
         assert row.provider_id == resources[n].provider_id
         assert_new_timestamp(row.timestamp)
 
@@ -96,7 +97,8 @@ def assert_json_result(response, json, resource):
     assert json['filename'] == resource.filename
     assert json['mimetype'] == resource.mimetype
     assert json['size'] == resource.size
-    assert json['md5'] == resource.md5
+    assert json['hash'] == resource.hash
+    assert json['hash_algorithm'] == resource.hash_algorithm
     assert json['provider_id'] == resource.provider_id
     assert json['provider_key'] == resource.provider.key
     assert json['archive_paths'] == resource.archive_paths
@@ -369,7 +371,8 @@ def _test_create_resource(
         filename=resource.filename,
         mimetype=resource.mimetype,
         size=resource.size,
-        md5=resource.md5,
+        hash=resource.hash,
+        hash_algorithm=resource.hash_algorithm,
         provider_id=resource.provider_id,
         archive_id=archive.id,
         archive_path=resource.archive_paths[archive.id],
@@ -451,7 +454,8 @@ def _test_create_resource_conflict(
         filename=resource.filename,
         mimetype=resource.mimetype,
         size=resource.size,
-        md5=resource.md5,
+        hash=resource.hash,
+        hash_algorithm=resource.hash_algorithm,
         provider_id=resource.provider_id,
         archive_id=ar.archive_id,
         archive_path=ar.path,
