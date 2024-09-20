@@ -1,3 +1,4 @@
+import re
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -20,11 +21,18 @@ from odp.db.models import Package, PackageAudit, PackageTag, PackageTagAudit, Re
 router = APIRouter()
 
 
+def _package_key(title: str) -> str:
+    """Calculate package key from title by replacing any non-word
+    character with an underscore."""
+    return re.sub(r'\W', '_', title)
+
+
 def output_package_model(package: Package, *, detail=False) -> PackageModel | PackageDetailModel:
     cls = PackageDetailModel if detail else PackageModel
     record = next((r for r in package.records), None)
     kwargs = dict(
         id=package.id,
+        key=package.key,
         title=package.title,
         status=package.status,
         timestamp=package.timestamp.isoformat(),
@@ -62,6 +70,7 @@ def create_audit_record(
         command=command,
         timestamp=timestamp,
         _id=package.id,
+        _key=package.key,
         _title=package.title,
         _status=package.status,
         _provider_id=package.provider_id,
@@ -205,6 +214,7 @@ async def _create_package(
     )
 
     package = Package(
+        key=_package_key(package_in.title),
         title=package_in.title,
         status=PackageStatus.pending,
         timestamp=(timestamp := datetime.now(timezone.utc)),
@@ -268,6 +278,11 @@ async def _update_package(
             package.provider_id != package_in.provider_id or
             set(res.id for res in package.resources) != set(res_in.id for res_in in resources_in)
     ):
+        # change the key only if the package has no resources,
+        # as it is used in resource archival paths
+        if package.title != package_in.title and not package.resources:
+            package.key = _package_key(package_in.title)
+
         package.title = package_in.title
         package.timestamp = (timestamp := datetime.now(timezone.utc))
         package.provider_id = package_in.provider_id

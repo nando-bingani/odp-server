@@ -25,7 +25,7 @@ def package_batch(request):
         packages += [package := PackageFactory(
             provider=(provider := ProviderFactory()),
             resources=(resources := ResourceFactory.create_batch(
-                randint(n == 2, 4),  # at least one resource if n == 2
+                randint(0, 4),
                 provider=provider if n == 2 else ProviderFactory(),
             )),
         )]
@@ -61,6 +61,7 @@ def assert_db_state(packages):
     assert len(result) == len(packages)
     for n, row in enumerate(result):
         assert row.id == packages[n].id
+        assert row.key == packages[n].key
         assert row.title == packages[n].title
         assert row.status == packages[n].status
         assert_new_timestamp(row.timestamp)
@@ -104,6 +105,7 @@ def assert_audit_log(command, package, grant_type):
     assert result.command == command
     assert_new_timestamp(result.timestamp)
     assert result._id == package.id
+    assert result._key == package.key
     assert result._title == package.title
     assert result._status == package.status
     assert result._provider_id == package.provider_id
@@ -139,6 +141,7 @@ def assert_json_result(response, json, package, detail=False):
     # todo: check linked record
     assert response.status_code == 200
     assert json['id'] == package.id
+    assert json['key'] == package.key
     assert json['title'] == package.title
     assert json['status'] == package.status
     assert_new_timestamp(datetime.fromisoformat(json['timestamp']))
@@ -507,7 +510,7 @@ def test_update_package(
         authorized = (authorized and
                       package_new_provider == 'same' and
                       package_new_resource_provider == 'same' and
-                      package_existing_resource_provider == 'same')
+                      (package_existing_resource_provider == 'same' or not package_batch[2].resources))
 
     _test_update_package(
         api,
@@ -570,16 +573,24 @@ def _test_update_package(
         api_kwargs,
 ):
     if package_existing_resource_provider == 'different':
-        package_batch[2].resources[0].provider = ProviderFactory()
-        FactorySession.commit()
+        if package_batch[2].resources:
+            package_batch[2].resources[0].provider = ProviderFactory()
+            FactorySession.commit()
 
     package_provider = package_batch[2].provider if package_new_provider == 'same' else ProviderFactory()
-    package = package_build(
+    package_build_args = dict(
         id=package_batch[2].id,
         status=package_batch[2].status,
         package_provider=package_provider,
         resource_provider=package_provider if package_new_resource_provider == 'same' else None,
     )
+    if package_batch[2].resources:
+        # key must stay the same if package #2 has any resources
+        package_build_args |= dict(
+            key=package_batch[2].key,
+        )
+
+    package = package_build(**package_build_args)
 
     r = api(scopes, **api_kwargs).put(f'{route}{package.id}', json=dict(
         title=package.title,
@@ -650,7 +661,7 @@ def test_delete_package(
             client_provider_constraint == 'client_provider_match' or
             user_provider_constraint == 'user_provider_match'
     ):
-        authorized = authorized and package_resource_provider == 'same'
+        authorized = authorized and (package_resource_provider == 'same' or not package_batch[2].resources)
 
     _test_delete_package(
         api,
@@ -703,7 +714,7 @@ def _test_delete_package(
 ):
     deleted_package = package_batch[2]
 
-    if package_resource_provider == 'different':
+    if package_resource_provider == 'different' and deleted_package.resources:
         deleted_package.resources[0].provider = ProviderFactory()
         FactorySession.commit()
 

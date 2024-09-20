@@ -203,8 +203,8 @@ class PackageFactory(ODPModelFactory):
         model = Package
 
     id = factory.Faker('uuid4')
-    key = factory.Sequence(lambda n: id_from_fake('catch_phrase', n))
-    title = factory.Faker('catch_phrase')
+    key = factory.LazyAttribute(lambda p: re.sub(r'\W', '_', p.title))
+    title = factory.Sequence(lambda n: f'{fake.catch_phrase()}.{n}')
     status = factory.LazyFunction(lambda: choice(('pending', 'submitted', 'archived')))
     provider = factory.SubFactory(ProviderFactory)
     timestamp = factory.LazyFunction(lambda: datetime.now(timezone.utc))
