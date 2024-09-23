@@ -17,7 +17,7 @@ class NextcloudArchiveAdapter(ArchiveAdapter):
         """Send a zip file of the directories and files at `paths`
         to the client."""
 
-    async def put(self, path: str | PathLike, file: UploadFile, md5: str) -> None:
+    async def put(self, path: str | PathLike, file: UploadFile, sha256: str) -> None:
         """Store the contents of the incoming `file` at `path` and
         verify the stored file against the given checksum."""
 

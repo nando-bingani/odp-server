@@ -45,4 +45,4 @@ class Resource(Base):
     archive_resources = relationship('ArchiveResource', viewonly=True)
     archives = association_proxy('archive_resources', 'archive')
 
-    _repr_ = 'id', 'title', 'filename', 'mimetype', 'size', 'md5', 'provider_id'
+    _repr_ = 'id', 'title', 'filename', 'mimetype', 'size', 'hash', 'provider_id'

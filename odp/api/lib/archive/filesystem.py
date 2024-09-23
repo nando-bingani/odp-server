@@ -22,7 +22,7 @@ class FileSystemArchiveAdapter(ArchiveAdapter):
         """Send the contents of the file at `path` to the client."""
         return FileResponse(self.dir / path)
 
-    async def put(self, path: str | PathLike, file: UploadFile, md5: str) -> None:
+    async def put(self, path: str | PathLike, file: UploadFile, sha256: str) -> None:
         """Store the contents of the incoming `file` at `path` and
         verify the stored file against the given checksum."""
         try:
@@ -42,7 +42,7 @@ class FileSystemArchiveAdapter(ArchiveAdapter):
             )
 
         with open(self.dir / path, 'rb') as f:
-            if md5 != hashlib.md5(f.read()).hexdigest():
+            if sha256 != hashlib.sha256(f.read()).hexdigest():
                 raise HTTPException(
                     HTTP_422_UNPROCESSABLE_ENTITY, f'Error creating file at {path}: checksum verification failed'
                 )

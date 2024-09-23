@@ -12,6 +12,7 @@ from odp.api.lib.paging import Paginator
 from odp.api.models import ArchiveModel, ArchiveResourceModel, Page, ResourceModel
 from odp.api.routers.resource import output_resource_model
 from odp.const import ODPScope
+from odp.const.db import HashAlgorithm
 from odp.db import Session
 from odp.db.models import Archive, ArchiveResource, Package, PackageResource, Provider, Resource
 
@@ -125,12 +126,12 @@ async def upload_resource(
         provider_id: str,
         package_id: str,
         path: str = Path(..., title='Resource path relative to the package root'),
-        title: str = Query(..., title='Resource title'),
-        description: str = Query(None, title='Resource description'),
         file: UploadFile = File(..., title='File upload'),
         filename: str = Query(..., title='File name'),
         mimetype: str = Query(..., title='Content type'),
-        md5: str = Query(..., title='MD5 checksum'),
+        sha256: str = Query(..., title='SHA-256 checksum'),
+        title: str = Query(None, title='Resource title'),
+        description: str = Query(None, title='Resource description'),
         archive_adapter: ArchiveAdapter = Depends(get_archive_adapter),
         provider_auth: Authorized = Depends(Authorize(ODPScope.PROVIDER_READ)),
         package_auth: Authorized = Depends(Authorize(ODPScope.PACKAGE_WRITE)),
@@ -176,7 +177,8 @@ async def upload_resource(
         filename=filename,
         mimetype=mimetype,
         size=file.size,
-        md5=md5,
+        hash=sha256,
+        hash_algorithm=HashAlgorithm.sha256,
         timestamp=(timestamp := datetime.now(timezone.utc)),
         provider_id=provider_id,
     )
@@ -210,7 +212,7 @@ async def upload_resource(
 
     try:
         await archive_adapter.put(
-            archive_path, file, md5
+            archive_path, file, sha256
         )
     except NotImplementedError:
         raise HTTPException(
