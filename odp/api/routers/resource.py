@@ -1,14 +1,11 @@
-from datetime import datetime, timezone
-
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
-from starlette.status import HTTP_404_NOT_FOUND, HTTP_409_CONFLICT
+from starlette.status import HTTP_404_NOT_FOUND
 
 from odp.api.lib.auth import Authorize, Authorized
 from odp.api.lib.paging import Paginator
-from odp.api.models import Page, ResourceModel, ResourceModelIn
+from odp.api.models import Page, ResourceModel
 from odp.const import ODPScope
-from odp.const.db import AuditCommand
 from odp.db import Session
 from odp.db.models import ArchiveResource, PackageResource, Resource
 
@@ -33,15 +30,6 @@ def output_resource_model(resource: Resource) -> ResourceModel:
             for ar in resource.archive_resources
         }
     )
-
-
-def create_audit_record(
-        auth: Authorized,
-        resource: Resource,
-        timestamp: datetime,
-        command: AuditCommand,
-) -> None:
-    """TODO"""
 
 
 @router.get(
@@ -153,75 +141,5 @@ async def get_any_resource(
 ):
     if not (resource := Session.get(Resource, resource_id)):
         raise HTTPException(HTTP_404_NOT_FOUND)
-
-    return output_resource_model(resource)
-
-
-@router.post(
-    '/',
-    response_model=ResourceModel,
-    description='Register a new resource. It is up to the caller to ensure that the '
-                'resource is stored in the specified archive. Requires access to the '
-                f'referenced provider. Requires `{ODPScope.RESOURCE_WRITE}` scope.',
-)
-async def create_resource(
-        resource_in: ResourceModelIn,
-        auth: Authorized = Depends(Authorize(ODPScope.RESOURCE_WRITE)),
-):
-    return await _create_resource(resource_in, auth)
-
-
-@router.post(
-    '/admin/',
-    response_model=ResourceModel,
-    description='Register a new resource for any provider. It is up to the caller to '
-                'ensure that the resource is stored in the specified archive. '
-                f'Requires `{ODPScope.RESOURCE_ADMIN}` scope.',
-)
-async def admin_create_resource(
-        resource_in: ResourceModelIn,
-        auth: Authorized = Depends(Authorize(ODPScope.RESOURCE_ADMIN)),
-):
-    return await _create_resource(resource_in, auth)
-
-
-async def _create_resource(
-        resource_in: ResourceModelIn,
-        auth: Authorized,
-):
-    auth.enforce_constraint([resource_in.provider_id])
-
-    if Session.execute(
-            select(ArchiveResource).
-            where(ArchiveResource.archive_id == resource_in.archive_id).
-            where(ArchiveResource.path == resource_in.archive_path)
-    ).first() is not None:
-        raise HTTPException(
-            HTTP_409_CONFLICT, f'path {resource_in.archive_path} '
-                               f'already exists in archive {resource_in.archive_id}'
-        )
-
-    resource = Resource(
-        title=resource_in.title,
-        description=resource_in.description,
-        filename=resource_in.filename,
-        mimetype=resource_in.mimetype,
-        size=resource_in.size,
-        hash=resource_in.hash,
-        hash_algorithm=resource_in.hash_algorithm,
-        timestamp=(timestamp := datetime.now(timezone.utc)),
-        provider_id=resource_in.provider_id,
-    )
-    resource.save()
-
-    archive_resource = ArchiveResource(
-        archive_id=resource_in.archive_id,
-        resource_id=resource.id,
-        path=resource_in.archive_path,
-        timestamp=timestamp,
-    )
-    archive_resource.save()
-
-    create_audit_record(auth, resource, timestamp, AuditCommand.insert)
 
     return output_resource_model(resource)
