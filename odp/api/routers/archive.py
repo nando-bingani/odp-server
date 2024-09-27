@@ -145,7 +145,7 @@ async def upload_resource(
         )
 
     provider_auth.enforce_constraint([provider_id])
-    if not Session.get(Provider, provider_id):
+    if not (provider := Session.get(Provider, provider_id)):
         raise HTTPException(
             HTTP_404_NOT_FOUND, 'Provider not found'
         )
@@ -188,7 +188,7 @@ async def upload_resource(
         archive_resource = ArchiveResource(
             archive_id=archive_id,
             resource_id=resource.id,
-            path=(archive_path := f'{provider_id}/{package_id}/{path}'),
+            path=(archive_path := f'{provider.key}/{package.key}/{path}'),
             timestamp=timestamp,
         )
         archive_resource.save()
