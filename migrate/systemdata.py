@@ -11,7 +11,6 @@ from sqlalchemy import delete, select, text
 from sqlalchemy.exc import ProgrammingError
 
 from odp.const import (
-    ODPArchive,
     ODPCatalog,
     ODPCollectionTag,
     ODPKeywordSchema,
@@ -27,7 +26,7 @@ from odp.const import (
 from odp.const.db import SchemaType, ScopeType
 from odp.const.hydra import GrantType, HydraScope
 from odp.db import Base, Session, engine
-from odp.db.models import Archive, Catalog, Client, Role, Schema, Scope, Tag, Vocabulary, VocabularyTerm
+from odp.db.models import Catalog, Client, Role, Schema, Scope, Tag, Vocabulary, VocabularyTerm
 from odp.lib.hydra import HydraAdminAPI
 from odp.lib.schema import schema_md5
 from sadco.const import SADCOScope
@@ -51,7 +50,6 @@ def initialize():
         init_schemas()
         init_vocabularies()
         init_tags()
-        init_archives()
         init_catalogs()
         init_clients()
 
@@ -240,27 +238,6 @@ def init_vocabularies():
 
     if orphaned_db_vocabularies := Session.execute(select(Vocabulary.id).where(Vocabulary.id.not_in(vocabulary_ids))).scalars().all():
         logger.warning(f'Orphaned vocabulary definitions in vocabulary table {orphaned_db_vocabularies}')
-
-
-def init_archives():
-    """Create or update archive definitions."""
-    with open(datadir / 'archives.yml') as f:
-        archive_data = yaml.safe_load(f)
-
-    for archive_id in (archive_ids := [a.value for a in ODPArchive]):
-        archive_spec = archive_data[archive_id]
-        archive = Session.get(Archive, archive_id) or Archive(id=archive_id)
-        archive.url = os.environ[archive_spec['url_env']]
-        archive.adapter = archive_spec['adapter']
-        archive.scope_id = archive_spec['scope_id']
-        archive.scope_type = ScopeType.odp
-        archive.save()
-
-    if orphaned_yml_archives := [archive_id for archive_id in archive_data if archive_id not in archive_ids]:
-        logger.warning(f'Orphaned archive definitions in archives.yml {orphaned_yml_archives}')
-
-    if orphaned_db_archives := Session.execute(select(Archive.id).where(Archive.id.not_in(archive_ids))).scalars().all():
-        logger.warning(f'Orphaned archive definitions in archive table {orphaned_db_archives}')
 
 
 def init_catalogs():
