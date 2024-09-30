@@ -6,10 +6,7 @@ from odp.db import Base
 
 
 class Archive(Base):
-    """A data store for digital resources.
-
-    `url` is for downloads, `dir` for uploads.
-    """
+    """A data store for digital resources."""
 
     __tablename__ = 'archive'
 
@@ -25,21 +22,21 @@ class Archive(Base):
     )
 
     id = Column(String, primary_key=True)
-    url = Column(String, nullable=False)
-    dir = Column(String)
     adapter = Column(Enum(ArchiveAdapter), nullable=False)
+    download_url = Column(String)
+    upload_url = Column(String)
 
     scope_id = Column(String, nullable=False)
     scope_type = Column(Enum(ScopeType), nullable=False)
     scope = relationship('Scope')
 
-    _repr_ = 'id', 'url', 'dir', 'adapter', 'scope_id'
+    _repr_ = 'id', 'adapter', 'download_url', 'upload_url', 'scope_id'
 
 
 class ArchiveResource(Base):
     """An archived instance of a resource.
 
-    `path` is relative to `url` of the archive.
+    `path` is relative to the archive's upload and download URLs.
     """
 
     __tablename__ = 'archive_resource'
