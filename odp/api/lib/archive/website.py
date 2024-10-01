@@ -12,4 +12,4 @@ class WebsiteArchiveAdapter(ArchiveAdapter):
 
     async def get(self, path: str | PathLike) -> RedirectResponse:
         """Return a redirect to the relevant web page."""
-        return RedirectResponse(urljoin(self.url, path))
+        return RedirectResponse(urljoin(self.download_url, path))

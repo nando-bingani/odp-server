@@ -1,6 +1,8 @@
 from os import PathLike
+from urllib.parse import urljoin
 
-from fastapi import UploadFile
+import requests
+from fastapi import HTTPException, UploadFile
 from fastapi.responses import FileResponse, RedirectResponse
 
 from odp.api.lib.archive import ArchiveAdapter
@@ -18,9 +20,24 @@ class NextcloudArchiveAdapter(ArchiveAdapter):
         to the client."""
 
     async def put(self, path: str | PathLike, file: UploadFile, sha256: str) -> None:
-        """Store the contents of the incoming `file` at `path` and
-        verify the stored file against the given checksum."""
+        """Upload the incoming `file` to the ODP file storage service
+        on the Nextcloud server, which in turn writes and verifies the
+        file at `path` relative to the Nextcloud upload directory."""
+        await file.seek(0)
+        try:
+            r = requests.post(
+                urljoin(self.upload_url, path),
+                files={'file': file.file},
+                params={'sha256': sha256},
+            )
+            r.raise_for_status()
 
-    async def put_zip(self, path: str | PathLike, file: UploadFile) -> None:
-        """Unpack the contents of the incoming `file` into the
-        directory at `path`."""
+        except requests.RequestException as e:
+            if e.response is not None:
+                status_code = e.response.status_code
+                error_detail = e.response.text
+            else:
+                status_code = 503
+                error_detail = str(e)
+
+            raise HTTPException(status_code, error_detail) from e

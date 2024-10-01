@@ -15,8 +15,9 @@ class ArchiveAdapter:
     All paths are relative.
     """
 
-    def __init__(self, url: str | PathLike) -> None:
-        self.url = url
+    def __init__(self, download_url: str | None, upload_url: str | None) -> None:
+        self.download_url = download_url
+        self.upload_url = upload_url
 
     async def get(self, path: str | PathLike) -> FileResponse | RedirectResponse:
         """Send the contents of the file at `path` to the client,
@@ -53,4 +54,4 @@ async def get_archive_adapter(archive_id: str) -> ArchiveAdapter:
         Adapter.website: WebsiteArchiveAdapter,
     }[archive.adapter]
 
-    return adapter_cls(archive.url)
+    return adapter_cls(archive.download_url, archive.upload_url)
