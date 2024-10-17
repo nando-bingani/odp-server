@@ -9,8 +9,7 @@ from starlette.status import HTTP_404_NOT_FOUND, HTTP_405_METHOD_NOT_ALLOWED, HT
 from odp.api.lib.archive import ArchiveAdapter, get_archive_adapter
 from odp.api.lib.auth import ArchiveAuthorize, Authorize, Authorized
 from odp.api.lib.paging import Paginator
-from odp.api.models import ArchiveModel, ArchiveResourceModel, Page, ResourceModel
-from odp.api.routers.resource import output_resource_model
+from odp.api.models import ArchiveModel, ArchiveResourceModel, Page
 from odp.const import ODPScope
 from odp.const.db import HashAlgorithm
 from odp.db import Session
@@ -122,12 +121,13 @@ async def list_resources(
     '/{archive_id}/{provider_id}/{package_id}/{path:path}',
     dependencies=[Depends(ArchiveAuthorize())],
 )
-async def upload_resource(
+async def upload_file(
         archive_id: str,
         provider_id: str,
         package_id: str,
         path: str = Path(..., title='Resource path relative to the package root'),
         file: UploadFile = File(..., title='File upload'),
+        unzip: bool = Query(False, title='Unzip uploaded file'),
         filename: str = Query(..., title='File name'),
         mimetype: str = Query(..., title='Content type'),
         sha256: str = Query(..., title='SHA-256 checksum'),
@@ -136,11 +136,11 @@ async def upload_resource(
         archive_adapter: ArchiveAdapter = Depends(get_archive_adapter),
         provider_auth: Authorized = Depends(Authorize(ODPScope.PROVIDER_READ)),
         package_auth: Authorized = Depends(Authorize(ODPScope.PACKAGE_WRITE)),
-) -> ResourceModel:
+) -> None:
     """
     Upload a file to an archive and add it to a package.
     """
-    if not Session.get(Archive, archive_id):
+    if not (archive := Session.get(Archive, archive_id)):
         raise HTTPException(
             HTTP_404_NOT_FOUND, 'Archive not found'
         )
@@ -172,6 +172,38 @@ async def upload_resource(
             HTTP_422_UNPROCESSABLE_ENTITY, 'path must be relative'
         )
 
+    if unzip:
+        ...
+
+    else:
+        await _add_resource(
+            archive,
+            provider,
+            package,
+            path,
+            file,
+            filename,
+            mimetype,
+            sha256,
+            title,
+            description,
+            archive_adapter,
+        )
+
+
+async def _add_resource(
+        archive: Archive,
+        provider: Provider,
+        package: Package,
+        path: str,
+        file: UploadFile,
+        filename: str,
+        mimetype: str,
+        sha256: str,
+        title: str | None,
+        description: str | None,
+        archive_adapter: ArchiveAdapter,
+):
     resource = Resource(
         title=title,
         description=description,
@@ -181,13 +213,13 @@ async def upload_resource(
         hash=sha256,
         hash_algorithm=HashAlgorithm.sha256,
         timestamp=(timestamp := datetime.now(timezone.utc)),
-        provider_id=provider_id,
+        provider_id=provider.id,
     )
     resource.save()
 
     try:
         archive_resource = ArchiveResource(
-            archive_id=archive_id,
+            archive_id=archive.id,
             resource_id=resource.id,
             path=(archive_path := f'{provider.key}/{package.key}/{path}'),
             timestamp=timestamp,
@@ -200,7 +232,7 @@ async def upload_resource(
 
     try:
         package_resource = PackageResource(
-            package_id=package_id,
+            package_id=package.id,
             resource_id=resource.id,
             path=path,
             timestamp=timestamp,
@@ -217,7 +249,5 @@ async def upload_resource(
         )
     except NotImplementedError:
         raise HTTPException(
-            HTTP_405_METHOD_NOT_ALLOWED, f'Operation not supported for {archive_id}'
+            HTTP_405_METHOD_NOT_ALLOWED, f'Operation not supported for {archive.id}'
         )
-
-    return output_resource_model(resource)
