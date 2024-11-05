@@ -1,41 +1,60 @@
-from os import PathLike
+from typing import Any
 from urllib.parse import urljoin
 
 import requests
 from fastapi import HTTPException, UploadFile
-from fastapi.responses import FileResponse, RedirectResponse
 
-from odp.api.lib.archive import ArchiveAdapter
+from odp.api.lib.archive import ArchiveAdapter, FileInfo
 
 
 class NextcloudArchiveAdapter(ArchiveAdapter):
     """Adapter for a Nextcloud archive."""
 
-    async def get(self, path: str | PathLike) -> FileResponse | RedirectResponse:
-        """Send the contents of the file at `path` to the client,
-        or return a redirect to the relevant Nextcloud folder."""
-
-    async def get_zip(self, *paths: str | PathLike) -> FileResponse:
-        """Send a zip file of the directories and files at `paths`
-        to the client."""
-
-    async def put(self, path: str | PathLike, file: UploadFile, sha256: str) -> None:
-        """Upload the incoming `file` to the ODP file storage service
-        on the Nextcloud server, which in turn writes and verifies the
-        file at `path` relative to the Nextcloud upload directory."""
+    async def put(
+            self,
+            folder: str,
+            filename: str,
+            file: UploadFile,
+            sha256: str,
+            unpack: bool,
+    ) -> list[FileInfo]:
         await file.seek(0)
+        params = {'filename': filename, 'sha256': sha256}
+        if unpack:
+            params |= {'unpack': 1}
+
+        result = self._send_request(
+            'PUT',
+            urljoin(self.upload_url, folder),
+            files={'file': file.file},
+            params=params,
+        )
+        return [
+            FileInfo(path, info[0], info[1])
+            for path, info in result.items()
+        ]
+
+    @staticmethod
+    def _send_request(method, url, files, params) -> Any:
+        """Send a request to the ODP file storage service and return
+        its JSON response."""
         try:
-            r = requests.post(
-                urljoin(self.upload_url, path),
-                files={'file': file.file},
-                params={'sha256': sha256},
+            r = requests.request(
+                method,
+                url,
+                files=files,
+                params=params,
             )
             r.raise_for_status()
+            return r.json()
 
         except requests.RequestException as e:
             if e.response is not None:
                 status_code = e.response.status_code
-                error_detail = e.response.text
+                try:
+                    error_detail = e.response.json()['message']
+                except (TypeError, ValueError, KeyError):
+                    error_detail = e.response.text
             else:
                 status_code = 503
                 error_detail = str(e)

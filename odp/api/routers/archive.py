@@ -1,3 +1,4 @@
+import mimetypes
 import pathlib
 from datetime import datetime, timezone
 
@@ -5,6 +6,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, Path, Query, Upload
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from starlette.status import HTTP_404_NOT_FOUND, HTTP_405_METHOD_NOT_ALLOWED, HTTP_422_UNPROCESSABLE_ENTITY
+from werkzeug.utils import secure_filename
 
 from odp.api.lib.archive import ArchiveAdapter, get_archive_adapter
 from odp.api.lib.auth import ArchiveAuthorize, Authorize, Authorized
@@ -118,18 +120,17 @@ async def list_resources(
 
 
 @router.put(
-    '/{archive_id}/{provider_id}/{package_id}/{path:path}',
+    '/{archive_id}/{provider_id}/{package_id}/{folder:path}',
     dependencies=[Depends(ArchiveAuthorize())],
 )
 async def upload_file(
         archive_id: str,
         provider_id: str,
         package_id: str,
-        path: str = Path(..., title='Resource path relative to the package root'),
+        folder: str = Path(..., title='Path to containing folder relative to package root'),
+        unpack: bool = Query(False, title='Unpack zip file into folder'),
         file: UploadFile = File(..., title='File upload'),
-        unzip: bool = Query(False, title='Unzip uploaded file'),
         filename: str = Query(..., title='File name'),
-        mimetype: str = Query(..., title='Content type'),
         sha256: str = Query(..., title='SHA-256 checksum'),
         title: str = Query(None, title='Resource title'),
         description: str = Query(None, title='Resource description'),
@@ -138,7 +139,12 @@ async def upload_file(
         package_auth: Authorized = Depends(Authorize(ODPScope.PACKAGE_WRITE)),
 ) -> None:
     """
-    Upload a file to an archive and add it to a package.
+    Upload a file to an archive and add/unpack it into a package folder.
+
+    By default, a single resource is created and associated with the archive
+    and the package. If unpack is true and the file is a supported zip format,
+    its contents are unpacked into the folder and, for each unpacked file, a
+    resource is created and similarly associated.
     """
     if not (archive := Session.get(Archive, archive_id)):
         raise HTTPException(
@@ -157,97 +163,76 @@ async def upload_file(
         )
     package_auth.enforce_constraint([package.provider_id])
 
-    if not path:
+    if '..' in folder:
         raise HTTPException(
-            HTTP_422_UNPROCESSABLE_ENTITY, 'path cannot be blank'
+            HTTP_422_UNPROCESSABLE_ENTITY, "'..' not allowed in folder"
         )
 
-    if '..' in path:
+    if pathlib.Path(folder).is_absolute():
         raise HTTPException(
-            HTTP_422_UNPROCESSABLE_ENTITY, "'..' not allowed in path"
+            HTTP_422_UNPROCESSABLE_ENTITY, 'folder must be relative'
         )
 
-    if pathlib.Path(path).is_absolute():
+    if not (filename := secure_filename(filename)):
         raise HTTPException(
-            HTTP_422_UNPROCESSABLE_ENTITY, 'path must be relative'
+            HTTP_422_UNPROCESSABLE_ENTITY, 'invalid filename'
         )
 
-    if unzip:
-        ...
-
-    else:
-        await _add_resource(
-            archive,
-            provider,
-            package,
-            path,
-            file,
-            filename,
-            mimetype,
-            sha256,
-            title,
-            description,
-            archive_adapter,
-        )
-
-
-async def _add_resource(
-        archive: Archive,
-        provider: Provider,
-        package: Package,
-        path: str,
-        file: UploadFile,
-        filename: str,
-        mimetype: str,
-        sha256: str,
-        title: str | None,
-        description: str | None,
-        archive_adapter: ArchiveAdapter,
-):
-    resource = Resource(
-        title=title,
-        description=description,
-        filename=filename,
-        mimetype=mimetype,
-        size=file.size,
-        hash=sha256,
-        hash_algorithm=HashAlgorithm.sha256,
-        timestamp=(timestamp := datetime.now(timezone.utc)),
-        provider_id=provider.id,
-    )
-    resource.save()
-
+    archive_folder = f'{provider.key}/{package.key}/{folder}'
     try:
-        archive_resource = ArchiveResource(
-            archive_id=archive.id,
-            resource_id=resource.id,
-            path=(archive_path := f'{provider.key}/{package.key}/{path}'),
-            timestamp=timestamp,
-        )
-        archive_resource.save()
-    except IntegrityError:
-        raise HTTPException(
-            HTTP_422_UNPROCESSABLE_ENTITY, f"Path '{archive_path}' already exists in archive"
-        )
-
-    try:
-        package_resource = PackageResource(
-            package_id=package.id,
-            resource_id=resource.id,
-            path=path,
-            timestamp=timestamp,
-        )
-        package_resource.save()
-    except IntegrityError:
-        raise HTTPException(
-            HTTP_422_UNPROCESSABLE_ENTITY, f"Path '{path}' already exists in package"
-        )
-
-    try:
-        await archive_adapter.put(
-            archive_path, file, sha256
+        file_info_list = await archive_adapter.put(
+            archive_folder, filename, file, sha256, unpack
         )
     except NotImplementedError:
         raise HTTPException(
             HTTP_405_METHOD_NOT_ALLOWED, f'Operation not supported for {archive.id}'
         )
+
+    for file_info in file_info_list:
+        res_mimetype, encoding = mimetypes.guess_type(file_info.relpath, strict=False)
+        package_path = file_info.relpath.removeprefix(f'{provider.key}/{package.key}/')
+        archive_path = file_info.relpath
+        res_filename = pathlib.Path(file_info.relpath).name
+        res_size = file_info.size
+        res_hash = file_info.sha256
+        res_title = title
+        res_description = description
+
+        resource = Resource(
+            title=res_title,
+            description=res_description,
+            filename=res_filename,
+            mimetype=res_mimetype,
+            size=res_size,
+            hash=res_hash,
+            hash_algorithm=HashAlgorithm.sha256,
+            timestamp=(timestamp := datetime.now(timezone.utc)),
+            provider_id=provider.id,
+        )
+        resource.save()
+
+        try:
+            archive_resource = ArchiveResource(
+                archive_id=archive.id,
+                resource_id=resource.id,
+                path=archive_path,
+                timestamp=timestamp,
+            )
+            archive_resource.save()
+        except IntegrityError:
+            raise HTTPException(
+                HTTP_422_UNPROCESSABLE_ENTITY, f"Path '{archive_path}' already exists in archive"
+            )
+
+        try:
+            package_resource = PackageResource(
+                package_id=package.id,
+                resource_id=resource.id,
+                path=package_path,
+                timestamp=timestamp,
+            )
+            package_resource.save()
+        except IntegrityError:
+            raise HTTPException(
+                HTTP_422_UNPROCESSABLE_ENTITY, f"Path '{package_path}' already exists in package"
+            )

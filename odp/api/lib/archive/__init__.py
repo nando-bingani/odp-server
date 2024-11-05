@@ -1,3 +1,4 @@
+from collections import namedtuple
 from os import PathLike
 
 from fastapi import HTTPException, UploadFile
@@ -7,6 +8,10 @@ from starlette.status import HTTP_404_NOT_FOUND
 from odp.const.db import ArchiveAdapter as Adapter
 from odp.db import Session
 from odp.db.models import Archive
+
+FileInfo = namedtuple('FileInfo', (
+    'relpath', 'size', 'sha256'
+))
 
 
 class ArchiveAdapter:
@@ -29,14 +34,20 @@ class ArchiveAdapter:
         files at `paths` to the client."""
         raise NotImplementedError
 
-    async def put(self, path: str | PathLike, file: UploadFile, sha256: str) -> None:
-        """Store the contents of the incoming `file` at `path` and
-        verify the stored file against the given checksum."""
-        raise NotImplementedError
+    async def put(
+            self,
+            folder: str,
+            filename: str,
+            file: UploadFile,
+            sha256: str,
+            unpack: bool,
+    ) -> list[FileInfo]:
+        """Add or unpack `file` into `folder` relative to the
+        archive's upload directory.
 
-    async def put_zip(self, path: str | PathLike, file: UploadFile) -> None:
-        """Unpack the contents of the incoming `file` into the
-        directory at `path`."""
+        Return a list of FileInfo tuple(relpath, size, sha256)
+        for each written file.
+        """
         raise NotImplementedError
 
 
