@@ -28,7 +28,11 @@ def output_resource_model(resource: Resource) -> ResourceModel:
         archive_paths={
             ar.archive_id: ar.path
             for ar in resource.archive_resources
-        }
+        },
+        package_paths={
+            pr.package_id: pr.path
+            for pr in resource.resource_packages
+        },
     )
 
 

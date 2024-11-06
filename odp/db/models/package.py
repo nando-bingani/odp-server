@@ -35,7 +35,7 @@ class Package(Base):
 
     # many-to-many package_resource entities are persisted by
     # assigning/removing Resource instances to/from resources
-    package_resources = relationship('PackageResource', cascade='all, delete-orphan', passive_deletes=True)
+    package_resources = relationship('PackageResource', order_by='PackageResource.path', cascade='all, delete-orphan', passive_deletes=True)
     resources = association_proxy('package_resources', 'resource', creator=lambda r: PackageResource(
         resource=r, path=r.filename, timestamp=datetime.now(timezone.utc)
     ))
