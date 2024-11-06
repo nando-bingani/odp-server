@@ -11,7 +11,7 @@ from werkzeug.utils import secure_filename
 from odp.api.lib.archive import ArchiveAdapter, get_archive_adapter
 from odp.api.lib.auth import ArchiveAuthorize, Authorize, Authorized
 from odp.api.lib.paging import Paginator
-from odp.api.models import ArchiveModel, ArchiveResourceModel, Page
+from odp.api.models import ArchiveModel, Page
 from odp.const import ODPScope
 from odp.const.db import HashAlgorithm
 from odp.db import Session
@@ -27,24 +27,6 @@ def output_archive_model(result) -> ArchiveModel:
         adapter=result.Archive.adapter,
         scope_id=result.Archive.scope_id,
         resource_count=result.count,
-    )
-
-
-def output_archive_resource_model(result) -> ArchiveResourceModel:
-    return ArchiveResourceModel(
-        archive_id=result.ArchiveResource.archive_id,
-        resource_id=result.ArchiveResource.resource_id,
-        path=result.ArchiveResource.path,
-        title=result.Resource.title,
-        description=result.Resource.description,
-        filename=result.Resource.filename,
-        mimetype=result.Resource.mimetype,
-        size=result.Resource.size,
-        hash=result.Resource.hash,
-        hash_algorithm=result.Resource.hash_algorithm,
-        timestamp=result.Resource.timestamp.isoformat(),
-        provider_id=result.Resource.provider_id,
-        provider_key=result.Resource.provider.key,
     )
 
 
@@ -92,31 +74,6 @@ async def get_archive(
         raise HTTPException(HTTP_404_NOT_FOUND)
 
     return output_archive_model(result)
-
-
-@router.get(
-    '/{archive_id}/resources',
-    dependencies=[Depends(Authorize(ODPScope.ARCHIVE_READ))],
-)
-async def list_resources(
-        archive_id: str,
-        paginator: Paginator = Depends(),
-) -> Page[ArchiveResourceModel]:
-    """
-    List the resources in an archive. Requires scope `odp.archive:read`.
-    """
-    if not Session.get(Archive, archive_id):
-        raise HTTPException(HTTP_404_NOT_FOUND)
-
-    stmt = (
-        select(ArchiveResource, Resource).join(Resource).
-        where(ArchiveResource.archive_id == archive_id)
-    )
-
-    return paginator.paginate(
-        stmt,
-        lambda row: output_archive_resource_model(row),
-    )
 
 
 @router.put(
