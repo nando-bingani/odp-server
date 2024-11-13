@@ -9,7 +9,7 @@ jobs:
     steps:
       - name: Get branch name
         id: branch-name
-        uses: tj-actions/branch-names@v7
+        uses: tj-actions/branch-names@v8
 
       - name: Echo branch name
         run: |
@@ -35,7 +35,7 @@ jobs:
           ref: ${{ steps.branch-name.outputs.current_branch }}
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 
