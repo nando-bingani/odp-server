@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import BigInteger, CheckConstraint, Column, Enum, ForeignKey, String, TIMESTAMP
+from sqlalchemy import BigInteger, CheckConstraint, Column, Enum, ForeignKey, Index, String, TIMESTAMP, text
 from sqlalchemy.ext.associationproxy import association_proxy
 from sqlalchemy.orm import relationship
 
@@ -9,40 +9,39 @@ from odp.db import Base
 
 
 class Resource(Base):
-    """A resource comprises the metadata for an individual file, folder or dataset."""
+    """A resource comprises the metadata for an individual file,
+    folder or dataset."""
 
     __tablename__ = 'resource'
 
     __table_args__ = (
+        Index(
+            'resource_package_path_uix',
+            text("(package_id || '/' || folder || '/' || filename)"),
+            unique=True,
+        ),
         CheckConstraint(
             'hash is null or hash_algorithm is not null',
             name='resource_hash_algorithm_check',
         ),
-        CheckConstraint(
-            'title is not null or filename is not null',
-            name='resource_title_or_filename_check',
-        ),
     )
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    title = Column(String)
-    description = Column(String)
-    filename = Column(String)
+    folder = Column(String, nullable=False)
+    filename = Column(String, nullable=False)
     mimetype = Column(String)
     size = Column(BigInteger)
     hash = Column(String)
     hash_algorithm = Column(Enum(HashAlgorithm))
+    title = Column(String)
+    description = Column(String)
     timestamp = Column(TIMESTAMP(timezone=True), nullable=False)
 
-    provider_id = Column(String, ForeignKey('provider.id', ondelete='RESTRICT'), nullable=False)
-    provider = relationship('Provider')
-
-    # view of associated packages via many-to-many package_resource relation
-    resource_packages = relationship('PackageResource', viewonly=True)
-    packages = association_proxy('resource_packages', 'package')
+    package_id = Column(String, ForeignKey('package.id', ondelete='RESTRICT'), nullable=False)
+    package = relationship('Package')
 
     # view of associated archives via many-to-many archive_resource relation
     archive_resources = relationship('ArchiveResource', viewonly=True)
     archives = association_proxy('archive_resources', 'archive')
 
-    _repr_ = 'id', 'title', 'filename', 'mimetype', 'size', 'hash', 'provider_id'
+    _repr_ = 'id', 'folder', 'filename', 'mimetype', 'size', 'hash', 'package_id'

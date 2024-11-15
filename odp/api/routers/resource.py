@@ -7,7 +7,7 @@ from odp.api.lib.paging import Paginator
 from odp.api.models import Page, ResourceModel
 from odp.const import ODPScope
 from odp.db import Session
-from odp.db.models import ArchiveResource, PackageResource, Resource
+from odp.db.models import ArchiveResource, Resource
 
 router = APIRouter()
 

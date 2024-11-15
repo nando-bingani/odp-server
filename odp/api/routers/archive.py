@@ -15,7 +15,7 @@ from odp.api.models import ArchiveModel, Page
 from odp.const import ODPScope
 from odp.const.db import HashAlgorithm
 from odp.db import Session
-from odp.db.models import Archive, ArchiveResource, Package, PackageResource, Provider, Resource
+from odp.db.models import Archive, ArchiveResource, Package, Provider, Resource
 
 router = APIRouter()
 

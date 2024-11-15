@@ -1,5 +1,4 @@
 import uuid
-from datetime import datetime, timezone
 
 from sqlalchemy import ARRAY, CheckConstraint, Column, Enum, ForeignKey, ForeignKeyConstraint, Identity, Integer, String, TIMESTAMP, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
@@ -11,7 +10,8 @@ from odp.db import Base
 
 
 class Package(Base):
-    """A submission information package originating from a data provider.
+    """A submission information package. A collection of resources
+    and associated metadata originating from a data provider.
 
     The package `key` is unique to the provider.
 
@@ -33,14 +33,8 @@ class Package(Base):
     provider_id = Column(String, ForeignKey('provider.id', ondelete='RESTRICT'), nullable=False)
     provider = relationship('Provider')
 
-    # many-to-many package_resource entities are persisted by
-    # assigning/removing Resource instances to/from resources
-    package_resources = relationship('PackageResource', order_by='PackageResource.path', cascade='all, delete-orphan', passive_deletes=True)
-    resources = association_proxy('package_resources', 'resource', creator=lambda r: PackageResource(
-        resource=r, path=r.filename, timestamp=datetime.now(timezone.utc)
-    ))
-    # N.B. the above only works if all the package's resources have filenames;
-    # for other use cases PackageResource entities must be created explicitly
+    # view of associated resources (one-to-many)
+    resources = relationship('Resource', viewonly=True)
 
     # view of associated tags (one-to-many)
     tags = relationship('PackageTag', viewonly=True)
@@ -51,7 +45,7 @@ class Package(Base):
     package_records = relationship('RecordPackage', viewonly=True)
     records = association_proxy('package_records', 'record')
 
-    _repr_ = 'id', 'title', 'status', 'provider_id'
+    _repr_ = 'id', 'key', 'title', 'status', 'provider_id'
 
 
 class PackageAudit(Base):
@@ -71,33 +65,6 @@ class PackageAudit(Base):
     _status = Column(String, nullable=False)
     _provider_id = Column(String, nullable=False)
     _resources = Column(ARRAY(String))
-
-
-class PackageResource(Base):
-    """A packaged instance of a resource. For a given package, this
-    relation represents the set of resources constituting the package.
-
-    `path` is relative and unique to the package.
-
-    A resource cannot be deleted if it is part of a package.
-    """
-
-    __tablename__ = 'package_resource'
-
-    __table_args__ = (
-        UniqueConstraint('package_id', 'path'),
-    )
-
-    package_id = Column(String, ForeignKey('package.id', ondelete='CASCADE'), primary_key=True)
-    resource_id = Column(String, ForeignKey('resource.id', ondelete='RESTRICT'), primary_key=True)
-
-    package = relationship('Package')
-    resource = relationship('Resource')
-
-    path = Column(String, nullable=False)
-    timestamp = Column(TIMESTAMP(timezone=True), nullable=False)
-
-    _repr_ = 'package_id', 'resource_id', 'path'
 
 
 class PackageTag(Base):

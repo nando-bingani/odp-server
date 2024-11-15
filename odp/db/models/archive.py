@@ -46,7 +46,7 @@ class ArchiveResource(Base):
     )
 
     archive_id = Column(String, ForeignKey('archive.id', ondelete='RESTRICT'), primary_key=True)
-    resource_id = Column(String, ForeignKey('resource.id', ondelete='CASCADE'), primary_key=True)
+    resource_id = Column(String, ForeignKey('resource.id', ondelete='RESTRICT'), primary_key=True)
 
     archive = relationship('Archive')
     resource = relationship('Resource')

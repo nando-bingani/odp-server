@@ -98,12 +98,14 @@ def test_create_archive():
     result = TestSession.execute(select(Archive)).scalar_one()
     assert (
                result.id,
-               result.url,
+               result.download_url,
+               result.upload_url,
                result.adapter,
                result.scope_id,
            ) == (
                archive.id,
-               archive.url,
+               archive.download_url,
+               archive.upload_url,
                archive.adapter,
                archive.scope_id,
            )
@@ -297,24 +299,26 @@ def test_create_resource():
                result.id,
                result.title,
                result.description,
+               result.folder,
                result.filename,
                result.mimetype,
                result.size,
                result.hash,
                result.hash_algorithm,
                result.timestamp,
-               result.provider_id,
+               result.package_id,
            ) == (
                resource.id,
                resource.title,
                resource.description,
+               resource.folder,
                resource.filename,
                resource.mimetype,
                resource.size,
                resource.hash,
                resource.hash_algorithm,
                resource.timestamp,
-               resource.provider_id,
+               resource.package_id,
            )
 
 

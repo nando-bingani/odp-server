@@ -209,28 +209,21 @@ class PackageFactory(ODPModelFactory):
     provider = factory.SubFactory(ProviderFactory)
     timestamp = factory.LazyFunction(lambda: datetime.now(timezone.utc))
 
-    @factory.post_generation
-    def resources(obj, create, resources):
-        if resources:
-            for resource in resources:
-                obj.resources.append(resource)
-            if create:
-                FactorySession.commit()
-
 
 class ResourceFactory(ODPModelFactory):
     class Meta:
         model = Resource
 
     id = factory.Faker('uuid4')
+    folder = factory.LazyAttribute(lambda r: f'{fake.uri_path(deep=randint(0, 5))}')
+    filename = factory.Sequence(lambda n: f'{fake.file_name()}.{n}')
     title = factory.Faker('catch_phrase')
     description = factory.Faker('sentence')
-    filename = factory.Sequence(lambda n: f'{fake.file_name()}.{n}')
     mimetype = factory.Faker('mime_type')
     size = factory.LazyFunction(lambda: randint(1, sys.maxsize))
     hash = factory.LazyAttribute(lambda r: fake.md5() if r.hash_algorithm == 'md5' else fake.sha256())
     hash_algorithm = factory.LazyFunction(lambda: choice(('md5', 'sha256')))
-    provider = factory.SubFactory(ProviderFactory)
+    package = factory.SubFactory(PackageFactory)
     timestamp = factory.LazyFunction(lambda: datetime.now(timezone.utc))
 
 
@@ -449,7 +442,8 @@ class ArchiveFactory(ODPModelFactory):
         model = Archive
 
     id = factory.Sequence(lambda n: f'{fake.slug()}.{n}')
-    url = factory.Faker('url')
+    download_url = factory.Faker('url')
+    upload_url = factory.Faker('url')
     adapter = factory.LazyFunction(lambda: choice(('filesystem', 'nextcloud', 'website')))
     scope = factory.SubFactory(ScopeFactory, type='odp')
 
