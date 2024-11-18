@@ -5,11 +5,11 @@ import pytest
 from sqlalchemy import select
 
 from odp.const import ODPScope
-from odp.db.models import Archive, ArchiveResource, Resource
+from odp.db.models import ArchiveResource, Resource
 from test import TestSession
-from test.api import assert_conflict, assert_forbidden, assert_new_timestamp, assert_not_found
+from test.api import assert_forbidden, assert_new_timestamp, assert_not_found
 from test.api.conftest import try_skip_user_provider_constraint
-from test.factories import ArchiveFactory, ArchiveResourceFactory, ProviderFactory, ResourceFactory, fake
+from test.factories import ArchiveFactory, ArchiveResourceFactory, ProviderFactory, ResourceFactory
 
 
 @pytest.fixture
@@ -33,21 +33,6 @@ def resource_batch():
     return resources
 
 
-def resource_build(archive=None, archive_path=None, provider=None):
-    """Build and return an uncommitted Resource instance.
-    Referenced archive and provider are however committed."""
-    archive = archive or ArchiveFactory()
-    resource = ResourceFactory.build(
-        provider=(provider := provider or ProviderFactory()),
-        provider_id=provider.id,
-    )
-    path = archive_path or f'{fake.uri_path(deep=randint(1, 5))}/{resource.filename}'
-    resource.archive_paths = {
-        archive.id: path
-    }
-    return resource
-
-
 def assert_db_state(resources):
     """Verify that the resource table contains the given resource batch,
     and that the archive_resource table contains the generated archive paths."""
@@ -59,12 +44,13 @@ def assert_db_state(resources):
         assert row.id == resources[n].id
         assert row.title == resources[n].title
         assert row.description == resources[n].description
+        assert row.folder == resources[n].folder
         assert row.filename == resources[n].filename
         assert row.mimetype == resources[n].mimetype
         assert row.size == resources[n].size
         assert row.hash == resources[n].hash
         assert row.hash_algorithm == resources[n].hash_algorithm
-        assert row.provider_id == resources[n].provider_id
+        assert row.package_id == resources[n].package_id
         assert_new_timestamp(row.timestamp)
 
     result = TestSession.execute(select(ArchiveResource)).scalars().all()
@@ -94,13 +80,14 @@ def assert_json_result(response, json, resource):
     assert json['id'] == resource.id
     assert json['title'] == resource.title
     assert json['description'] == resource.description
+    assert json['folder'] == resource.folder
     assert json['filename'] == resource.filename
     assert json['mimetype'] == resource.mimetype
     assert json['size'] == resource.size
     assert json['hash'] == resource.hash
     assert json['hash_algorithm'] == resource.hash_algorithm
-    assert json['provider_id'] == resource.provider_id
-    assert json['provider_key'] == resource.provider.key
+    assert json['package_id'] == resource.package_id
+    assert json['package_key'] == resource.package.key
     assert json['archive_paths'] == resource.archive_paths
     assert_new_timestamp(datetime.fromisoformat(json['timestamp']))
 
@@ -134,16 +121,16 @@ def parameterize_api_fixture(
     if client_provider_constraint == 'client_provider_any':
         client_provider = None
     elif client_provider_constraint == 'client_provider_match':
-        client_provider = resources[2].provider
+        client_provider = resources[2].package.provider
     elif client_provider_constraint == 'client_provider_mismatch':
-        client_provider = ProviderFactory() if force_mismatch else resources[0].provider
+        client_provider = ProviderFactory() if force_mismatch else resources[0].package.provider
 
     if user_provider_constraint == 'user_provider_none':
         user_providers = None
     elif user_provider_constraint == 'user_provider_match':
-        user_providers = [p.provider for p in resources[1:3]]
+        user_providers = [r.package.provider for r in resources[1:3]]
     elif user_provider_constraint == 'user_provider_mismatch':
-        user_providers = [ProviderFactory()] if force_mismatch else [p.provider for p in resources[0:2]]
+        user_providers = [ProviderFactory()] if force_mismatch else [r.package.provider for r in resources[0:2]]
 
     return dict(client_provider=client_provider, user_providers=user_providers)
 
@@ -296,177 +283,3 @@ def test_get_resource_not_found(
     r = api(scopes, **api_kwargs).get(f'{route}foo')
     assert_not_found(r)
     assert_db_state(resource_batch)
-
-
-@pytest.mark.require_scope(ODPScope.RESOURCE_WRITE)
-def test_create_resource(
-        api,
-        scopes,
-        resource_batch,
-        client_provider_constraint,
-        user_provider_constraint,
-):
-    api_kwargs = parameterize_api_fixture(
-        resource_batch,
-        api.grant_type,
-        client_provider_constraint,
-        user_provider_constraint,
-    )
-    authorized = (
-            ODPScope.RESOURCE_WRITE in scopes and
-            client_provider_constraint in ('client_provider_any', 'client_provider_match') and
-            (api.grant_type == 'client_credentials' or user_provider_constraint == 'user_provider_match')
-    )
-
-    _test_create_resource(
-        api,
-        scopes,
-        resource_batch,
-        '/resource/',
-        authorized,
-        api_kwargs,
-    )
-
-
-@pytest.mark.require_scope(ODPScope.RESOURCE_ADMIN)
-def test_admin_create_resource(
-        api,
-        scopes,
-        resource_batch,
-        client_provider_constraint,
-        user_provider_constraint,
-):
-    api_kwargs = parameterize_api_fixture(
-        resource_batch,
-        api.grant_type,
-        client_provider_constraint,
-        user_provider_constraint,
-    )
-    authorized = ODPScope.RESOURCE_ADMIN in scopes
-
-    _test_create_resource(
-        api,
-        scopes,
-        resource_batch,
-        '/resource/admin/',
-        authorized,
-        api_kwargs,
-    )
-
-
-def _test_create_resource(
-        api,
-        scopes,
-        resource_batch,
-        route,
-        authorized,
-        api_kwargs,
-):
-    resource = resource_build(provider=resource_batch[2].provider)
-    archive = TestSession.get(Archive, list(resource.archive_paths)[0])
-
-    r = api(scopes, **api_kwargs).post(route, json=dict(
-        title=resource.title,
-        description=resource.description,
-        filename=resource.filename,
-        mimetype=resource.mimetype,
-        size=resource.size,
-        hash=resource.hash,
-        hash_algorithm=resource.hash_algorithm,
-        provider_id=resource.provider_id,
-        archive_id=archive.id,
-        archive_path=resource.archive_paths[archive.id],
-    ))
-
-    if authorized:
-        resource.id = r.json().get('id')
-        assert_json_result(r, r.json(), resource)
-        assert_db_state(resource_batch + [resource])
-    else:
-        assert_forbidden(r)
-        assert_db_state(resource_batch)
-
-
-def test_create_resource_conflict(
-        api,
-        resource_batch,
-        client_provider_constraint,
-        user_provider_constraint,
-):
-    api_kwargs = parameterize_api_fixture(
-        resource_batch,
-        api.grant_type,
-        client_provider_constraint,
-        user_provider_constraint,
-    )
-    authorized = (
-            client_provider_constraint in ('client_provider_any', 'client_provider_match') and
-            (api.grant_type == 'client_credentials' or user_provider_constraint == 'user_provider_match')
-    )
-
-    _test_create_resource_conflict(
-        api,
-        [ODPScope.RESOURCE_WRITE],
-        resource_batch,
-        '/resource/',
-        authorized,
-        api_kwargs,
-    )
-
-
-def test_admin_create_resource_conflict(
-        api,
-        resource_batch,
-        client_provider_constraint,
-        user_provider_constraint,
-):
-    api_kwargs = parameterize_api_fixture(
-        resource_batch,
-        api.grant_type,
-        client_provider_constraint,
-        user_provider_constraint,
-    )
-
-    _test_create_resource_conflict(
-        api,
-        [ODPScope.RESOURCE_ADMIN],
-        resource_batch,
-        '/resource/admin/',
-        True,
-        api_kwargs,
-    )
-
-
-def _test_create_resource_conflict(
-        api,
-        scopes,
-        resource_batch,
-        route,
-        authorized,
-        api_kwargs,
-):
-    ar = ArchiveResourceFactory(archive=ArchiveFactory())
-    resource = resource_build(archive=ar.archive, archive_path=ar.path, provider=resource_batch[2].provider)
-
-    r = api(scopes, **api_kwargs).post(route, json=dict(
-        title=resource.title,
-        description=resource.description,
-        filename=resource.filename,
-        mimetype=resource.mimetype,
-        size=resource.size,
-        hash=resource.hash,
-        hash_algorithm=resource.hash_algorithm,
-        provider_id=resource.provider_id,
-        archive_id=ar.archive_id,
-        archive_path=ar.path,
-    ))
-
-    # set expected archive_paths here; somehow ar.resource is reloaded by above
-    ar.resource.archive_paths = {ar.archive_id: ar.path}
-
-    if authorized:
-        assert_conflict(r, f'path {ar.path} already exists in archive {ar.archive_id}')
-    else:
-        assert_forbidden(r)
-
-    assert_db_state(resource_batch + [ar.resource])

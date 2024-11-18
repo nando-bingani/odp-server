@@ -7,7 +7,7 @@ from odp.api.lib.paging import Paginator
 from odp.api.models import Page, ResourceModel
 from odp.const import ODPScope
 from odp.db import Session
-from odp.db.models import ArchiveResource, Resource
+from odp.db.models import ArchiveResource, Package, Resource
 
 router = APIRouter()
 
@@ -17,21 +17,18 @@ def output_resource_model(resource: Resource) -> ResourceModel:
         id=resource.id,
         title=resource.title,
         description=resource.description,
+        folder=resource.folder,
         filename=resource.filename,
         mimetype=resource.mimetype,
         size=resource.size,
         hash=resource.hash,
         hash_algorithm=resource.hash_algorithm,
         timestamp=resource.timestamp.isoformat(),
-        provider_id=resource.provider_id,
-        provider_key=resource.provider.key,
+        package_id=resource.package_id,
+        package_key=resource.package.key,
         archive_paths={
             ar.archive_id: ar.path
             for ar in resource.archive_resources
-        },
-        package_paths={
-            pr.package_id: pr.path
-            for pr in resource.resource_packages
         },
     )
 
@@ -48,9 +45,8 @@ async def list_resources(
         provider_id: list[str] = Query(None, title='Filter by provider id(s)'),
         archive_id: str = Query(None, title='Only return resources stored in this archive'),
         exclude_archive_id: str = Query(None, title='Exclude resources stored in this archive'),
-        exclude_packaged: bool = Query(False, title='Exclude resources associated with any package'),
 ):
-    return await _list_resources(auth, paginator, package_id, provider_id, archive_id, exclude_archive_id, exclude_packaged)
+    return await _list_resources(auth, paginator, package_id, provider_id, archive_id, exclude_archive_id)
 
 
 @router.get(
@@ -65,9 +61,8 @@ async def list_all_resources(
         provider_id: list[str] = Query(None, title='Filter by provider id(s)'),
         archive_id: str = Query(None, title='Only return resources stored in this archive'),
         exclude_archive_id: str = Query(None, title='Exclude resources stored in this archive'),
-        exclude_packaged: bool = Query(False, title='Exclude resources associated with any package'),
 ):
-    return await _list_resources(auth, paginator, package_id, provider_id, archive_id, exclude_archive_id, exclude_packaged)
+    return await _list_resources(auth, paginator, package_id, provider_id, archive_id, exclude_archive_id)
 
 
 async def _list_resources(
@@ -77,20 +72,24 @@ async def _list_resources(
         provider_id: list[str],
         archive_id: str,
         exclude_archive_id: str,
-        exclude_packaged: bool,
 ):
     stmt = select(Resource)
+    join_package = False
 
     if auth.object_ids != '*':
-        stmt = stmt.where(Resource.provider_id.in_(auth.object_ids))
+        stmt = stmt.where(Package.provider_id.in_(auth.object_ids))
+        join_package = True
 
     if package_id:
-        stmt = stmt.join(PackageResource)
-        stmt = stmt.where(PackageResource.package_id == package_id)
+        stmt = stmt.where(Resource.package_id == package_id)
 
     if provider_id:
-        auth.enforce_constraint(provider_id)
-        stmt = stmt.where(Resource.provider_id.in_(provider_id))
+        auth.enforce_constraint([provider_id])
+        stmt = stmt.where(Package.provider_id.in_(provider_id))
+        join_package = True
+
+    if join_package:
+        stmt = stmt.join(Package)
 
     if archive_id:
         stmt = stmt.join(ArchiveResource)
@@ -103,13 +102,6 @@ async def _list_resources(
             where(ArchiveResource.archive_id == exclude_archive_id)
         ).exists()
         stmt = stmt.where(~archived_subq)
-
-    if exclude_packaged:
-        packaged_subq = (
-            select(PackageResource).
-            where(PackageResource.resource_id == Resource.id)
-        ).exists()
-        stmt = stmt.where(~packaged_subq)
 
     return paginator.paginate(
         stmt,
@@ -129,7 +121,7 @@ async def get_resource(
     if not (resource := Session.get(Resource, resource_id)):
         raise HTTPException(HTTP_404_NOT_FOUND)
 
-    auth.enforce_constraint([resource.provider_id])
+    auth.enforce_constraint([resource.package.provider_id])
 
     return output_resource_model(resource)
 
