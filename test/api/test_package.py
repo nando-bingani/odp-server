@@ -6,7 +6,7 @@ from sqlalchemy import select
 
 from odp.const import ODPScope
 from odp.const.db import ScopeType
-from odp.db.models import Package, PackageAudit, PackageResource, PackageTag, PackageTagAudit, Resource, Scope, Tag, User
+from odp.db.models import Package, PackageAudit, PackageTag, PackageTagAudit, Resource, Scope, Tag, User
 from test import TestSession
 from test.api import assert_empty_result, assert_forbidden, assert_new_timestamp, assert_not_found, assert_tag_instance_output, test_resource
 from test.api.conftest import try_skip_user_provider_constraint
@@ -16,19 +16,12 @@ from test.factories import FactorySession, PackageFactory, PackageTagFactory, Pr
 @pytest.fixture
 def package_batch(request):
     """Create and commit a batch of Package instances, with
-    associated resources. The #2 package's resources get the
-    same provider as the package."""
+    associated resources."""
     with_tags = request.node.get_closest_marker('package_batch_with_tags') is not None
 
-    packages = []
-    for n in range(randint(3, 5)):
-        packages += [package := PackageFactory(
-            provider=(provider := ProviderFactory()),
-            resources=(resources := ResourceFactory.create_batch(
-                randint(0, 4),
-                provider=provider if n == 2 else ProviderFactory(),
-            )),
-        )]
+    packages = PackageFactory.create_batch(randint(3, 5))
+    for package in packages:
+        resources = ResourceFactory.create_batch(randint(0, 4), package=package)
         package.resource_ids = [resource.id for resource in resources]
         if with_tags:
             PackageTagFactory.create_batch(randint(0, 3), package=package)
@@ -36,25 +29,21 @@ def package_batch(request):
     return packages
 
 
-def package_build(package_provider=None, resource_provider=None, **id):
+def package_build(provider=None, resource_ids=None, **id):
     """Build and return an uncommitted Package instance.
-    Referenced providers and resources are however committed."""
-    package_provider = package_provider or ProviderFactory()
-    resource_provider = resource_provider or ProviderFactory()
+    Referenced provider is however committed."""
     package = PackageFactory.build(
         **id,
-        provider=package_provider,
-        provider_id=package_provider.id,
-        resources=(resources := ResourceFactory.create_batch(randint(1, 4), provider=resource_provider)),
+        provider=(provider := provider or ProviderFactory()),
+        provider_id=provider.id,
     )
-    package.resource_ids = [resource.id for resource in resources]
+    package.resource_ids = resource_ids or []
     return package
 
 
 def assert_db_state(packages):
     """Verify that the package table contains the given package batch,
-    and that the package_resource table contains the associated resource
-    references."""
+    and that the resource table contains the associated resource references."""
     result = TestSession.execute(select(Package)).scalars().all()
     result.sort(key=lambda p: p.id)
     packages.sort(key=lambda p: p.id)
@@ -67,8 +56,8 @@ def assert_db_state(packages):
         assert_new_timestamp(row.timestamp)
         assert row.provider_id == packages[n].provider_id
 
-    result = TestSession.execute(select(PackageResource.package_id, PackageResource.resource_id)).all()
-    result.sort(key=lambda pr: (pr.package_id, pr.resource_id))
+    result = TestSession.execute(select(Resource.package_id, Resource.id)).all()
+    result.sort(key=lambda r: (r.package_id, r.id))
     package_resources = []
     for package in packages:
         for resource_id in package.resource_ids:
@@ -152,7 +141,7 @@ def assert_json_result(response, json, package, detail=False):
     if detail:
         json_resources = json['resources']
         db_resources = TestSession.execute(
-            select(Resource).join(PackageResource).where(PackageResource.package_id == package.id)
+            select(Resource).where(Resource.package_id == package.id)
         ).scalars().all()
         assert len(json_resources) == len(db_resources)
         json_resources.sort(key=lambda r: r['id'])
@@ -379,14 +368,12 @@ def test_get_package_not_found(
 
 
 @pytest.mark.require_scope(ODPScope.PACKAGE_WRITE)
-@pytest.mark.parametrize('package_resource_provider', ['same', 'different'])
 def test_create_package(
         api,
         scopes,
         package_batch,
         client_provider_constraint,
         user_provider_constraint,
-        package_resource_provider,
 ):
     api_kwargs = parameterize_api_fixture(
         package_batch,
@@ -399,17 +386,11 @@ def test_create_package(
             client_provider_constraint in ('client_provider_any', 'client_provider_match') and
             (api.grant_type == 'client_credentials' or user_provider_constraint == 'user_provider_match')
     )
-    if (
-            client_provider_constraint == 'client_provider_match' or
-            user_provider_constraint == 'user_provider_match'
-    ):
-        authorized = authorized and package_resource_provider == 'same'
 
     _test_create_package(
         api,
         scopes,
         package_batch,
-        package_resource_provider,
         '/package/',
         authorized,
         api_kwargs,
@@ -417,14 +398,12 @@ def test_create_package(
 
 
 @pytest.mark.require_scope(ODPScope.PACKAGE_ADMIN)
-@pytest.mark.parametrize('package_resource_provider', ['same', 'different'])
 def test_admin_create_package(
         api,
         scopes,
         package_batch,
         client_provider_constraint,
         user_provider_constraint,
-        package_resource_provider,
 ):
     api_kwargs = parameterize_api_fixture(
         package_batch,
@@ -438,7 +417,6 @@ def test_admin_create_package(
         api,
         scopes,
         package_batch,
-        package_resource_provider,
         '/package/admin/',
         authorized,
         api_kwargs,
@@ -449,21 +427,18 @@ def _test_create_package(
         api,
         scopes,
         package_batch,
-        package_resource_provider,
         route,
         authorized,
         api_kwargs,
 ):
     package = package_build(
         status='pending',
-        package_provider=package_batch[2].provider,
-        resource_provider=package_batch[2].provider if package_resource_provider == 'same' else None,
+        provider=package_batch[2].provider,
     )
 
     r = api(scopes, **api_kwargs).post(route, json=dict(
         title=package.title,
         provider_id=package.provider_id,
-        resource_ids=package.resource_ids,
     ))
 
     if authorized:
@@ -479,8 +454,6 @@ def _test_create_package(
 
 @pytest.mark.require_scope(ODPScope.PACKAGE_WRITE)
 @pytest.mark.parametrize('package_new_provider', ['same', 'different'])
-@pytest.mark.parametrize('package_new_resource_provider', ['same', 'different'])
-@pytest.mark.parametrize('package_existing_resource_provider', ['same', 'different'])
 @pytest.mark.package_batch_with_tags
 def test_update_package(
         api,
@@ -489,8 +462,6 @@ def test_update_package(
         client_provider_constraint,
         user_provider_constraint,
         package_new_provider,
-        package_new_resource_provider,
-        package_existing_resource_provider,
 ):
     api_kwargs = parameterize_api_fixture(
         package_batch,
@@ -507,18 +478,13 @@ def test_update_package(
             client_provider_constraint == 'client_provider_match' or
             user_provider_constraint == 'user_provider_match'
     ):
-        authorized = (authorized and
-                      package_new_provider == 'same' and
-                      package_new_resource_provider == 'same' and
-                      (package_existing_resource_provider == 'same' or not package_batch[2].resources))
+        authorized = authorized and package_new_provider == 'same'
 
     _test_update_package(
         api,
         scopes,
         package_batch,
         package_new_provider,
-        package_new_resource_provider,
-        package_existing_resource_provider,
         '/package/',
         authorized,
         api_kwargs,
@@ -527,8 +493,6 @@ def test_update_package(
 
 @pytest.mark.require_scope(ODPScope.PACKAGE_ADMIN)
 @pytest.mark.parametrize('package_new_provider', ['same', 'different'])
-@pytest.mark.parametrize('package_new_resource_provider', ['same', 'different'])
-@pytest.mark.parametrize('package_existing_resource_provider', ['same', 'different'])
 @pytest.mark.package_batch_with_tags
 def test_admin_update_package(
         api,
@@ -537,8 +501,6 @@ def test_admin_update_package(
         client_provider_constraint,
         user_provider_constraint,
         package_new_provider,
-        package_new_resource_provider,
-        package_existing_resource_provider,
 ):
     api_kwargs = parameterize_api_fixture(
         package_batch,
@@ -553,8 +515,6 @@ def test_admin_update_package(
         scopes,
         package_batch,
         package_new_provider,
-        package_new_resource_provider,
-        package_existing_resource_provider,
         '/package/admin/',
         authorized,
         api_kwargs,
@@ -566,28 +526,21 @@ def _test_update_package(
         scopes,
         package_batch,
         package_new_provider,
-        package_new_resource_provider,
-        package_existing_resource_provider,
         route,
         authorized,
         api_kwargs,
 ):
-    if package_existing_resource_provider == 'different':
-        if package_batch[2].resources:
-            package_batch[2].resources[0].provider = ProviderFactory()
-            FactorySession.commit()
-
     package_provider = package_batch[2].provider if package_new_provider == 'same' else ProviderFactory()
     package_build_args = dict(
         id=package_batch[2].id,
         status=package_batch[2].status,
-        package_provider=package_provider,
-        resource_provider=package_provider if package_new_resource_provider == 'same' else None,
+        provider=package_provider,
     )
     if package_batch[2].resources:
         # key must stay the same if package #2 has any resources
         package_build_args |= dict(
             key=package_batch[2].key,
+            resource_ids=[resource.id for resource in package_batch[2].resources],
         )
 
     package = package_build(**package_build_args)
@@ -595,7 +548,6 @@ def _test_update_package(
     r = api(scopes, **api_kwargs).put(f'{route}{package.id}', json=dict(
         title=package.title,
         provider_id=package.provider_id,
-        resource_ids=package.resource_ids,
     ))
 
     if authorized:
@@ -628,7 +580,6 @@ def test_update_package_not_found(
     r = api(scopes, **api_kwargs).put(f'{route}{package.id}', json=dict(
         title=package.title,
         provider_id=package.provider_id,
-        resource_ids=package.resource_ids,
     ))
 
     assert_not_found(r)
@@ -637,14 +588,12 @@ def test_update_package_not_found(
 
 
 @pytest.mark.require_scope(ODPScope.PACKAGE_WRITE)
-@pytest.mark.parametrize('package_resource_provider', ['same', 'different'])
 def test_delete_package(
         api,
         scopes,
         package_batch,
         client_provider_constraint,
         user_provider_constraint,
-        package_resource_provider,
 ):
     api_kwargs = parameterize_api_fixture(
         package_batch,
@@ -657,17 +606,11 @@ def test_delete_package(
             client_provider_constraint in ('client_provider_any', 'client_provider_match') and
             (api.grant_type == 'client_credentials' or user_provider_constraint == 'user_provider_match')
     )
-    if (
-            client_provider_constraint == 'client_provider_match' or
-            user_provider_constraint == 'user_provider_match'
-    ):
-        authorized = authorized and (package_resource_provider == 'same' or not package_batch[2].resources)
 
     _test_delete_package(
         api,
         scopes,
         package_batch,
-        package_resource_provider,
         '/package/',
         authorized,
         api_kwargs,
@@ -675,14 +618,12 @@ def test_delete_package(
 
 
 @pytest.mark.require_scope(ODPScope.PACKAGE_ADMIN)
-@pytest.mark.parametrize('package_resource_provider', ['same', 'different'])
 def test_admin_delete_package(
         api,
         scopes,
         package_batch,
         client_provider_constraint,
         user_provider_constraint,
-        package_resource_provider,
 ):
     api_kwargs = parameterize_api_fixture(
         package_batch,
@@ -696,7 +637,6 @@ def test_admin_delete_package(
         api,
         scopes,
         package_batch,
-        package_resource_provider,
         '/package/admin/',
         authorized,
         api_kwargs,
@@ -707,16 +647,11 @@ def _test_delete_package(
         api,
         scopes,
         package_batch,
-        package_resource_provider,
         route,
         authorized,
         api_kwargs,
 ):
     deleted_package = package_batch[2]
-
-    if package_resource_provider == 'different' and deleted_package.resources:
-        deleted_package.resources[0].provider = ProviderFactory()
-        FactorySession.commit()
 
     r = api(scopes, **api_kwargs).delete(f'{route}{deleted_package.id}')
 

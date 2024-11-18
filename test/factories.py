@@ -215,7 +215,7 @@ class ResourceFactory(ODPModelFactory):
         model = Resource
 
     id = factory.Faker('uuid4')
-    folder = factory.LazyAttribute(lambda r: f'{fake.uri_path(deep=randint(0, 5))}')
+    folder = factory.LazyFunction(lambda: choice(('', f'{fake.uri_path(deep=randint(1, 4))}')))
     filename = factory.Sequence(lambda n: f'{fake.file_name()}.{n}')
     title = factory.Faker('catch_phrase')
     description = factory.Faker('sentence')

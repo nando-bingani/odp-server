@@ -16,7 +16,7 @@ from odp.api.routers.resource import output_resource_model
 from odp.const import ODPScope
 from odp.const.db import AuditCommand, PackageStatus, TagCardinality, TagType
 from odp.db import Session
-from odp.db.models import Package, PackageAudit, PackageTag, PackageTagAudit, Resource, Tag
+from odp.db.models import Package, PackageAudit, PackageTag, PackageTagAudit, Tag
 
 router = APIRouter()
 
@@ -178,8 +178,8 @@ async def get_any_package(
 @router.post(
     '/',
     response_model=PackageDetailModel,
-    description=f'Create a package. Requires access to the referenced provider and to the providers '
-                f'of all referenced resources. Requires `{ODPScope.PACKAGE_WRITE}` scope.'
+    description=f'Create a package. Requires access to the referenced provider. '
+                f'Requires `{ODPScope.PACKAGE_WRITE}` scope.'
 )
 async def create_package(
         package_in: PackageModelIn,
@@ -204,14 +204,7 @@ async def _create_package(
         package_in: PackageModelIn,
         auth: Authorized,
 ):
-    resources_in = [
-        Session.get(Resource, resource_id)
-        for resource_id in package_in.resource_ids
-    ]
-    auth.enforce_constraint(
-        [package_in.provider_id] +
-        [resource.provider_id for resource in resources_in]
-    )
+    auth.enforce_constraint([package_in.provider_id])
 
     package = Package(
         key=_package_key(package_in.title),
@@ -219,7 +212,6 @@ async def _create_package(
         status=PackageStatus.pending,
         timestamp=(timestamp := datetime.now(timezone.utc)),
         provider_id=package_in.provider_id,
-        resources=resources_in,
     )
     package.save()
     create_audit_record(auth, package, timestamp, AuditCommand.insert)
@@ -231,8 +223,7 @@ async def _create_package(
     '/{package_id}',
     response_model=PackageDetailModel,
     description=f'Update a package. Requires access to the referenced provider (both existing '
-                f'and new, if different) and to the providers of all existing and newly referenced '
-                f'resources. Requires `{ODPScope.PACKAGE_WRITE}` scope.'
+                f'and new, if different). Requires `{ODPScope.PACKAGE_WRITE}` scope.'
 )
 async def update_package(
         package_id: str,
@@ -263,20 +254,11 @@ async def _update_package(
     if not (package := Session.get(Package, package_id)):
         raise HTTPException(HTTP_404_NOT_FOUND)
 
-    resources_in = [
-        Session.get(Resource, resource_id)
-        for resource_id in package_in.resource_ids
-    ]
-    auth.enforce_constraint(
-        [package.provider_id, package_in.provider_id] +
-        [resource.provider_id for resource in package.resources] +
-        [resource.provider_id for resource in resources_in]
-    )
+    auth.enforce_constraint([package.provider_id, package_in.provider_id])
 
     if (
             package.title != package_in.title or
-            package.provider_id != package_in.provider_id or
-            set(res.id for res in package.resources) != set(res_in.id for res_in in resources_in)
+            package.provider_id != package_in.provider_id
     ):
         # change the key only if the package has no resources,
         # as it is used in resource archival paths
@@ -286,7 +268,6 @@ async def _update_package(
         package.title = package_in.title
         package.timestamp = (timestamp := datetime.now(timezone.utc))
         package.provider_id = package_in.provider_id
-        package.resources = resources_in
         package.save()
         create_audit_record(auth, package, timestamp, AuditCommand.update)
 
@@ -295,8 +276,8 @@ async def _update_package(
 
 @router.delete(
     '/{package_id}',
-    description=f"Delete a package. Requires access to the package provider and to the provider(s) "
-                f"of the package's resources. Requires `{ODPScope.PACKAGE_WRITE}` scope."
+    description=f"Delete a package. Requires access to the package provider. "
+                f"Requires `{ODPScope.PACKAGE_WRITE}` scope."
 )
 async def delete_package(
         package_id: str,
@@ -323,10 +304,7 @@ async def _delete_package(
     if not (package := Session.get(Package, package_id)):
         raise HTTPException(HTTP_404_NOT_FOUND)
 
-    auth.enforce_constraint(
-        [package.provider_id] +
-        [resource.provider_id for resource in package.resources]
-    )
+    auth.enforce_constraint([package.provider_id])
 
     create_audit_record(auth, package, datetime.now(timezone.utc), AuditCommand.delete)
 
