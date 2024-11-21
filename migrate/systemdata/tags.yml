@@ -26,6 +26,14 @@ Package.DateRange:
   scope_id: odp.package:write
   schema_id: Tag.DateRange
 
+Package.SDG:
+  type: package
+  cardinality: multi
+  public: True
+  scope_id: odp.package:sdg
+  schema_id: Tag.Keyword
+  vocabulary_id: SDG
+
 Collection.Published:
   type: collection
   cardinality: one
