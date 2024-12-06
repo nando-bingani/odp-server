@@ -1,14 +1,13 @@
-from sqlalchemy import Boolean, CheckConstraint, Column, Enum, ForeignKey, ForeignKeyConstraint, Identity, Integer, String, TIMESTAMP
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy import Boolean, CheckConstraint, Column, Enum, ForeignKeyConstraint, String
 from sqlalchemy.orm import relationship
 
-from odp.const.db import AuditCommand, SchemaType, ScopeType
+from odp.const.db import SchemaType, ScopeType
 from odp.db import Base
 
 
 class Vocabulary(Base):
-    """A vocabulary is a collection of terms, each of which is
-    structured according to the schema for the vocabulary."""
+    """A vocabulary is a collection of keywords, each of which is
+    structured according to the vocabulary's schema."""
 
     __tablename__ = 'vocabulary'
 
@@ -41,40 +40,10 @@ class Vocabulary(Base):
     scope_type = Column(Enum(ScopeType), nullable=False)
     scope = relationship('Scope')
 
-    # if static, terms are maintained by the system
+    # if static, keywords are maintained by the system
     static = Column(Boolean, nullable=False, server_default='false')
 
-    # view of associated terms (one-to-many)
-    terms = relationship('VocabularyTerm', viewonly=True)
+    # view of associated keywords (one-to-many)
+    keywords = relationship('Keyword', viewonly=True)
 
     _repr_ = 'id', 'schema_id', 'scope_id', 'static'
-
-
-class VocabularyTerm(Base):
-    """A term in a vocabulary."""
-
-    __tablename__ = 'vocabulary_term'
-
-    vocabulary_id = Column(String, ForeignKey('vocabulary.id', ondelete='CASCADE'), primary_key=True)
-    term_id = Column(String, primary_key=True)
-    data = Column(JSONB, nullable=False)
-
-    vocabulary = relationship('Vocabulary')
-
-    _repr_ = 'vocabulary_id', 'term_id'
-
-
-class VocabularyTermAudit(Base):
-    """Vocabulary term audit log."""
-
-    __tablename__ = 'vocabulary_term_audit'
-
-    id = Column(Integer, Identity(), primary_key=True)
-    client_id = Column(String, nullable=False)
-    user_id = Column(String)
-    command = Column(Enum(AuditCommand), nullable=False)
-    timestamp = Column(TIMESTAMP(timezone=True), nullable=False)
-
-    _vocabulary_id = Column(String, nullable=False)
-    _term_id = Column(String, nullable=False)
-    _data = Column(JSONB, nullable=False)

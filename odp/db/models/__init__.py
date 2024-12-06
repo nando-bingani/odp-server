@@ -12,4 +12,4 @@ from .schema import Schema
 from .scope import Scope
 from .tag import Tag
 from .user import IdentityAudit, User, UserRole
-from .vocabulary import Vocabulary, VocabularyTerm, VocabularyTermAudit
+from .vocabulary import Vocabulary
