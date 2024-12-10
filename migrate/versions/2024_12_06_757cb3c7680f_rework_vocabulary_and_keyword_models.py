@@ -64,7 +64,7 @@ def downgrade():
                               autoincrement=True, nullable=False),
                     sa.Column('client_id', sa.VARCHAR(), autoincrement=False, nullable=False),
                     sa.Column('user_id', sa.VARCHAR(), autoincrement=False, nullable=True),
-                    sa.Column('command', postgresql.ENUM('insert', 'update', 'delete', name='auditcommand'), autoincrement=False, nullable=False),
+                    sa.Column('command', postgresql.ENUM(name='auditcommand', create_type=False), nullable=False),
                     sa.Column('timestamp', postgresql.TIMESTAMP(timezone=True), autoincrement=False, nullable=False),
                     sa.Column('_vocabulary_id', sa.VARCHAR(), autoincrement=False, nullable=False),
                     sa.Column('_term_id', sa.VARCHAR(), autoincrement=False, nullable=False),
