@@ -10,8 +10,9 @@ from jschon.vocabulary import Keyword
 from jschon_translation import catalog as translation_catalog, translation_filter
 
 import odp.schema
+import odp.vocab
 from odp.db import Session
-from odp.db.models import Vocabulary, VocabularyTerm
+from odp.db.models import Vocabulary#, VocabularyTerm
 
 
 class VocabularyKeyword(Keyword):
@@ -42,6 +43,10 @@ translation_catalog.initialize(schema_catalog)
 schema_catalog.add_uri_source(
     URI('https://odp.saeon.ac.za/schema/'),
     LocalSource(Path(odp.schema.__file__).parent, suffix='.json'),
+)
+schema_catalog.add_uri_source(
+    URI('https://odp.saeon.ac.za/vocab/'),
+    LocalSource(Path(odp.vocab.__file__).parent, suffix='.json'),
 )
 schema_catalog.create_vocabulary(
     URI('https://odp.saeon.ac.za/schema/__meta__'),
