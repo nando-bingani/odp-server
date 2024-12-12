@@ -1,6 +1,34 @@
+from sqlalchemy import select, text
+
 from odp.const.db import KeywordStatus, SchemaType
 from odp.db import Session
 from odp.db.models import Keyword
+
+
+def legacy_terms():
+    stmt = text(
+        "select vocabulary_id, term_id, data "
+        "from vocabulary_term "
+        "where vocabulary_id in ('Infrastructure', 'Project')"
+    )
+    for vocabulary_id, term_id, data in Session.execute(stmt).all():
+        if Session.execute(
+                select(Keyword).
+                where(Keyword.vocabulary_id == vocabulary_id).
+                where(Keyword.key == term_id)
+        ).first() is not None:
+            continue
+
+        data['key'] = data.pop('id')
+        kw = Keyword(
+            vocabulary_id=vocabulary_id,
+            key=term_id,
+            data=data,
+            status=KeywordStatus.approved,
+        )
+        kw.save()
+
+    Session.commit()
 
 
 def institutions():
