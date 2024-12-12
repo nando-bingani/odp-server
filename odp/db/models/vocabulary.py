@@ -17,7 +17,8 @@ class Vocabulary(Base):
             name='vocabulary_schema_fkey', ondelete='RESTRICT',
         ),
         CheckConstraint(
-            f"schema_type = '{SchemaType.vocabulary}'",
+            # todo: schema type 'vocabulary' is deprecated; clean up check once removed
+            f"schema_type in ('{SchemaType.keyword}', '{SchemaType.vocabulary}')",
             name='vocabulary_schema_type_check',
         ),
         ForeignKeyConstraint(
@@ -31,6 +32,7 @@ class Vocabulary(Base):
     )
 
     id = Column(String, primary_key=True)
+    uri = Column(String)
 
     schema_id = Column(String, nullable=False)
     schema_type = Column(Enum(SchemaType), nullable=False)
