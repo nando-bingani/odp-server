@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Enum, ForeignKey, Identity, Integer, String, TIMESTAMP, UniqueConstraint
+from sqlalchemy import Column, Enum, ForeignKey, ForeignKeyConstraint, Identity, Integer, String, TIMESTAMP, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 
@@ -13,10 +13,16 @@ class Keyword(Base):
     __tablename__ = 'keyword'
 
     __table_args__ = (
-        UniqueConstraint('vocabulary_id', 'key'),
+        UniqueConstraint(
+            'vocabulary_id', 'key'
+        ),
+        ForeignKeyConstraint(
+            ('vocabulary_id', 'parent_id'), ('keyword.vocabulary_id', 'keyword.id'),
+            name='keyword_parent_fkey', ondelete='RESTRICT',
+        ),
     )
 
-    vocabulary_id = Column(String, ForeignKey('vocabulary.id', ondelete='CASCADE'), nullable=False)
+    vocabulary_id = Column(String, ForeignKey('vocabulary.id', ondelete='CASCADE'), primary_key=True)
     vocabulary = relationship('Vocabulary')
 
     id = Column(Integer, Identity(start=1001), primary_key=True)
@@ -24,9 +30,9 @@ class Keyword(Base):
     data = Column(JSONB, nullable=False)
     status = Column(Enum(KeywordStatus), nullable=False)
 
-    parent_id = Column(Integer, ForeignKey('keyword.id', ondelete='RESTRICT'))
-    parent = relationship('Keyword', remote_side=id)
-    children = relationship('Keyword', order_by='Keyword.id', viewonly=True)
+    parent_id = Column(Integer)
+    parent = relationship('Keyword', remote_side=(vocabulary_id, id), viewonly=True)
+    children = relationship('Keyword', order_by='Keyword.vocabulary_id, Keyword.key', viewonly=True)
 
     _repr_ = 'vocabulary_id', 'id', 'key', 'status', 'parent_id'
 
