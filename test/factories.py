@@ -29,7 +29,6 @@ from odp.db.models import (
     Tag,
     User,
     Vocabulary,
-    VocabularyTerm,
 )
 from test import datacite4_example, iso19115_example
 
@@ -260,55 +259,32 @@ class ClientFactory(ODPModelFactory):
                 FactorySession.commit()
 
 
-class KeywordFactory(ODPModelFactory):
-    class Meta:
-        model = Keyword
-        exclude = ('has_child_schema',)
-
-    parent_id = None
-    id = factory.LazyAttributeSequence(lambda k, n: (f'{k.parent_id}/' if k.parent_id else '') + f'{fake.word()}.{n}')
-    data = factory.LazyFunction(lambda: {fake.word(): fake.word()})
-    status = factory.LazyFunction(lambda: choice(('proposed', 'approved', 'rejected')))
-
-    has_child_schema = factory.LazyAttribute(lambda k: '/' not in k.id or randint(0, 1))
-    child_schema = factory.Maybe(
-        'has_child_schema',
-        yes_declaration=factory.SubFactory(SchemaFactory, type='keyword'),
-        no_declaration=None,
-    )
-    child_schema_id = factory.LazyAttribute(lambda k: k.child_schema.id if k.child_schema else None)
-    child_schema_type = factory.LazyAttribute(lambda k: 'keyword' if k.child_schema else None)
-
-    @factory.post_generation
-    def children(obj, create, _):
-        if len(obj.id.split('/')) < 4:
-            add_child = KeywordFactory.create if create else KeywordFactory.build
-            for n in range(randint(0, 5)):
-                add_child(parent_id=obj.id)
-
-
-class VocabularyTermFactory(ODPModelFactory):
-    class Meta:
-        model = VocabularyTerm
-
-    vocabulary = None
-    term_id = factory.Sequence(lambda n: id_from_fake('word', n))
-    data = factory.LazyAttribute(lambda t: {'id': t.term_id})
-
-
 class VocabularyFactory(ODPModelFactory):
     class Meta:
         model = Vocabulary
 
     id = factory.Sequence(lambda n: id_from_fake('word', n))
+    uri = factory.Faker('url')
     scope = factory.SubFactory(ScopeFactory, type='odp')
-    schema = factory.SubFactory(SchemaFactory, type='vocabulary')
+    schema = factory.SubFactory(SchemaFactory, type='keyword')
     static = factory.LazyFunction(lambda: randint(0, 1))
-    terms = factory.RelatedFactoryList(
-        VocabularyTermFactory,
-        factory_related_name='vocabulary',
-        size=lambda: randint(4, 8),
-    )
+
+
+class KeywordFactory(ODPModelFactory):
+    class Meta:
+        model = Keyword
+
+    key = factory.Sequence(lambda n: f'{fake.word()}.{n}')
+    data = factory.LazyFunction(lambda: {fake.word(): fake.word()})
+    status = factory.LazyFunction(lambda: choice(('proposed', 'approved', 'rejected', 'obsolete')))
+    parent_id = None
+    vocabulary = factory.SubFactory(VocabularyFactory)
+
+    @factory.post_generation
+    def children(obj, create, _):
+        if create:
+            if not obj.parent_id or not obj.parent.parent_id:
+                KeywordFactory.create_batch(randint(0, 4), parent_id=obj.id, vocabulary=obj.vocabulary)
 
 
 class TagFactory(ODPModelFactory):

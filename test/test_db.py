@@ -29,7 +29,6 @@ from odp.db.models import (
     User,
     UserRole,
     Vocabulary,
-    VocabularyTerm,
 )
 from test import TestSession
 from test.factories import (
@@ -174,18 +173,18 @@ def test_create_keyword():
         result = results.pop(kw.id)
         assert (
                    kw.id,
+                   kw.key,
                    kw.data,
                    kw.status,
                    kw.parent_id,
-                   kw.child_schema_id,
-                   kw.child_schema_type,
+                   kw.vocabulary_id,
                ) == (
                    result.id,
+                   result.key,
                    result.data,
                    result.status,
                    result.parent_id,
-                   result.child_schema_id,
-                   result.child_schema_type,
+                   result.vocabulary_id,
                )
         for child_kw in kw.children:
             assert_result(child_kw)
@@ -400,26 +399,21 @@ def test_create_user_with_roles():
 
 def test_create_vocabulary():
     vocabulary = VocabularyFactory()
-    result = TestSession.execute(select(Vocabulary, VocabularyTerm).join(VocabularyTerm))
-    assert sorted_tuples((
-                             row.Vocabulary.id,
-                             row.Vocabulary.scope_id,
-                             row.Vocabulary.scope_type,
-                             row.Vocabulary.schema_id,
-                             row.Vocabulary.schema_type,
-                             row.Vocabulary.static,
-                             row.VocabularyTerm.vocabulary_id,
-                             row.VocabularyTerm.term_id,
-                             row.VocabularyTerm.data
-                         ) for row in result) \
-           == sorted_tuples((
-                                vocabulary.id,
-                                vocabulary.scope_id,
-                                'odp',
-                                vocabulary.schema_id,
-                                'vocabulary',
-                                vocabulary.static,
-                                term.vocabulary_id,
-                                term.term_id,
-                                term.data,
-                            ) for term in vocabulary.terms)
+    result = TestSession.execute(select(Vocabulary)).scalar_one()
+    assert (
+               result.id,
+               result.uri,
+               result.schema_id,
+               result.schema_type,
+               result.scope_id,
+               result.scope_type,
+               result.static,
+           ) == (
+               vocabulary.id,
+               vocabulary.uri,
+               vocabulary.schema_id,
+               vocabulary.schema_type,
+               vocabulary.scope_id,
+               ScopeType.odp,
+               vocabulary.static,
+           )
