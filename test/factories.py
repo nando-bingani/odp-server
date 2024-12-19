@@ -100,6 +100,27 @@ def create_metadata(record, n):
     return metadata
 
 
+def create_keyword_key(kw, n):
+    if kw.vocabulary.schema.uri.endswith('institution'):
+        return fake.word() + str(n)
+    elif kw.vocabulary.schema.uri.endswith('sdg'):
+        if kw.parent_id is None:
+            return str(fake.pyint())
+        return str(fake.pyfloat(min_value=0))
+
+
+def create_keyword_data(kw, n):
+    data = {'key': kw.key}
+    if kw.vocabulary.schema.uri.endswith('institution'):
+        data |= {'abbr': fake.word() + str(n)}
+    elif kw.vocabulary.schema.uri.endswith('sdg'):
+        if kw.parent_id is None:
+            data |= {'title': fake.job() + str(n), 'goal': fake.sentence() + str(n)}
+        else:
+            data |= {'target': fake.sentence() + str(n)}
+    return data
+
+
 def schema_uri_from_type(schema):
     if schema.type == 'metadata':
         return choice((
@@ -119,6 +140,7 @@ def schema_uri_from_type(schema):
     elif schema.type == 'keyword':
         return choice((
             'https://odp.saeon.ac.za/schema/keyword/institution',
+            'https://odp.saeon.ac.za/schema/keyword/sdg',
         ))
     elif schema.type == 'vocabulary':
         return choice((
@@ -265,7 +287,6 @@ class VocabularyFactory(ODPModelFactory):
 
     id = factory.Sequence(lambda n: id_from_fake('word', n))
     uri = factory.Faker('url')
-    scope = factory.SubFactory(ScopeFactory, type='odp')
     schema = factory.SubFactory(SchemaFactory, type='keyword')
     static = factory.LazyFunction(lambda: randint(0, 1))
 
@@ -274,9 +295,10 @@ class KeywordFactory(ODPModelFactory):
     class Meta:
         model = Keyword
 
-    key = factory.Sequence(lambda n: f'{fake.word()}.{n}')
-    data = factory.LazyFunction(lambda: {fake.word(): fake.word()})
+    key = factory.LazyAttributeSequence(create_keyword_key)
+    data = factory.LazyAttributeSequence(create_keyword_data)
     status = factory.LazyFunction(lambda: choice(('proposed', 'approved', 'rejected', 'obsolete')))
+    parent = None
     parent_id = None
     vocabulary = factory.SubFactory(VocabularyFactory)
 
@@ -284,7 +306,7 @@ class KeywordFactory(ODPModelFactory):
     def children(obj, create, _):
         if create:
             if not obj.parent_id or not obj.parent.parent_id:
-                KeywordFactory.create_batch(randint(0, 4), parent_id=obj.id, vocabulary=obj.vocabulary)
+                KeywordFactory.create_batch(randint(0, 7), parent_id=obj.id, vocabulary=obj.vocabulary)
 
 
 class TagFactory(ODPModelFactory):
