@@ -1,13 +1,13 @@
-from random import choice, randint, sample
+from random import choice, randint
 
 import pytest
 from sqlalchemy import select
 
 from odp.const import ODPScope
-from odp.db.models import Keyword, KeywordAudit, Schema
+from odp.db.models import Keyword, KeywordAudit
 from test import TestSession
 from test.api import assert_conflict, assert_empty_result, assert_forbidden, assert_new_timestamp, assert_not_found, assert_unprocessable
-from test.factories import FactorySession, KeywordFactory, create_keyword_data, create_keyword_key, fake
+from test.factories import FactorySession, KeywordFactory, create_keyword_data, create_keyword_key
 
 
 @pytest.fixture
@@ -105,14 +105,15 @@ def test_list_all_keywords(
         scopes,
         keyword_batch,
 ):
-    keywords_top, keywords_flat = keyword_batch
     authorized = ODPScope.KEYWORD_READ_ALL in scopes
+    keywords_top, keywords_flat = keyword_batch
 
     r = api(scopes).get('/keyword/?size=0')
-    if authorized:
-        assert_json_results(r, r.json(), keywords_flat)
-    else:
+
+    if not authorized:
         assert_forbidden(r)
+    else:
+        assert_json_results(r, r.json(), keywords_flat)
 
     assert_db_state(keywords_flat)
     assert_no_audit_log()
@@ -120,68 +121,62 @@ def test_list_all_keywords(
 
 @pytest.mark.require_scope(ODPScope.KEYWORD_READ_ALL)
 @pytest.mark.parametrize('recurse', [False, True])
+@pytest.mark.parametrize('error', [None, 'kw_404', 'vocab_404'])
 def test_get_any_keyword(
         api,
         scopes,
         keyword_batch,
         recurse,
+        error,
 ):
-    keywords_top, keywords_flat = keyword_batch
     authorized = ODPScope.KEYWORD_READ_ALL in scopes
+    keywords_top, keywords_flat = keyword_batch
 
-    r = api(scopes).get(f'/keyword/{keywords_top[2].id}?recurse={recurse}')
-    if authorized:
-        assert_json_result(r, r.json(), keywords_top[2], 'all' if recurse else None)
-    else:
+    old_ix = randint(0, len(keywords_flat) - 1)
+    old_kw = keywords_flat[old_ix]
+    kw_id = 0 if error == 'kw_404' else old_kw.id
+    vocab_id = 'foo' if error == 'vocab_404' else old_kw.vocabulary_id
+
+    r = api(scopes).get(f'/keyword/{vocab_id}/{kw_id}?recurse={recurse}')
+
+    if not authorized:
         assert_forbidden(r)
-
-    assert_db_state(keywords_flat)
-    assert_no_audit_log()
-
-
-@pytest.mark.require_scope(ODPScope.KEYWORD_READ_ALL)
-@pytest.mark.parametrize('recurse', [False, True])
-def test_get_any_keyword_not_found(
-        api,
-        scopes,
-        keyword_batch,
-        recurse,
-):
-    keywords_top, keywords_flat = keyword_batch
-    authorized = ODPScope.KEYWORD_READ_ALL in scopes
-
-    r = api(scopes).get(f'/keyword/0?recurse={recurse}')
-    if authorized:
+    elif error in ('kw_404', 'vocab_404'):
         assert_not_found(r)
     else:
-        assert_forbidden(r)
+        assert_json_result(r, r.json(), old_kw, 'all' if recurse else None)
 
     assert_db_state(keywords_flat)
     assert_no_audit_log()
 
 
 @pytest.mark.require_scope(ODPScope.KEYWORD_READ)
+@pytest.mark.parametrize('error', [None, 'vocab_404'])
 def test_list_keywords(
         api,
         scopes,
         keyword_batch,
+        error,
 ):
-    keywords_top, keywords_flat = keyword_batch
     authorized = ODPScope.KEYWORD_READ in scopes
+    keywords_top, keywords_flat = keyword_batch
 
-    vocabulary_id = keywords_top[2].vocabulary_id
+    vocab_id = 'foo' if error == 'vocab_404' else keywords_top[2].vocabulary_id
     # TODO: ideally we should expect a 'chain of approval' starting at
     #  top-level keywords; see comments in the list_keywords API function.
     keywords_expected = list(filter(
-        lambda k: k.vocabulary_id == vocabulary_id and k.status == 'approved',
+        lambda k: k.vocabulary_id == vocab_id and k.status == 'approved',
         keywords_flat
     ))
 
-    r = api(scopes).get(f'/keyword/{vocabulary_id}/?size=0')
-    if authorized:
-        assert_json_results(r, r.json(), keywords_expected)
-    else:
+    r = api(scopes).get(f'/keyword/{vocab_id}/?size=0')
+
+    if not authorized:
         assert_forbidden(r)
+    elif error == 'vocab_404':
+        assert_not_found(r, 'Vocabulary not found')
+    else:
+        assert_json_results(r, r.json(), keywords_expected)
 
     assert_db_state(keywords_flat)
     assert_no_audit_log()
@@ -189,393 +184,185 @@ def test_list_keywords(
 
 @pytest.mark.require_scope(ODPScope.KEYWORD_READ)
 @pytest.mark.parametrize('recurse', [False, True])
+@pytest.mark.parametrize('error', [None, 'unapproved_kw', 'wrong_vocab', 'unknown_kw'])
 def test_get_keyword(
         api,
         scopes,
         keyword_batch,
         recurse,
+        error,
 ):
-    keywords_top, keywords_flat = keyword_batch
     authorized = ODPScope.KEYWORD_READ in scopes
-    client = api(scopes)
-
-    for kw in sample(list(filter(lambda k: k.status == 'approved', keywords_flat)), 3):
-        r = client.get(f'/keyword/{kw.vocabulary_id}/{kw.key}?recurse={recurse}')
-        if authorized:
-            assert_json_result(r, r.json(), kw, recurse='approved' if recurse else None)
-        else:
-            assert_forbidden(r)
-
-    assert_db_state(keywords_flat)
-    assert_no_audit_log()
-
-
-@pytest.mark.require_scope(ODPScope.KEYWORD_READ)
-@pytest.mark.parametrize('recurse', [False, True])
-def test_get_keyword_not_found(
-        api,
-        scopes,
-        keyword_batch,
-        recurse,
-):
     keywords_top, keywords_flat = keyword_batch
-    authorized = ODPScope.KEYWORD_READ in scopes
-    client = api(scopes)
 
-    # unapproved keyword => not found
-    pop = list(filter(lambda kw: kw.status != 'approved', keywords_flat))
-    k = min(4, len(pop))
-    for kw in sample(pop, k):
-        r = client.get(f'/keyword/{kw.vocabulary_id}/{kw.key}?recurse={recurse}')
-        if authorized:
-            assert_not_found(r)
-        else:
-            assert_forbidden(r)
-
-    # approved but wrong vocab => not found
     vocab_0_id = keywords_top[0].vocabulary_id
-    pop = list(filter(lambda kw: kw.status == 'approved' and kw.vocabulary_id != vocab_0_id, keywords_flat))
-    k = min(4, len(pop))
-    for kw in sample(pop, k):
-        r = client.get(f'/keyword/{vocab_0_id}/{kw.key}?recurse={recurse}')
-        if authorized:
-            assert_not_found(r)
-        else:
-            assert_forbidden(r)
+    if error == 'unapproved_kw':
+        keywords = list(filter(lambda kw: kw.status != 'approved', keywords_flat))
+    elif error == 'wrong_vocab':
+        keywords = list(filter(lambda kw: kw.status == 'approved' and kw.vocabulary_id != vocab_0_id, keywords_flat))
+    else:
+        keywords = list(filter(lambda kw: kw.status == 'approved', keywords_flat))
 
-    # unknown keyword => not found
-    r = client.get(f'/keyword/{vocab_0_id}/foo?recurse={recurse}')
-    if authorized:
+    if not keywords:
+        pytest.skip('filtered batch is empty')
+
+    old_ix = randint(0, len(keywords) - 1)
+    old_kw = keywords[old_ix]
+    key = 'foo' if error == 'unknown_kw' else old_kw.key
+    vocab_id = vocab_0_id if error == 'wrong_vocab' else old_kw.vocabulary_id
+
+    r = api(scopes).get(f'/keyword/{vocab_id}/key/{key}?recurse={recurse}')
+
+    if not authorized:
+        assert_forbidden(r)
+    elif error is not None:
         assert_not_found(r)
     else:
-        assert_forbidden(r)
+        assert_json_result(r, r.json(), old_kw, recurse='approved' if recurse else None)
 
     assert_db_state(keywords_flat)
     assert_no_audit_log()
 
 
 @pytest.mark.require_scope(ODPScope.KEYWORD_SUGGEST)
+@pytest.mark.parametrize('is_child', [False, True])
+@pytest.mark.parametrize('error', [None, 'vocab_404', 'parent_404', 'invalid_data', 'kw_conflict'])
 def test_suggest_keyword(
         api,
         scopes,
         keyword_batch,
+        is_child,
+        error,
 ):
-    _test_create_keyword(
-        api,
-        'post',
-        scopes,
-        keyword_batch,
-        ODPScope.KEYWORD_SUGGEST in scopes,
-    )
-
-
-@pytest.mark.require_scope(ODPScope.KEYWORD_ADMIN)
-def test_create_keyword(
-        api,
-        scopes,
-        keyword_batch,
-):
-    _test_create_keyword(
-        api,
-        'put',
-        scopes,
-        keyword_batch,
-        ODPScope.KEYWORD_ADMIN in scopes,
-    )
-
-
-def _test_create_keyword(
-        api,
-        method,
-        scopes,
-        keyword_batch,
-        authorized,
-):
+    authorized = ODPScope.KEYWORD_SUGGEST in scopes
     keywords_top, keywords_flat = keyword_batch
-    client = api(scopes)
-    api_func = client.post if method == 'post' else client.put
 
-    vocab_1 = keywords_top[1].vocabulary
-    kw_1_args = dict(
-        data={'abbr': fake.word()},
-        vocabulary=vocab_1,
-        vocabulary_id=vocab_1.id,
+    new_kw_args = dict(
+        status='proposed',
+        vocabulary=(vocab := keywords_top[2].vocabulary),
+        vocabulary_id=vocab.id,
     )
-    if method == 'post':
-        kw_1_args |= dict(status='proposed')
+    if error == 'kw_conflict':
+        new_kw_args['key'] = choice(list(filter(lambda k: k.vocabulary_id == vocab.id, keywords_flat))).key
 
-    keyword_1 = keyword_build(**kw_1_args)
-    api_args = dict(
-        key=keyword_1.key,
-        data=keyword_1.data,
-    )
-    if method == 'put':
-        api_args |= dict(status=keyword_1.status)
-
-    r = api_func(f'/keyword/{vocab_1.id}/', json=api_args)
-
-    if authorized:
-        keyword_1.id = r.json().get('id')
-        keyword_1.data['key'] = keyword_1.key
-        assert_json_result(r, r.json(), keyword_1)
-
-        kw_2_args = dict(
-            data={'abbr': fake.word()},
-            vocabulary=vocab_1,
-            vocabulary_id=vocab_1.id,
-            parent=keyword_1,
-            parent_id=keyword_1.id,
+    if is_child:
+        new_kw_args |= dict(
+            parent=keywords_top[2],
+            parent_id=keywords_top[2].id,
         )
-        if method == 'post':
-            kw_2_args |= dict(status='proposed')
+        if error == 'parent_404':
+            new_kw_args['parent_id'] = 0
 
-        keyword_2 = keyword_build(**kw_2_args)
-        api_args = dict(
-            key=keyword_2.key,
-            data=keyword_2.data,
-            parent_id=keyword_2.parent_id,
-        )
-        if method == 'put':
-            api_args |= dict(status=keyword_2.status)
+    vocab_id = 'foo' if error == 'vocab_404' else vocab.id
+    new_kw = keyword_build(**new_kw_args)
+    new_kw.data = create_keyword_data(new_kw, 0, error == 'invalid_data')
 
-        r = api_func(f'/keyword/{vocab_1.id}/', json=api_args)
+    r = api(scopes).post(f'/keyword/{vocab_id}/', json=dict(
+        key=new_kw.key,
+        data=new_kw.data,
+        parent_id=new_kw.parent_id,
+    ))
 
-        keyword_2.id = r.json().get('id')
-        keyword_2.data['key'] = keyword_2.key
-        assert_json_result(r, r.json(), keyword_2)
-
-        assert_db_state(keywords_flat + [keyword_1, keyword_2])
-        assert_audit_log(
-            api.grant_type,
-            dict(command='insert', keyword=keyword_1),
-            dict(command='insert', keyword=keyword_2),
-        )
-
-    else:
+    changed = False
+    if not authorized:
         assert_forbidden(r)
+    elif error == 'vocab_404':
+        assert_not_found(r, 'Vocabulary not found')
+    elif error == 'parent_404' and is_child:
+        assert_not_found(r, 'Parent keyword not found')
+    elif error == 'invalid_data':
+        assert_unprocessable(r, valid=False)
+    elif error == 'kw_conflict':
+        assert_conflict(r, f"Keyword '{new_kw.key}' already exists")
+    else:
+        new_kw.id = r.json()['id']
+        assert_json_result(r, r.json(), new_kw)
+        assert_db_state(keywords_flat + [new_kw])
+        assert_audit_log(api.grant_type, dict(command='insert', keyword=new_kw))
+        changed = True
+
+    if not changed:
         assert_db_state(keywords_flat)
         assert_no_audit_log()
 
 
-@pytest.mark.require_scope(ODPScope.KEYWORD_SUGGEST)
-def test_suggest_keyword_parent_not_found(
-        api,
-        scopes,
-        keyword_batch,
-):
-    _test_create_keyword_parent_not_found(
-        api,
-        'post',
-        scopes,
-        keyword_batch,
-        ODPScope.KEYWORD_SUGGEST in scopes,
-    )
-
-
 @pytest.mark.require_scope(ODPScope.KEYWORD_ADMIN)
-def test_create_keyword_parent_not_found(
+@pytest.mark.parametrize('is_child', [False, True])
+@pytest.mark.parametrize('error', [None, 'vocab_404', 'parent_404', 'invalid_data', 'kw_conflict'])
+def test_create_keyword(
         api,
         scopes,
         keyword_batch,
+        is_child,
+        error,
 ):
-    _test_create_keyword_parent_not_found(
-        api,
-        'put',
-        scopes,
-        keyword_batch,
-        ODPScope.KEYWORD_ADMIN in scopes,
-    )
-
-
-def _test_create_keyword_parent_not_found(
-        api,
-        method,
-        scopes,
-        keyword_batch,
-        authorized,
-):
+    authorized = ODPScope.KEYWORD_ADMIN in scopes
     keywords_top, keywords_flat = keyword_batch
-    client = api(scopes)
-    api_func = client.post if method == 'post' else client.put
 
-    # unknown parent id
-    api_args = dict(
-        key=fake.word(),
-        data={'abbr': fake.word()},
-        parent_id=0,
+    new_kw_args = dict(
+        vocabulary=(vocab := keywords_top[2].vocabulary),
+        vocabulary_id=vocab.id,
     )
-    if method == 'put':
-        api_args |= dict(status='approved')
+    if error == 'kw_conflict':
+        new_kw_args['key'] = choice(list(filter(lambda k: k.vocabulary_id == vocab.id, keywords_flat))).key
 
-    r = api_func(f'/keyword/{keywords_top[1].vocabulary_id}/', json=api_args)
-    if authorized:
-        assert_not_found(r, 'Parent keyword not found')
-    else:
-        assert_forbidden(r)
-
-    # parent in different vocab
-    api_args = dict(
-        key=fake.word(),
-        data={'abbr': fake.word()},
-        parent_id=keywords_top[2].id,
-    )
-    if method == 'put':
-        api_args |= dict(status='approved')
-
-    r = api_func(f'/keyword/{keywords_top[1].vocabulary_id}/', json=api_args)
-    if authorized:
-        assert_not_found(r, 'Parent keyword not found')
-    else:
-        assert_forbidden(r)
-
-    assert_db_state(keywords_flat)
-    assert_no_audit_log()
-
-
-@pytest.mark.require_scope(ODPScope.KEYWORD_SUGGEST)
-def test_suggest_keyword_conflict(
-        api,
-        scopes,
-        keyword_batch,
-):
-    _test_create_keyword_conflict(
-        api,
-        'post',
-        scopes,
-        keyword_batch,
-        ODPScope.KEYWORD_SUGGEST in scopes,
-    )
-
-
-@pytest.mark.require_scope(ODPScope.KEYWORD_ADMIN)
-def test_create_keyword_conflict(
-        api,
-        scopes,
-        keyword_batch,
-):
-    _test_create_keyword_conflict(
-        api,
-        'put',
-        scopes,
-        keyword_batch,
-        ODPScope.KEYWORD_ADMIN in scopes,
-    )
-
-
-def _test_create_keyword_conflict(
-        api,
-        method,
-        scopes,
-        keyword_batch,
-        authorized,
-):
-    keywords_top, keywords_flat = keyword_batch
-    client = api(scopes)
-    api_func = client.post if method == 'post' else client.put
-
-    for kw in sample(keywords_flat, 3):
-        api_args = dict(
-            key=kw.key,
-            data={'abbr': fake.word()},
-            parent_id=kw.parent.parent_id if kw.parent and randint(0, 1) else kw.parent_id,
+    if is_child:
+        new_kw_args |= dict(
+            parent=keywords_top[2],
+            parent_id=keywords_top[2].id,
         )
-        if method == 'put':
-            api_args |= dict(status=choice(['proposed', 'approved', 'rejected', 'obsolete']))
+        if error == 'parent_404':
+            new_kw_args['parent_id'] = 0
 
-        r = api_func(f'/keyword/{kw.vocabulary_id}/', json=api_args)
-        if authorized:
-            assert_conflict(r, f"Keyword '{kw.key}' already exists")
-        else:
-            assert_forbidden(r)
+    vocab_id = 'foo' if error == 'vocab_404' else vocab.id
+    new_kw = keyword_build(**new_kw_args)
+    new_kw.data = create_keyword_data(new_kw, 0, error == 'invalid_data')
 
-    assert_db_state(keywords_flat)
-    assert_no_audit_log()
+    r = api(scopes).put(f'/keyword/{vocab_id}/', json=dict(
+        key=new_kw.key,
+        data=new_kw.data,
+        status=new_kw.status,
+        parent_id=new_kw.parent_id,
+    ))
 
+    changed = False
+    if not authorized:
+        assert_forbidden(r)
+    elif error == 'vocab_404':
+        assert_not_found(r, 'Vocabulary not found')
+    elif error == 'parent_404' and is_child:
+        assert_not_found(r, 'Parent keyword not found')
+    elif error == 'invalid_data':
+        assert_unprocessable(r, valid=False)
+    elif error == 'kw_conflict':
+        assert_conflict(r, f"Keyword '{new_kw.key}' already exists")
+    else:
+        new_kw.id = r.json()['id']
+        assert_json_result(r, r.json(), new_kw)
+        assert_db_state(keywords_flat + [new_kw])
+        assert_audit_log(api.grant_type, dict(command='insert', keyword=new_kw))
+        changed = True
 
-@pytest.mark.require_scope(ODPScope.KEYWORD_SUGGEST)
-def test_suggest_keyword_invalid_data(
-        api,
-        scopes,
-        keyword_batch,
-):
-    _test_create_keyword_invalid_data(
-        api,
-        'post',
-        scopes,
-        keyword_batch,
-        ODPScope.KEYWORD_SUGGEST in scopes,
-    )
+    if not changed:
+        assert_db_state(keywords_flat)
+        assert_no_audit_log()
 
 
 @pytest.mark.require_scope(ODPScope.KEYWORD_ADMIN)
-def test_create_keyword_invalid_data(
-        api,
-        scopes,
-        keyword_batch,
-):
-    _test_create_keyword_invalid_data(
-        api,
-        'put',
-        scopes,
-        keyword_batch,
-        ODPScope.KEYWORD_ADMIN in scopes,
-    )
-
-
-def _test_create_keyword_invalid_data(
-        api,
-        method,
-        scopes,
-        keyword_batch,
-        authorized,
-):
-    keywords_top, keywords_flat = keyword_batch
-    client = api(scopes)
-    api_func = client.post if method == 'post' else client.put
-
-    api_args = dict(
-        key=fake.word(),
-        data={'additional_prop': 'foo'},
-    )
-    if method == 'put':
-        api_args |= dict(status='approved')
-
-    r = api_func(f'/keyword/{keywords_top[1].vocabulary_id}/', json=api_args)
-    if authorized:
-        assert_unprocessable(r, valid=False)
-    else:
-        assert_forbidden(r)
-
-    api_args = dict(
-        key=fake.word(),
-        data={'ror': 'invalid ror'},
-        parent_id=keywords_top[1].id,
-    )
-    if method == 'put':
-        api_args |= dict(status='approved')
-
-    r = api_func(f'/keyword/{keywords_top[1].vocabulary_id}/', json=api_args)
-    if authorized:
-        assert_unprocessable(r, valid=False)
-    else:
-        assert_forbidden(r)
-
-    assert_db_state(keywords_flat)
-    assert_no_audit_log()
-
-
-@pytest.mark.require_scope(ODPScope.KEYWORD_ADMIN)
-@pytest.mark.parametrize('change', ['key', 'data', 'status', 'parent_id', None])
+@pytest.mark.parametrize('change', [None, 'key', 'data', 'status', 'parent_id'])
+@pytest.mark.parametrize('error', [None, 'kw_404', 'vocab_404', 'parent_404', 'invalid_data'])
 def test_update_keyword(
         api,
         scopes,
         keyword_batch,
         change,
+        error,
 ):
-    keywords_top, keywords_flat = keyword_batch
     authorized = ODPScope.KEYWORD_ADMIN in scopes
+    keywords_top, keywords_flat = keyword_batch
 
-    old_kw = keywords_flat[-1]
+    old_ix = randint(0, len(keywords_flat) - 1)
+    old_kw = keywords_flat[old_ix]
     new_kw_args = dict(
         key=old_kw.key,
         data=old_kw.data.copy(),
@@ -583,20 +370,20 @@ def test_update_keyword(
         parent=old_kw.parent,
         parent_id=old_kw.parent_id,
     )
-    changed = True
     if change == 'key':
         new_kw_args['data']['key'] = new_kw_args['key'] = create_keyword_key(old_kw, -1)
     elif change == 'data':
-        new_kw_args['data'] = create_keyword_data(old_kw, -1)
+        new_kw_args['data'] = create_keyword_data(old_kw, -1, invalid=error == 'invalid_data')
     elif change == 'status':
         new_kw_args['status'] = 'rejected' if old_kw.status == 'proposed' else 'proposed'
     elif change == 'parent_id':
         new_kw_args['parent'] = old_kw.parent.parent if old_kw.parent else None
-        new_kw_args['parent_id'] = old_kw.parent.parent_id if old_kw.parent else None
-        changed = new_kw_args['parent_id'] != old_kw.parent_id
-    else:
-        changed = False
+        new_kw_args['parent_id'] = 0 if error == 'parent_404' else old_kw.parent.parent_id if old_kw.parent else None
+        if new_kw_args['parent_id'] == old_kw.parent_id:
+            change = None
 
+    kw_id = 0 if error == 'kw_404' else old_kw.id
+    vocab_id = 'foo' if error == 'vocab_404' else old_kw.vocabulary_id
     new_kw = keyword_build(
         id=old_kw.id,
         vocabulary=old_kw.vocabulary,
@@ -604,251 +391,77 @@ def test_update_keyword(
         **new_kw_args
     )
 
-    r = api(scopes).put(f'/keyword/{old_kw.vocabulary_id}/{old_kw.id}', json=dict(
+    r = api(scopes).put(f'/keyword/{vocab_id}/{kw_id}', json=dict(
         key=new_kw.key,
         data=new_kw.data,
         status=new_kw.status,
         parent_id=new_kw.parent_id,
     ))
 
-    if authorized:
-        assert_json_result(r, r.json(), new_kw)
-        if changed:
-            assert_db_state(keywords_flat[:-1] + [new_kw])
-            assert_audit_log(api.grant_type, dict(command='update', keyword=new_kw))
-        else:
-            assert_db_state(keywords_flat)
-            assert_no_audit_log()
-    else:
+    changed = False
+    if not authorized:
         assert_forbidden(r)
-        assert_db_state(keywords_flat)
-        assert_no_audit_log()
-
-
-@pytest.mark.require_scope(ODPScope.KEYWORD_ADMIN)
-def test_set_keyword_old(
-        api,
-        scopes,
-        keyword_batch,
-):
-    keywords_top, keywords_flat = keyword_batch
-    authorized = ODPScope.KEYWORD_ADMIN in scopes
-    client = api(scopes)
-
-    keywords_flat.reverse()
-    audit = []
-    for n in range(4):
-        create = n == 0 or randint(0, 1)
-        for i, kw in enumerate(keywords_flat):
-            if kw.id.count('/') == n:
-                data = {'abbr': fake.word(), 'title': fake.company()}
-                child_schema = FactorySession.execute(select(Schema)).scalars().first() if randint(0, 1) else None
-
-                if create:
-                    kw_in = keyword_build(
-                        parent_id=kw.id,
-                        data=data,
-                        child_schema=child_schema,
-                    )
-                    audit += [dict(command='insert', keyword=kw_in)]
-                else:
-                    kw_in = keyword_build(
-                        parent_id=kw.parent_id,
-                        id=kw.id,
-                        data=data,
-                        child_schema=child_schema,
-                    )
-                    audit += [dict(command='update', keyword=kw_in, replace=i)]
-
-                r = client.put(f'/keyword/{kw_in.id}', json=dict(
-                    parent_id=kw_in.parent_id,
-                    data=kw_in.data,
-                    status=kw_in.status,
-                    child_schema_id=kw_in.child_schema_id,
-                ))
-
-                if authorized:
-                    assert_json_result(r, r.json(), kw_in)
-                else:
-                    assert_forbidden(r)
-                break
-
-    if authorized:
-        replace_indices = [entry.pop('replace', None) for entry in audit]
-        for replace_index in reversed(sorted(filter(lambda i: i is not None, replace_indices))):
-            keywords_flat.pop(replace_index)
-        assert_db_state(keywords_flat + [entry.get('keyword') for entry in audit])
-        assert_audit_log(api.grant_type, *audit)
-
-    else:
-        assert_db_state(keywords_flat)
-        assert_no_audit_log()
-
-
-@pytest.mark.require_scope(ODPScope.KEYWORD_ADMIN)
-def test_set_keyword_parent_not_found(
-        api,
-        scopes,
-        keyword_batch,
-):
-    keywords_top, keywords_flat = keyword_batch
-    authorized = ODPScope.KEYWORD_ADMIN in scopes
-    client = api(scopes)
-
-    r = client.put('/keyword/foo/bar', json=dict(
-        data={'abbr': fake.word(), 'title': fake.company()},
-        parent_id='foo',
-    ))
-    if authorized:
-        assert_not_found(r, "Parent keyword 'foo' does not exist")
-    else:
-        assert_forbidden(r)
-
-    r = client.put(f'/keyword/{(parent_id := keywords_top[2].id)}/foo/bar', json=dict(
-        data={'abbr': fake.word(), 'title': fake.company()},
-        parent_id=f'{parent_id}/foo',
-    ))
-    if authorized:
-        assert_not_found(r, f"Parent keyword '{parent_id}/foo' does not exist")
-    else:
-        assert_forbidden(r)
-
-    assert_db_state(keywords_flat)
-    assert_no_audit_log()
-
-
-@pytest.mark.require_scope(ODPScope.KEYWORD_ADMIN)
-@pytest.mark.parametrize('create', [False, True])
-def test_set_keyword_invalid_parent(
-        api,
-        scopes,
-        keyword_batch,
-        create,
-):
-    keywords_top, keywords_flat = keyword_batch
-    authorized = ODPScope.KEYWORD_ADMIN in scopes
-    client = api(scopes)
-
-    # top-level keyword (vocab) cannot be created/updated via API
-    kw_id = 'foo' if create else keywords_top[0].id
-    r = client.put(f'/keyword/{kw_id}', json=dict(
-        data={'abbr': fake.word(), 'title': fake.company()},
-        parent_id='',
-    ))
-    if authorized:
-        assert_unprocessable(r)
-    else:
-        assert_forbidden(r)
-
-    r = client.put(f'/keyword/{kw_id}/bar', json=dict(
-        data={'abbr': fake.word(), 'title': fake.company()},
-        parent_id='bar',
-    ))
-    if authorized:
-        assert_unprocessable(r, f"'bar' cannot be a parent of '{kw_id}/bar'")
-    else:
-        assert_forbidden(r)
-
-    # self or sibling cannot be parent
-    for n in range(1, 4):
-        for kw in reversed(keywords_flat):
-            if kw.id.count('/') == n:
-                kw_id = f'{kw.parent.id}/foo' if create else kw.id
-                r = client.put(f'/keyword/{kw_id}', json=dict(
-                    data={'abbr': fake.word(), 'title': fake.company()},
-                    parent_id=f'{kw.id}',
-                ))
-                if authorized:
-                    assert_unprocessable(r, f"'{kw.id}' cannot be a parent of '{kw_id}'")
-                else:
-                    assert_forbidden(r)
-                break
-
-    assert_db_state(keywords_flat)
-    assert_no_audit_log()
-
-
-@pytest.mark.require_scope(ODPScope.KEYWORD_ADMIN)
-def test_set_keyword_invalid_data(
-        api,
-        scopes,
-        keyword_batch,
-):
-    keywords_top, keywords_flat = keyword_batch
-    authorized = ODPScope.KEYWORD_ADMIN in scopes
-
-    r = api(scopes).put(f'/keyword/{keywords_top[2].id}/foo', json=dict(
-        data={'abbr': fake.word()},  # missing required property 'title'
-        parent_id=keywords_top[2].id,
-    ))
-    if authorized:
+    elif error == 'kw_404':
+        assert_not_found(r)
+    elif error == 'vocab_404':
+        assert_not_found(r, 'Vocabulary not found')
+    elif error == 'parent_404' and change == 'parent_id':
+        assert_not_found(r, 'Parent keyword not found')
+    elif error == 'invalid_data' and change == 'data':
         assert_unprocessable(r, valid=False)
+    elif change:
+        assert_json_result(r, r.json(), new_kw)
+        assert_db_state(keywords_flat[:old_ix] + [new_kw] + keywords_flat[old_ix + 1:])
+        assert_audit_log(api.grant_type, dict(command='update', keyword=new_kw))
+        changed = True
     else:
-        assert_forbidden(r)
+        assert_empty_result(r)
 
-    assert_db_state(keywords_flat)
-    assert_no_audit_log()
+    if not changed:
+        assert_db_state(keywords_flat)
+        assert_no_audit_log()
 
 
 @pytest.mark.require_scope(ODPScope.KEYWORD_ADMIN)
+@pytest.mark.parametrize('error', [None, 'kw_404', 'vocab_404'])
 def test_delete_keyword(
         api,
         scopes,
         keyword_batch,
+        error,
 ):
-    keywords_top, keywords_flat = keyword_batch
     authorized = ODPScope.KEYWORD_ADMIN in scopes
-    client = api(scopes)
+    keywords_top, keywords_flat = keyword_batch
 
-    keywords_flat.reverse()
-    audit = []
-    for n in range(4):
-        for i, kw in enumerate(keywords_flat):
-            if kw.id.count('/') == n:
-                if can_delete := not kw.children:
-                    audit += [dict(command='delete', keyword=kw, index=i)]
+    old_ix = randint(0, len(keywords_flat) - 1)
+    old_kw = keywords_flat[old_ix]
+    deleted_kw = KeywordFactory.stub(
+        vocabulary_id=old_kw.vocabulary_id,
+        id=old_kw.id,
+        key=old_kw.key,
+        data=old_kw.data.copy(),
+        status=old_kw.status,
+        parent_id=old_kw.parent_id,
+        has_children=True if old_kw.children else False,
+    )
+    kw_id = 0 if error == 'kw_404' else old_kw.id
+    vocab_id = 'foo' if error == 'vocab_404' else old_kw.vocabulary_id
 
-                r = client.delete(f'/keyword/{kw.id}')
+    r = api(scopes).delete(f'/keyword/{vocab_id}/{kw_id}')
 
-                if authorized:
-                    if can_delete:
-                        assert_empty_result(r)
-                    else:
-                        assert_unprocessable(r, f"Keyword '{kw.id}' cannot be deleted as it has sub-keywords")
-                else:
-                    assert_forbidden(r)
-                break
-
-    if authorized:
-        delete_indices = [entry.pop('index') for entry in audit]
-        for delete_index in reversed(sorted(delete_indices)):
-            keywords_flat.pop(delete_index)
-        assert_db_state(keywords_flat)
-        assert_audit_log(api.grant_type, *audit)
+    changed = False
+    if not authorized:
+        assert_forbidden(r)
+    elif error in ('kw_404', 'vocab_404'):
+        assert_not_found(r)
+    elif deleted_kw.has_children:
+        assert_unprocessable(r, f"Keyword '{deleted_kw.id}' has child keywords")
     else:
+        assert_empty_result(r)
+        assert_db_state(keywords_flat[:old_ix] + keywords_flat[old_ix + 1:])
+        assert_audit_log(api.grant_type, dict(command='delete', keyword=deleted_kw))
+        changed = True
+
+    if not changed:
         assert_db_state(keywords_flat)
         assert_no_audit_log()
-
-
-@pytest.mark.require_scope(ODPScope.KEYWORD_ADMIN)
-def test_delete_keyword_not_found(
-        api,
-        scopes,
-        keyword_batch,
-):
-    keywords_top, keywords_flat = keyword_batch
-    authorized = ODPScope.KEYWORD_ADMIN in scopes
-    client = api(scopes)
-
-    for n in range(2):
-        for kw in reversed(keywords_flat):
-            if kw.id.count('/') == n:
-                r = client.delete(f'/keyword/{kw.id}/foo')
-                if authorized:
-                    assert_not_found(r, f"Keyword '{kw.id}/foo' does not exist")
-                else:
-                    assert_forbidden(r)
-                break
-
-    assert_db_state(keywords_flat)
-    assert_no_audit_log()

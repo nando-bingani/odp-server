@@ -135,7 +135,7 @@ async def list_keywords(
     """
     if not Session.get(Vocabulary, vocabulary_id):
         raise HTTPException(
-            HTTP_404_NOT_FOUND, f'Vocabulary {vocabulary_id} not found'
+            HTTP_404_NOT_FOUND, 'Vocabulary not found'
         )
 
     # Note: If a parent keyword is not approved but has approved children,
@@ -284,7 +284,7 @@ async def update_keyword(
         keyword_in: KeywordModelAdmin,
         auth: Authorized = Depends(Authorize(ODPScope.KEYWORD_ADMIN)),
         _=Depends(validate_keyword_input),
-) -> KeywordModel:
+) -> KeywordModel | None:
     """
     Update a keyword. Requires scope `odp.keyword:admin`.
     """
@@ -311,7 +311,7 @@ async def update_keyword(
             AuditCommand.update,
         )
 
-    return output_keyword_model(keyword)
+        return output_keyword_model(keyword)
 
 
 @router.delete(

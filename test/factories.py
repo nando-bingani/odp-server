@@ -100,17 +100,17 @@ def create_metadata(record, n):
     return metadata
 
 
-def create_keyword_key(kw, n):
+def create_keyword_key(kw, n, invalid=False):
     if kw.vocabulary.schema.uri.endswith('institution'):
-        return fake.word() + str(n)
+        return -1 if invalid else fake.word() + str(n)
     elif kw.vocabulary.schema.uri.endswith('sdg'):
         if kw.parent_id is None:
-            return str(fake.pyint())
-        return str(fake.pyfloat(min_value=0))
+            return '' if invalid else str(fake.pyint())
+        return '' if invalid else str(fake.pyfloat(min_value=0))
 
 
-def create_keyword_data(kw, n):
-    data = {'key': kw.key}
+def create_keyword_data(kw, n, invalid=False):
+    data = {'foo': 'bar'} if invalid else {'key': kw.key}
     if kw.vocabulary.schema.uri.endswith('institution'):
         data |= {'abbr': fake.word() + str(n)}
     elif kw.vocabulary.schema.uri.endswith('sdg'):
@@ -306,7 +306,7 @@ class KeywordFactory(ODPModelFactory):
     def children(obj, create, _):
         if create:
             if not obj.parent_id or not obj.parent.parent_id:
-                KeywordFactory.create_batch(randint(0, 7), parent_id=obj.id, vocabulary=obj.vocabulary)
+                KeywordFactory.create_batch(randint(0, 4), parent_id=obj.id, vocabulary=obj.vocabulary)
 
 
 class TagFactory(ODPModelFactory):
