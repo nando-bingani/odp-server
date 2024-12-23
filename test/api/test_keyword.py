@@ -7,7 +7,7 @@ from odp.const import ODPScope
 from odp.db.models import Keyword, KeywordAudit
 from test import TestSession
 from test.api import assert_conflict, assert_empty_result, assert_forbidden, assert_new_timestamp, assert_not_found, assert_unprocessable
-from test.factories import FactorySession, KeywordFactory, create_keyword_data, create_keyword_key
+from test.factories import FactorySession, KeywordFactory, VocabularyFactory, create_keyword_data, create_keyword_key
 
 
 @pytest.fixture
@@ -16,7 +16,10 @@ def keyword_batch(request):
     may include sub-keywords, recursively. Return a tuple of
     (top-level keywords, all keywords).
     """
-    keywords_top = KeywordFactory.create_batch(randint(3, 5))
+    vocabs = VocabularyFactory.create_batch(3)
+    keywords_top = []
+    for n in range(randint(3, 5)):
+        keywords_top += [KeywordFactory(vocabulary=choice(vocabs))]
     keywords_flat = FactorySession.execute(select(Keyword)).scalars().all()
     return keywords_top, keywords_flat
 
@@ -234,56 +237,15 @@ def test_suggest_keyword(
         is_child,
         error,
 ):
-    authorized = ODPScope.KEYWORD_SUGGEST in scopes
-    keywords_top, keywords_flat = keyword_batch
-
-    new_kw_args = dict(
-        status='proposed',
-        vocabulary=(vocab := keywords_top[2].vocabulary),
-        vocabulary_id=vocab.id,
+    _test_suggest_or_create_keyword(
+        api,
+        scopes,
+        keyword_batch,
+        is_child,
+        error,
+        ODPScope.KEYWORD_SUGGEST in scopes,
+        'suggest',
     )
-    if error == 'kw_conflict':
-        new_kw_args['key'] = choice(list(filter(lambda k: k.vocabulary_id == vocab.id, keywords_flat))).key
-
-    if is_child:
-        new_kw_args |= dict(
-            parent=keywords_top[2],
-            parent_id=keywords_top[2].id,
-        )
-        if error == 'parent_404':
-            new_kw_args['parent_id'] = 0
-
-    vocab_id = 'foo' if error == 'vocab_404' else vocab.id
-    new_kw = keyword_build(**new_kw_args)
-    new_kw.data = create_keyword_data(new_kw, 0, error == 'invalid_data')
-
-    r = api(scopes).post(f'/keyword/{vocab_id}/', json=dict(
-        key=new_kw.key,
-        data=new_kw.data,
-        parent_id=new_kw.parent_id,
-    ))
-
-    changed = False
-    if not authorized:
-        assert_forbidden(r)
-    elif error == 'vocab_404':
-        assert_not_found(r, 'Vocabulary not found')
-    elif error == 'parent_404' and is_child:
-        assert_not_found(r, 'Parent keyword not found')
-    elif error == 'invalid_data':
-        assert_unprocessable(r, valid=False)
-    elif error == 'kw_conflict':
-        assert_conflict(r, f"Keyword '{new_kw.key}' already exists")
-    else:
-        new_kw.id = r.json()['id']
-        assert_json_result(r, r.json(), new_kw)
-        assert_db_state(keywords_flat + [new_kw])
-        assert_audit_log(api.grant_type, dict(command='insert', keyword=new_kw))
-        changed = True
-
-    if not changed:
-        assert_db_state(keywords_flat)
-        assert_no_audit_log()
 
 
 @pytest.mark.require_scope(ODPScope.KEYWORD_ADMIN)
@@ -296,15 +258,45 @@ def test_create_keyword(
         is_child,
         error,
 ):
-    authorized = ODPScope.KEYWORD_ADMIN in scopes
+    _test_suggest_or_create_keyword(
+        api,
+        scopes,
+        keyword_batch,
+        is_child,
+        error,
+        ODPScope.KEYWORD_ADMIN in scopes,
+        'create',
+    )
+
+
+def _test_suggest_or_create_keyword(
+        api,
+        scopes,
+        keyword_batch,
+        is_child,
+        error,
+        authorized,
+        function,
+):
     keywords_top, keywords_flat = keyword_batch
 
     new_kw_args = dict(
         vocabulary=(vocab := keywords_top[2].vocabulary),
         vocabulary_id=vocab.id,
     )
+
+    if function == 'suggest':
+        new_kw_args |= dict(
+            status='proposed',
+        )
+
     if error == 'kw_conflict':
-        new_kw_args['key'] = choice(list(filter(lambda k: k.vocabulary_id == vocab.id, keywords_flat))).key
+        try:
+            new_kw_args['key'] = choice(list(filter(
+                lambda k: k.vocabulary_id == vocab.id and is_child == bool(k.parent_id),
+                keywords_flat))).key
+        except IndexError:
+            pytest.skip('filtered list is empty; no child keys with which to conflict')
 
     if is_child:
         new_kw_args |= dict(
@@ -316,14 +308,21 @@ def test_create_keyword(
 
     vocab_id = 'foo' if error == 'vocab_404' else vocab.id
     new_kw = keyword_build(**new_kw_args)
-    new_kw.data = create_keyword_data(new_kw, 0, error == 'invalid_data')
+    if error == 'invalid_data':
+        new_kw.data = create_keyword_data(new_kw, 0, True)
 
-    r = api(scopes).put(f'/keyword/{vocab_id}/', json=dict(
+    api_func = api(scopes).post if function == 'suggest' else api(scopes).put
+    api_args = dict(
         key=new_kw.key,
         data=new_kw.data,
-        status=new_kw.status,
         parent_id=new_kw.parent_id,
-    ))
+    )
+    if function == 'create':
+        api_args |= dict(
+            status=new_kw.status,
+        )
+
+    r = api_func(f'/keyword/{vocab_id}/', json=api_args)
 
     changed = False
     if not authorized:
