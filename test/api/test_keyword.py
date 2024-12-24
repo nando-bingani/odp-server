@@ -79,7 +79,6 @@ def assert_json_result(response, json, keyword, recurse=None):
     assert json['status'] == keyword.status
     assert json['parent_id'] == keyword.parent_id
     assert json['parent_key'] == (keyword.parent.key if keyword.parent_id else None)
-    assert json['schema_id'] == keyword.vocabulary.schema_id
 
     if recurse:
         kw_children = list(filter(lambda k: k.status == 'approved', keyword.children)) \
@@ -124,7 +123,7 @@ def test_list_all_keywords(
 
 @pytest.mark.require_scope(ODPScope.KEYWORD_READ_ALL)
 @pytest.mark.parametrize('recurse', [False, True])
-@pytest.mark.parametrize('error', [None, 'kw_404', 'vocab_404'])
+@pytest.mark.parametrize('error', [None, 'kw_404'])
 def test_get_any_keyword(
         api,
         scopes,
@@ -138,13 +137,12 @@ def test_get_any_keyword(
     old_ix = randint(0, len(keywords_flat) - 1)
     old_kw = keywords_flat[old_ix]
     kw_id = 0 if error == 'kw_404' else old_kw.id
-    vocab_id = 'foo' if error == 'vocab_404' else old_kw.vocabulary_id
 
-    r = api(scopes).get(f'/keyword/{vocab_id}/{kw_id}?recurse={recurse}')
+    r = api(scopes).get(f'/keyword/{kw_id}?recurse={recurse}')
 
     if not authorized:
         assert_forbidden(r)
-    elif error in ('kw_404', 'vocab_404'):
+    elif error == 'kw_404':
         assert_not_found(r)
     else:
         assert_json_result(r, r.json(), old_kw, 'all' if recurse else None)
@@ -214,7 +212,7 @@ def test_get_keyword(
     key = 'foo' if error == 'unknown_kw' else old_kw.key
     vocab_id = vocab_0_id if error == 'wrong_vocab' else old_kw.vocabulary_id
 
-    r = api(scopes).get(f'/keyword/{vocab_id}/key/{key}?recurse={recurse}')
+    r = api(scopes).get(f'/keyword/{vocab_id}/{key}?recurse={recurse}')
 
     if not authorized:
         assert_forbidden(r)

@@ -27,6 +27,7 @@ def output_vocabulary_model(
         schema_id=vocabulary.schema_id,
         schema_uri=vocabulary.schema.uri,
         static=vocabulary.static,
+        keyword_count=len(vocabulary.keywords),
     )
     if detail:
         kwargs |= dict(

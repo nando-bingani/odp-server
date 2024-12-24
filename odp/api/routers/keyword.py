@@ -4,12 +4,14 @@ from enum import Enum
 from fastapi import APIRouter, Depends, HTTPException, Query
 from jschon import JSON, URI
 from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import array
 from sqlalchemy.exc import IntegrityError
 from starlette.status import HTTP_404_NOT_FOUND, HTTP_409_CONFLICT, HTTP_422_UNPROCESSABLE_ENTITY
 
 from odp.api.lib.auth import Authorize, Authorized
 from odp.api.lib.paging import Paginator
 from odp.api.models import KeywordHierarchyModel, KeywordModel, KeywordModelAdmin, KeywordModelIn, Page
+from odp.api.models.keyword import KeywordAncestorModel
 from odp.const import ODPScope
 from odp.const.db import AuditCommand, KeywordStatus
 from odp.db import Session
@@ -49,6 +51,18 @@ class RecurseMode(Enum):
     APPROVED = 'approved'
 
 
+def output_keyword_ancestor_model(row) -> KeywordAncestorModel:
+    return KeywordAncestorModel(
+        vocabulary_id=row.vocabulary_id,
+        id=row.id,
+        key=row.key,
+        data=row.data,
+        status=row.status,
+        ids=row.ids,
+        keys_=row.keys_,
+    )
+
+
 def output_keyword_model(
         keyword: Keyword,
         *,
@@ -64,7 +78,6 @@ def output_keyword_model(
         status=keyword.status,
         parent_id=keyword.parent_id,
         parent_key=keyword.parent.key if keyword.parent_id else None,
-        schema_id=keyword.vocabulary.schema_id,
     )
 
     if recurse:
@@ -106,19 +119,59 @@ def create_audit_record(
 async def list_all_keywords(
         vocabulary_id: list[str] = Query(None, title='Filter by vocabulary(-ies)'),
         paginator: Paginator = Depends(),
-) -> Page[KeywordModel]:
+) -> Page[KeywordAncestorModel]:
     """
     Get a flat list of all keywords, optionally filtered by one or more vocabulary.
     Requires scope `odp.keyword:read_all`.
     """
-    stmt = select(Keyword)
+    # This is the hierarchical SQL query that we create below using SQLA select
+    # and cte constructs, which enables us to adapt it with filters, paging, etc.
+    # Returns keyword rows supplemented with arrays of ancestor ids and keys
+    # sorted from root to self, inclusive.
+    '''
+    with recursive ancestors(
+        vocabulary_id, parent_id, id, key, data, status, ids, keys
+    ) as (
+        select vocabulary_id, parent_id, id, key, data, status,
+            array[id], array[key]
+        from keyword
+        where parent_id is null
+        union all
+        select k.vocabulary_id, k.parent_id, k.id, k.key, k.data, k.status,
+            a.ids || k.id, a.keys || k.key
+        from keyword k, ancestors a
+        where k.parent_id = a.id
+    )
+    select * from ancestors
+    '''
+
+    ancestors = (
+        select(
+            Keyword,
+            array([Keyword.id]).label('ids'),
+            array([Keyword.key]).collate('naturalsort').label('keys_'),
+        ).where(
+            Keyword.parent_id == None
+        ).cte(recursive=True)
+    )
+    ancestors = ancestors.union_all(
+        select(
+            Keyword,
+            ancestors.c.ids.concat(Keyword.id).label('ids'),
+            ancestors.c.keys_.concat(Keyword.key).collate('naturalsort').label('keys_'),
+        ).where(
+            Keyword.parent_id == ancestors.c.id
+        )
+    )
+
+    stmt = select(ancestors).order_by(ancestors.c.vocabulary_id, ancestors.c.keys_)
 
     if vocabulary_id:
-        stmt = stmt.where(Keyword.vocabulary_id.in_(vocabulary_id))
+        stmt = stmt.where(ancestors.c.vocabulary_id.in_(vocabulary_id))
 
     return paginator.paginate(
         stmt,
-        lambda row: output_keyword_model(row.Keyword),
+        lambda row: output_keyword_ancestor_model(row),
     )
 
 
@@ -156,25 +209,26 @@ async def list_keywords(
 
 
 @router.get(
-    '/{vocabulary_id}/{keyword_id}',
+    '/{keyword_id}',
     dependencies=[Depends(Authorize(ODPScope.KEYWORD_READ_ALL))],
 )
 async def get_any_keyword(
-        vocabulary_id: str,
         keyword_id: int,
         recurse: bool = Query(False, title='Populate child keywords, recursively'),
 ) -> KeywordHierarchyModel | KeywordModel:
     """
     Get any keyword by id. Requires scope `odp.keyword:read_all`.
     """
-    if not (keyword := Session.get(Keyword, (vocabulary_id, keyword_id))):
+    if not (keyword := Session.execute(
+            select(Keyword).where(Keyword.id == keyword_id)
+    ).scalar_one_or_none()):
         raise HTTPException(HTTP_404_NOT_FOUND)
 
     return output_keyword_model(keyword, recurse=RecurseMode.ALL if recurse else None)
 
 
 @router.get(
-    '/{vocabulary_id}/key/{key}',
+    '/{vocabulary_id}/{key}',
     dependencies=[Depends(Authorize(ODPScope.KEYWORD_READ))],
 )
 async def get_keyword(
