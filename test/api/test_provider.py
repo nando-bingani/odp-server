@@ -420,17 +420,12 @@ def has_record(request):
 
 
 @pytest.fixture(params=[False, True])
-def has_resource(request):
-    return request.param
-
-
-@pytest.fixture(params=[False, True])
 def has_package(request):
     return request.param
 
 
 @pytest.mark.require_scope(ODPScope.PROVIDER_ADMIN)
-def test_delete_provider(api, provider_batch, scopes, has_record, has_resource, has_package):
+def test_delete_provider(api, provider_batch, scopes, has_record, has_package):
     authorized = ODPScope.PROVIDER_ADMIN in scopes
     deleted_provider = provider_batch[2]
 
@@ -440,16 +435,13 @@ def test_delete_provider(api, provider_batch, scopes, has_record, has_resource, 
         else:
             has_record = False
 
-    if has_resource:
-        ResourceFactory(provider=deleted_provider)
-
     if has_package:
         PackageFactory(provider=deleted_provider)
 
     r = api(scopes).delete(f'/provider/{deleted_provider.id}')
 
     if authorized:
-        if has_record or has_resource or has_package:
+        if has_record or has_package:
             # TODO:
             #  provider-collection relationship is deprecated;
             #  has_record should eventually be removed

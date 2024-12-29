@@ -21,7 +21,6 @@ def output_provider_model(
         result,
         *,
         detail=False,
-        resource_count=None,
 ) -> ProviderModel | ProviderDetailModel:
     cls = ProviderDetailModel if detail else ProviderModel
 
@@ -39,7 +38,6 @@ def output_provider_model(
 
     if detail:
         kwargs |= dict(
-            resource_count=resource_count,
             user_names=(user_names := {
                 user.id: user.name
                 for user in result.Provider.users
@@ -183,11 +181,7 @@ async def _get_provider(
     if not (result := Session.execute(stmt).one_or_none()):
         raise HTTPException(HTTP_404_NOT_FOUND)
 
-    resource_count = Session.execute(
-        select(func.count()).select_from(Resource).where(Resource.provider_id == provider_id)
-    ).scalar_one()
-
-    return output_provider_model(result, detail=True, resource_count=resource_count)
+    return output_provider_model(result, detail=True)
 
 
 @router.post(
