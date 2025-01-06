@@ -26,14 +26,6 @@ Keyword.SDG:
   type: keyword
   uri: https://odp.saeon.ac.za/schema/keyword/sdg
 
-Tag.Collection.Infrastructure:
-  type: tag
-  uri: https://odp.saeon.ac.za/schema/tag/collection/infrastructure
-
-Tag.Collection.Project:
-  type: tag
-  uri: https://odp.saeon.ac.za/schema/tag/collection/project
-
 Tag.Record.QC:
   type: tag
   uri: https://odp.saeon.ac.za/schema/tag/record/qc
