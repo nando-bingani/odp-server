@@ -81,6 +81,10 @@ class PackageTag(Base):
             f"tag_type = '{TagType.package}'",
             name='package_tag_tag_type_check',
         ),
+        ForeignKeyConstraint(
+            ('vocabulary_id', 'keyword_id'), ('keyword.vocabulary_id', 'keyword.id'),
+            name='package_tag_keyword_fkey', ondelete='RESTRICT',
+        ),
     )
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
@@ -89,12 +93,16 @@ class PackageTag(Base):
     tag_type = Column(Enum(TagType), nullable=False)
     user_id = Column(String, ForeignKey('user.id', ondelete='RESTRICT'))
 
+    vocabulary_id = Column(String)
+    keyword_id = Column(Integer)
+
     data = Column(JSONB, nullable=False)
     timestamp = Column(TIMESTAMP(timezone=True), nullable=False)
 
     package = relationship('Package')
     tag = relationship('Tag')
     user = relationship('User')
+    keyword = relationship('Keyword')
 
 
 class PackageTagAudit(Base):
@@ -113,3 +121,4 @@ class PackageTagAudit(Base):
     _tag_id = Column(String, nullable=False)
     _user_id = Column(String)
     _data = Column(JSONB, nullable=False)
+    _keyword_id = Column(Integer)

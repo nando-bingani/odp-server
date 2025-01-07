@@ -3,7 +3,6 @@ from functools import partial
 from random import randint
 
 from fastapi import APIRouter, Depends, HTTPException
-from jschon import JSON, JSONSchema
 from sqlalchemy import func, literal_column, null, select, union_all
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import aliased
@@ -11,8 +10,7 @@ from starlette.status import HTTP_403_FORBIDDEN, HTTP_404_NOT_FOUND, HTTP_409_CO
 
 from odp.api.lib.auth import Authorize, Authorized, TagAuthorize, UntagAuthorize
 from odp.api.lib.paging import Paginator
-from odp.api.lib.schema import get_tag_schema
-from odp.api.lib.utils import output_tag_instance_model
+from odp.api.lib.tagging import Tagger, output_tag_instance_model
 from odp.api.models import (
     AuditModel,
     CollectionAuditModel,
@@ -24,9 +22,9 @@ from odp.api.models import (
     TagInstanceModelIn,
 )
 from odp.const import DOI_PREFIX, ODPScope
-from odp.const.db import AuditCommand, TagCardinality, TagType
+from odp.const.db import AuditCommand, TagType
 from odp.db import Session
-from odp.db.models import Collection, CollectionAudit, CollectionTag, CollectionTagAudit, Record, Tag, User
+from odp.db.models import Collection, CollectionAudit, CollectionTag, CollectionTagAudit, Record, User
 
 router = APIRouter()
 
@@ -224,78 +222,24 @@ async def delete_collection(
 
 @router.post(
     '/{collection_id}/tag',
-    response_model=TagInstanceModel,
 )
 async def tag_collection(
         collection_id: str,
         tag_instance_in: TagInstanceModelIn,
-        tag_schema: JSONSchema = Depends(get_tag_schema),
         auth: Authorized = Depends(TagAuthorize()),
-):
+) -> TagInstanceModel | None:
+    """Set a tag instance on a collection, returning the created
+    or updated instance, or null if no change was made.
+
+    Requires the scope associated with the tag.
+    """
     auth.enforce_constraint([collection_id])
 
     if not (collection := Session.get(Collection, collection_id)):
         raise HTTPException(HTTP_404_NOT_FOUND)
 
-    if not (tag := Session.get(Tag, (tag_instance_in.tag_id, TagType.collection))):
-        raise HTTPException(HTTP_404_NOT_FOUND)
-
-    # only one tag instance per collection is allowed
-    # update existing tag instance if found
-    if tag.cardinality == TagCardinality.one:
-        if collection_tag := Session.execute(
-                select(CollectionTag).
-                where(CollectionTag.collection_id == collection_id).
-                where(CollectionTag.tag_id == tag_instance_in.tag_id)
-        ).scalar_one_or_none():
-            command = AuditCommand.update
-        else:
-            command = AuditCommand.insert
-
-    # one tag instance per user per collection is allowed
-    # update a user's existing tag instance if found
-    elif tag.cardinality == TagCardinality.user:
-        if collection_tag := Session.execute(
-                select(CollectionTag).
-                where(CollectionTag.collection_id == collection_id).
-                where(CollectionTag.tag_id == tag_instance_in.tag_id).
-                where(CollectionTag.user_id == auth.user_id)
-        ).scalar_one_or_none():
-            command = AuditCommand.update
-        else:
-            command = AuditCommand.insert
-
-    # multiple tag instances are allowed per user per collection
-    # can only insert/delete
-    elif tag.cardinality == TagCardinality.multi:
-        command = AuditCommand.insert
-
-    else:
-        assert False
-
-    if command == AuditCommand.insert:
-        collection_tag = CollectionTag(
-            collection_id=collection_id,
-            tag_id=tag_instance_in.tag_id,
-            tag_type=TagType.collection,
-        )
-
-    if collection_tag.data != tag_instance_in.data:
-        validity = tag_schema.evaluate(JSON(tag_instance_in.data)).output('detailed')
-        if not validity['valid']:
-            raise HTTPException(HTTP_422_UNPROCESSABLE_ENTITY, validity)
-
-        collection_tag.user_id = auth.user_id
-        collection_tag.data = tag_instance_in.data
-        collection_tag.timestamp = (timestamp := datetime.now(timezone.utc))
-        collection_tag.save()
-
-        collection.timestamp = timestamp
-        collection.save()
-
-        create_tag_audit_record(auth, collection_tag, timestamp, command)
-
-    return output_tag_instance_model(collection_tag)
+    if collection_tag := await Tagger(TagType.collection).set_tag_instance(tag_instance_in, collection, auth):
+        return output_tag_instance_model(collection_tag)
 
 
 @router.delete(

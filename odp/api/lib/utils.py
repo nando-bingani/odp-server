@@ -1,22 +1,8 @@
 from typing import Optional
 
-from odp.api.models import PublishedDataCiteRecordModel, PublishedRecordModel, PublishedSAEONRecordModel, TagInstanceModel
+from odp.api.models import PublishedDataCiteRecordModel, PublishedRecordModel, PublishedSAEONRecordModel
 from odp.const import ODPCatalog
-from odp.db.models import CatalogRecord, CollectionTag, RecordTag
-
-
-def output_tag_instance_model(tag_instance: CollectionTag | RecordTag) -> TagInstanceModel:
-    return TagInstanceModel(
-        id=tag_instance.id,
-        tag_id=tag_instance.tag_id,
-        user_id=tag_instance.user_id,
-        user_name=tag_instance.user.name if tag_instance.user_id else None,
-        user_email=tag_instance.user.email if tag_instance.user_id else None,
-        data=tag_instance.data,
-        timestamp=tag_instance.timestamp.isoformat(),
-        cardinality=tag_instance.tag.cardinality,
-        public=tag_instance.tag.public,
-    )
+from odp.db.models import CatalogRecord
 
 
 def output_published_record_model(catalog_record: CatalogRecord) -> Optional[PublishedRecordModel]:
