@@ -27,6 +27,7 @@ ODP.Web.UI:
   scopes:
     - odp.archive:saeon_repository
     - odp.keyword:read
+    - odp.keyword:suggest
     - odp.package:read
     - odp.package:write
     - odp.package:doi
@@ -48,6 +49,7 @@ ODP.Web.CI:
   scopes:
     - odp.catalog:read
     - odp.catalog:search
+    - odp.keyword:read_all
     - odp.vocabulary:read
   grant_types:
     - client_credentials

@@ -181,10 +181,12 @@ async def list_all_keywords(
 )
 async def list_keywords(
         vocabulary_id: str,
+        include_proposed: bool = False,
         paginator: Paginator = Depends(),
 ) -> Page[KeywordModel]:
     """
-    Get a flat list of approved keywords for a vocabulary. Requires scope `odp.keyword:read`.
+    Get a flat list of approved and (optionally) proposed keywords for a vocabulary.
+    Requires scope `odp.keyword:read`.
     """
     if not Session.get(Vocabulary, vocabulary_id):
         raise HTTPException(
@@ -196,10 +198,15 @@ async def list_keywords(
     # however, simply returning all approved keywords from anywhere in the
     # hierarchy. In this (edge) case, the caller will see such child keywords
     # as being orphaned.
+
+    include_statuses = [KeywordStatus.approved]
+    if include_proposed:
+        include_statuses += [KeywordStatus.proposed]
+
     stmt = (
         select(Keyword).
         where(Keyword.vocabulary_id == vocabulary_id).
-        where(Keyword.status == KeywordStatus.approved)
+        where(Keyword.status.in_(include_statuses))
     )
 
     return paginator.paginate(
