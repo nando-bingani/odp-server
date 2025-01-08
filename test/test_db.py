@@ -405,15 +405,11 @@ def test_create_vocabulary():
                result.uri,
                result.schema_id,
                result.schema_type,
-               result.scope_id,
-               result.scope_type,
                result.static,
            ) == (
                vocabulary.id,
                vocabulary.uri,
                vocabulary.schema_id,
                vocabulary.schema_type,
-               vocabulary.scope_id,
-               ScopeType.odp,
                vocabulary.static,
            )
