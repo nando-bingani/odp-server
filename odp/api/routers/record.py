@@ -9,7 +9,7 @@ from jschon import JSONSchema
 from pydantic import constr
 from sqlalchemy import and_, func, literal_column, null, or_, select, union_all
 from sqlalchemy.orm import aliased
-from starlette.status import HTTP_403_FORBIDDEN, HTTP_404_NOT_FOUND, HTTP_409_CONFLICT, HTTP_422_UNPROCESSABLE_ENTITY
+from starlette.status import HTTP_404_NOT_FOUND, HTTP_409_CONFLICT, HTTP_422_UNPROCESSABLE_ENTITY
 
 from odp.api.lib.auth import Authorize, Authorized, TagAuthorize, UntagAuthorize
 from odp.api.lib.paging import Paginator
@@ -585,8 +585,12 @@ async def untag_record(
         record_id: str,
         tag_instance_id: str,
         auth: Authorized = Depends(UntagAuthorize(TagType.record)),
-):
-    _untag_record(record_id, tag_instance_id, auth)
+) -> None:
+    """Remove a tag instance set by the calling user.
+
+    Requires the scope associated with the tag.
+    """
+    await _untag_record(record_id, tag_instance_id, auth)
 
 
 @router.delete(
@@ -596,39 +600,27 @@ async def admin_untag_record(
         record_id: str,
         tag_instance_id: str,
         auth: Authorized = Depends(Authorize(ODPScope.RECORD_ADMIN)),
-):
-    _untag_record(record_id, tag_instance_id, auth, True)
+) -> None:
+    """Remove any tag instance from a record.
+
+    Requires scope `odp.record:admin`.
+    """
+    await _untag_record(record_id, tag_instance_id, auth)
 
 
-def _untag_record(
+async def _untag_record(
         record_id: str,
         tag_instance_id: str,
         auth: Authorized,
-        ignore_user_id: bool = False,
 ) -> None:
     if not (record := Session.get(Record, record_id)):
         raise HTTPException(HTTP_404_NOT_FOUND)
 
     auth.enforce_constraint([record.collection_id])
 
-    if not (record_tag := Session.execute(
-        select(RecordTag).
-        where(RecordTag.id == tag_instance_id).
-        where(RecordTag.record_id == record_id)
-    ).scalar_one_or_none()):
-        raise HTTPException(HTTP_404_NOT_FOUND)
+    await Tagger(TagType.record).delete_tag_instance(tag_instance_id, record, auth)
 
-    if not ignore_user_id and record_tag.user_id != auth.user_id:
-        raise HTTPException(HTTP_403_FORBIDDEN)
-
-    record_tag.delete()
-
-    record.timestamp = (timestamp := datetime.now(timezone.utc))
-    record.save()
-
-    touch_parent(record, timestamp)
-
-    create_tag_audit_record(auth, record_tag, timestamp, AuditCommand.delete)
+    touch_parent(record, datetime.now(timezone.utc))
 
 
 @router.get(

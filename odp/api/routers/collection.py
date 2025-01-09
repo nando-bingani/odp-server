@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func, literal_column, null, select, union_all
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import aliased
-from starlette.status import HTTP_403_FORBIDDEN, HTTP_404_NOT_FOUND, HTTP_409_CONFLICT, HTTP_422_UNPROCESSABLE_ENTITY
+from starlette.status import HTTP_404_NOT_FOUND, HTTP_409_CONFLICT, HTTP_422_UNPROCESSABLE_ENTITY
 
 from odp.api.lib.auth import Authorize, Authorized, TagAuthorize, UntagAuthorize
 from odp.api.lib.paging import Paginator
@@ -249,8 +249,12 @@ async def untag_collection(
         collection_id: str,
         tag_instance_id: str,
         auth: Authorized = Depends(UntagAuthorize(TagType.collection)),
-):
-    _untag_collection(collection_id, tag_instance_id, auth)
+) -> None:
+    """Remove a tag instance set by the calling user.
+
+    Requires the scope associated with the tag.
+    """
+    await _untag_collection(collection_id, tag_instance_id, auth)
 
 
 @router.delete(
@@ -260,37 +264,25 @@ async def admin_untag_collection(
         collection_id: str,
         tag_instance_id: str,
         auth: Authorized = Depends(Authorize(ODPScope.COLLECTION_ADMIN)),
-):
-    _untag_collection(collection_id, tag_instance_id, auth, True)
+) -> None:
+    """Remove any tag instance from a collection.
+
+    Requires scope `odp.collection:admin`.
+    """
+    await _untag_collection(collection_id, tag_instance_id, auth)
 
 
-def _untag_collection(
+async def _untag_collection(
         collection_id: str,
         tag_instance_id: str,
         auth: Authorized,
-        ignore_user_id: bool = False,
 ) -> None:
     auth.enforce_constraint([collection_id])
 
     if not (collection := Session.get(Collection, collection_id)):
         raise HTTPException(HTTP_404_NOT_FOUND)
 
-    if not (collection_tag := Session.execute(
-        select(CollectionTag).
-        where(CollectionTag.id == tag_instance_id).
-        where(CollectionTag.collection_id == collection_id)
-    ).scalar_one_or_none()):
-        raise HTTPException(HTTP_404_NOT_FOUND)
-
-    if not ignore_user_id and collection_tag.user_id != auth.user_id:
-        raise HTTPException(HTTP_403_FORBIDDEN)
-
-    collection_tag.delete()
-
-    collection.timestamp = (timestamp := datetime.now(timezone.utc))
-    collection.save()
-
-    create_tag_audit_record(auth, collection_tag, timestamp, AuditCommand.delete)
+    await Tagger(TagType.collection).delete_tag_instance(tag_instance_id, collection, auth)
 
 
 @router.get(

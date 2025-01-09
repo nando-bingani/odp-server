@@ -8,7 +8,7 @@ from sqlalchemy import select
 
 from odp.const import DOI_REGEX, ODPScope
 from odp.const.db import ScopeType
-from odp.db.models import Collection, CollectionAudit, CollectionTag, CollectionTagAudit, Scope, User
+from odp.db.models import Collection, CollectionAudit, Scope, User
 from test import TestSession
 from test.api import (
     all_scopes,
@@ -18,11 +18,25 @@ from test.api import (
     assert_forbidden,
     assert_new_timestamp,
     assert_not_found,
-    assert_tag_instance_output,
     assert_unprocessable,
 )
+from test.api.assertions.tags import (
+    assert_tag_instance_audit_log,
+    assert_tag_instance_audit_log_empty,
+    assert_tag_instance_db_state,
+    assert_tag_instance_output,
+)
 from test.api.conftest import try_skip_collection_constraint
-from test.factories import CollectionFactory, CollectionTagFactory, FactorySession, ProviderFactory, RecordFactory, SchemaFactory, TagFactory
+from test.factories import (
+    CollectionFactory,
+    CollectionTagFactory,
+    FactorySession,
+    KeywordFactory,
+    ProviderFactory,
+    RecordFactory,
+    SchemaFactory,
+    TagFactory,
+)
 
 
 @pytest.fixture
@@ -61,27 +75,6 @@ def assert_db_state(collections):
         assert role_ids(row) == role_ids(collections[n])
 
 
-def assert_db_tag_state(collection_id, grant_type, *collection_tags):
-    """Verify that the collection_tag table contains the given collection tags."""
-    result = TestSession.execute(select(CollectionTag)).scalars().all()
-    result.sort(key=lambda r: r.timestamp)
-
-    assert len(result) == len(collection_tags)
-    for n, row in enumerate(result):
-        assert row.collection_id == collection_id
-        assert row.tag_type == 'collection'
-        assert_new_timestamp(row.timestamp)
-        if isinstance(collection_tag := collection_tags[n], CollectionTag):
-            assert row.tag_id == collection_tag.tag_id
-            assert row.user_id == collection_tag.user_id
-            assert row.data == collection_tag.data
-        else:
-            user_id = collection_tag.get('user_id', 'odp.test.user')
-            assert row.tag_id == collection_tag['tag_id']
-            assert row.user_id == (user_id if grant_type == 'authorization_code' else None)
-            assert row.data == collection_tag['data']
-
-
 def assert_audit_log(command, collection, grant_type):
     result = TestSession.execute(select(CollectionAudit)).scalar_one()
     assert result.client_id == 'odp.test.client'
@@ -97,26 +90,6 @@ def assert_audit_log(command, collection, grant_type):
 
 def assert_no_audit_log():
     assert TestSession.execute(select(CollectionAudit)).first() is None
-
-
-def assert_tag_audit_log(grant_type, *entries):
-    result = TestSession.execute(select(CollectionTagAudit)).scalars().all()
-    assert len(result) == len(entries)
-    for n, row in enumerate(result):
-        auth_client_id = entries[n]['collection_tag'].get('auth_client_id', 'odp.test.client')
-        auth_user_id = entries[n]['collection_tag'].get('auth_user_id', 'odp.test.user' if grant_type == 'authorization_code' else None)
-        assert row.client_id == auth_client_id
-        assert row.user_id == auth_user_id
-        assert row.command == entries[n]['command']
-        assert_new_timestamp(row.timestamp)
-        assert row._collection_id == entries[n]['collection_id']
-        assert row._tag_id == entries[n]['collection_tag']['tag_id']
-        assert row._user_id == entries[n]['collection_tag'].get('user_id', auth_user_id)
-        assert row._data == entries[n]['collection_tag']['data']
-
-
-def assert_no_tag_audit_log():
-    assert TestSession.execute(select(CollectionTagAudit)).first() is None
 
 
 def assert_json_collection_result(response, json, collection):
@@ -476,12 +449,15 @@ def test_get_new_doi(api, collection_batch, scopes, collection_constraint):
 
 def new_generic_tag(cardinality):
     # we can use any scope; just make it something other than COLLECTION_ADMIN
-    return TagFactory(
+    tag = TagFactory(
         type='collection',
         cardinality=cardinality,
         scope=FactorySession.get(Scope, (ODPScope.COLLECTION_FREEZE, ScopeType.odp)),
         schema=SchemaFactory(type='tag', uri='https://odp.saeon.ac.za/schema/tag/generic'),
     )
+    if tag.vocabulary:
+        KeywordFactory.create_batch(3, vocabulary=tag.vocabulary)
+    return tag
 
 
 @pytest.mark.require_scope(ODPScope.COLLECTION_FREEZE)  # scope associated with the generic tag
@@ -506,16 +482,19 @@ def test_tag_collection(api, collection_batch, scopes, collection_constraint, ta
         json=(collection_tag_1 := dict(
             tag_id=tag.id,
             data={'comment': 'test1'},
+            keyword=tag.vocabulary.keywords[0].key if tag.vocabulary else None,
+            keyword_id=tag.vocabulary.keywords[0].id if tag.vocabulary else None,
+            vocabulary_id=tag.vocabulary_id,
             cardinality=tag_cardinality,
             public=tag.public,
         )))
 
     if authorized:
         assert_tag_instance_output(r, collection_tag_1, api.grant_type)
-        assert_db_tag_state(collection_id, api.grant_type, collection_tag_1)
-        assert_tag_audit_log(
-            api.grant_type,
-            dict(command='insert', collection_id=collection_id, collection_tag=collection_tag_1),
+        assert_tag_instance_db_state('collection', api.grant_type, collection_id, collection_tag_1)
+        assert_tag_instance_audit_log(
+            'collection', api.grant_type,
+            dict(command='insert', object_id=collection_id, tag_instance=collection_tag_1),
         )
 
         # TAG 2
@@ -523,25 +502,28 @@ def test_tag_collection(api, collection_batch, scopes, collection_constraint, ta
             f'/collection/{(collection_id := collection_batch[2].id)}/tag',
             json=(collection_tag_2 := dict(
                 tag_id=tag.id,
-                data={'comment': 'test2'},
+                data=collection_tag_1['data'] if tag.vocabulary else {'comment': 'test2'},
+                keyword=tag.vocabulary.keywords[1].key if tag.vocabulary else None,
+                keyword_id=tag.vocabulary.keywords[1].id if tag.vocabulary else None,
+                vocabulary_id=tag.vocabulary_id,
                 cardinality=tag_cardinality,
                 public=tag.public,
             )))
 
         assert_tag_instance_output(r, collection_tag_2, api.grant_type)
         if tag_cardinality in ('one', 'user'):
-            assert_db_tag_state(collection_id, api.grant_type, collection_tag_2)
-            assert_tag_audit_log(
-                api.grant_type,
-                dict(command='insert', collection_id=collection_id, collection_tag=collection_tag_1),
-                dict(command='update', collection_id=collection_id, collection_tag=collection_tag_2),
+            assert_tag_instance_db_state('collection', api.grant_type, collection_id, collection_tag_2)
+            assert_tag_instance_audit_log(
+                'collection', api.grant_type,
+                dict(command='insert', object_id=collection_id, tag_instance=collection_tag_1),
+                dict(command='update', object_id=collection_id, tag_instance=collection_tag_2),
             )
         elif tag_cardinality == 'multi':
-            assert_db_tag_state(collection_id, api.grant_type, collection_tag_1, collection_tag_2)
-            assert_tag_audit_log(
-                api.grant_type,
-                dict(command='insert', collection_id=collection_id, collection_tag=collection_tag_1),
-                dict(command='insert', collection_id=collection_id, collection_tag=collection_tag_2),
+            assert_tag_instance_db_state('collection', api.grant_type, collection_id, collection_tag_1, collection_tag_2)
+            assert_tag_instance_audit_log(
+                'collection', api.grant_type,
+                dict(command='insert', object_id=collection_id, tag_instance=collection_tag_1),
+                dict(command='insert', object_id=collection_id, tag_instance=collection_tag_2),
             )
 
         # TAG 3 - different client/user
@@ -557,7 +539,10 @@ def test_tag_collection(api, collection_batch, scopes, collection_constraint, ta
             f'/collection/{(collection_id := collection_batch[2].id)}/tag',
             json=(collection_tag_3 := dict(
                 tag_id=tag.id,
-                data={'comment': 'test3'},
+                data=collection_tag_1['data'] if tag.vocabulary else {'comment': 'test3'},
+                keyword=tag.vocabulary.keywords[2].key if tag.vocabulary else None,
+                keyword_id=tag.vocabulary.keywords[2].id if tag.vocabulary else None,
+                vocabulary_id=tag.vocabulary_id,
                 cardinality=tag_cardinality,
                 public=tag.public,
                 auth_client_id='testclient2',
@@ -568,12 +553,12 @@ def test_tag_collection(api, collection_batch, scopes, collection_constraint, ta
 
         assert_tag_instance_output(r, collection_tag_3, api.grant_type)
         if tag_cardinality == 'one':
-            assert_db_tag_state(collection_id, api.grant_type, collection_tag_3)
-            assert_tag_audit_log(
-                api.grant_type,
-                dict(command='insert', collection_id=collection_id, collection_tag=collection_tag_1),
-                dict(command='update', collection_id=collection_id, collection_tag=collection_tag_2),
-                dict(command='update', collection_id=collection_id, collection_tag=collection_tag_3),
+            assert_tag_instance_db_state('collection', api.grant_type, collection_id, collection_tag_3)
+            assert_tag_instance_audit_log(
+                'collection', api.grant_type,
+                dict(command='insert', object_id=collection_id, tag_instance=collection_tag_1),
+                dict(command='update', object_id=collection_id, tag_instance=collection_tag_2),
+                dict(command='update', object_id=collection_id, tag_instance=collection_tag_3),
             )
         elif tag_cardinality == 'user':
             if api.grant_type == 'client_credentials':
@@ -584,26 +569,26 @@ def test_tag_collection(api, collection_batch, scopes, collection_constraint, ta
                 collection_tags = (collection_tag_2, collection_tag_3,)
                 tag3_command = 'insert'
 
-            assert_db_tag_state(collection_id, api.grant_type, *collection_tags)
-            assert_tag_audit_log(
-                api.grant_type,
-                dict(command='insert', collection_id=collection_id, collection_tag=collection_tag_1),
-                dict(command='update', collection_id=collection_id, collection_tag=collection_tag_2),
-                dict(command=tag3_command, collection_id=collection_id, collection_tag=collection_tag_3),
+            assert_tag_instance_db_state('collection', api.grant_type, collection_id, *collection_tags)
+            assert_tag_instance_audit_log(
+                'collection', api.grant_type,
+                dict(command='insert', object_id=collection_id, tag_instance=collection_tag_1),
+                dict(command='update', object_id=collection_id, tag_instance=collection_tag_2),
+                dict(command=tag3_command, object_id=collection_id, tag_instance=collection_tag_3),
             )
         elif tag_cardinality == 'multi':
-            assert_db_tag_state(collection_id, api.grant_type, collection_tag_1, collection_tag_2, collection_tag_3)
-            assert_tag_audit_log(
-                api.grant_type,
-                dict(command='insert', collection_id=collection_id, collection_tag=collection_tag_1),
-                dict(command='insert', collection_id=collection_id, collection_tag=collection_tag_2),
-                dict(command='insert', collection_id=collection_id, collection_tag=collection_tag_3),
+            assert_tag_instance_db_state('collection', api.grant_type, collection_id, collection_tag_1, collection_tag_2, collection_tag_3)
+            assert_tag_instance_audit_log(
+                'collection', api.grant_type,
+                dict(command='insert', object_id=collection_id, tag_instance=collection_tag_1),
+                dict(command='insert', object_id=collection_id, tag_instance=collection_tag_2),
+                dict(command='insert', object_id=collection_id, tag_instance=collection_tag_3),
             )
 
     else:  # not authorized
         assert_forbidden(r)
-        assert_db_tag_state(collection_id, api.grant_type)
-        assert_no_tag_audit_log()
+        assert_tag_instance_db_state('collection', api.grant_type, collection_id)
+        assert_tag_instance_audit_log_empty('collection')
 
     assert_db_state(collection_batch)
     assert_no_audit_log()
@@ -649,17 +634,20 @@ def test_untag_collection(api, collection_batch, admin_route, scopes, collection
         collection_tag_1 = CollectionTagFactory(
             collection=collection,
             tag=tag,
+            keyword=tag.vocabulary.keywords[2] if tag.vocabulary else None,
             user=FactorySession.get(User, 'odp.test.user') if api.grant_type == 'authorization_code' else None,
         )
     else:
         collection_tag_1 = CollectionTagFactory(
             collection=collection,
             tag=tag,
+            keyword=tag.vocabulary.keywords[2] if tag.vocabulary else None,
         )
     collection_tag_1_dict = {
         'tag_id': collection_tag_1.tag_id,
         'user_id': collection_tag_1.user_id,
         'data': collection_tag_1.data,
+        'keyword_id': collection_tag_1.keyword_id,
     }
 
     r = client.delete(f'{route}{collection.id}/tag/{collection_tag_1.id}')
@@ -667,19 +655,19 @@ def test_untag_collection(api, collection_batch, admin_route, scopes, collection
     if authorized:
         if not admin_route and not same_user:
             assert_forbidden(r)
-            assert_db_tag_state(collection.id, api.grant_type, *collection_tags, collection_tag_1)
-            assert_no_tag_audit_log()
+            assert_tag_instance_db_state('collection', api.grant_type, collection.id, *collection_tags, collection_tag_1)
+            assert_tag_instance_audit_log_empty('collection')
         else:
             assert_empty_result(r)
-            assert_db_tag_state(collection.id, api.grant_type, *collection_tags)
-            assert_tag_audit_log(
-                api.grant_type,
-                dict(command='delete', collection_id=collection.id, collection_tag=collection_tag_1_dict),
+            assert_tag_instance_db_state('collection', api.grant_type, collection.id, *collection_tags)
+            assert_tag_instance_audit_log(
+                'collection', api.grant_type,
+                dict(command='delete', object_id=collection.id, tag_instance=collection_tag_1_dict),
             )
     else:
         assert_forbidden(r)
-        assert_db_tag_state(collection.id, api.grant_type, *collection_tags, collection_tag_1)
-        assert_no_tag_audit_log()
+        assert_tag_instance_db_state('collection', api.grant_type, collection.id, *collection_tags, collection_tag_1)
+        assert_tag_instance_audit_log_empty('collection')
 
     assert_db_state(collection_batch)
     assert_no_audit_log()

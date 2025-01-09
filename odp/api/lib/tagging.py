@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from fastapi import HTTPException
 from jschon import JSON
 from sqlalchemy import select
-from starlette.status import HTTP_404_NOT_FOUND, HTTP_422_UNPROCESSABLE_ENTITY
+from starlette.status import HTTP_403_FORBIDDEN, HTTP_404_NOT_FOUND, HTTP_422_UNPROCESSABLE_ENTITY
 
 from odp.api.lib.auth import Authorized
 from odp.api.lib.schema import get_tag_schema
@@ -134,11 +134,39 @@ class Tagger:
             obj.timestamp = timestamp
             obj.save()
 
-            self.create_audit_record(tag_instance, command, auth, timestamp)
+            self._create_audit_record(tag_instance, command, auth, timestamp)
 
             return tag_instance
 
-    def create_audit_record(
+    async def delete_tag_instance(
+            self,
+            tag_instance_id: str,
+            obj: Taggable,
+            auth: Authorized,
+    ) -> None:
+        if not (tag_instance := Session.execute(
+                select(
+                    self.tag_instance_cls
+                ).where(
+                    self.tag_instance_cls.id == tag_instance_id
+                ).where(
+                    getattr(self.tag_instance_cls, self.obj_id_col) == obj.id
+                )
+        ).scalar_one_or_none()):
+            raise HTTPException(HTTP_404_NOT_FOUND)
+
+        # only admin users can delete other users' tags
+        if not auth.scope.is_admin and tag_instance.user_id != auth.user_id:
+            raise HTTPException(HTTP_403_FORBIDDEN)
+
+        tag_instance.delete()
+
+        obj.timestamp = (timestamp := datetime.now(timezone.utc))
+        obj.save()
+
+        self._create_audit_record(tag_instance, AuditCommand.delete, auth, timestamp)
+
+    def _create_audit_record(
             self,
             tag_instance: TagInstance,
             command: AuditCommand,

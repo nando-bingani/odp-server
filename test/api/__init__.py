@@ -52,18 +52,3 @@ def assert_new_timestamp(timestamp):
 def assert_redirect(response, url):
     assert response.is_redirect
     assert response.next_request.url == url
-
-
-def assert_tag_instance_output(response, tag_input_dict, grant_type):
-    json = response.json()
-    user_id = tag_input_dict.get('user_id', 'odp.test.user')
-    user_email = tag_input_dict.get('user_email', 'test@saeon.ac.za')
-    assert response.status_code == 200
-    assert json['tag_id'] == tag_input_dict['tag_id']
-    assert json['user_id'] == (user_id if grant_type == 'authorization_code' else None)
-    assert json['user_name'] == ('Test User' if grant_type == 'authorization_code' else None)
-    assert json['user_email'] == (user_email if grant_type == 'authorization_code' else None)
-    assert json['data'] == tag_input_dict['data']
-    assert_new_timestamp(datetime.fromisoformat(json['timestamp']))
-    assert json['cardinality'] == tag_input_dict['cardinality']
-    assert json['public'] == tag_input_dict['public']

@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from starlette.status import HTTP_404_NOT_FOUND, HTTP_422_UNPROCESSABLE_ENTITY
 
-from odp.api.lib.auth import Authorize, Authorized, TagAuthorize
+from odp.api.lib.auth import Authorize, Authorized, TagAuthorize, UntagAuthorize
 from odp.api.lib.paging import Paginator
 from odp.api.lib.tagging import Tagger, output_tag_instance_model
 from odp.api.models import PackageDetailModel, PackageModel, PackageModelIn, Page, TagInstanceModel, TagInstanceModelIn
@@ -334,3 +334,46 @@ async def tag_package(
 
     if package_tag := await Tagger(TagType.package).set_tag_instance(tag_instance_in, package, auth):
         return output_tag_instance_model(package_tag)
+
+
+@router.delete(
+    '/{package_id}/tag/{tag_instance_id}',
+)
+async def untag_package(
+        package_id: str,
+        tag_instance_id: str,
+        auth: Authorized = Depends(UntagAuthorize(TagType.package)),
+) -> None:
+    """Remove a tag instance set by the calling user.
+
+    Requires the scope associated with the tag.
+    """
+    await _untag_package(package_id, tag_instance_id, auth)
+
+
+@router.delete(
+    '/admin/{package_id}/tag/{tag_instance_id}',
+)
+async def admin_untag_package(
+        package_id: str,
+        tag_instance_id: str,
+        auth: Authorized = Depends(Authorize(ODPScope.PACKAGE_ADMIN)),
+) -> None:
+    """Remove any tag instance from a package.
+
+    Requires scope `odp.package:admin`.
+    """
+    await _untag_package(package_id, tag_instance_id, auth)
+
+
+async def _untag_package(
+        package_id: str,
+        tag_instance_id: str,
+        auth: Authorized,
+) -> None:
+    if not (package := Session.get(Package, package_id)):
+        raise HTTPException(HTTP_404_NOT_FOUND)
+
+    auth.enforce_constraint([package.provider_id])
+
+    await Tagger(TagType.package).delete_tag_instance(tag_instance_id, package, auth)
