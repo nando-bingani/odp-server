@@ -4,7 +4,7 @@ from sqlalchemy import select
 
 from odp.db.models import CollectionTag, CollectionTagAudit, PackageTag, PackageTagAudit, RecordTag, RecordTagAudit
 from test import TestSession
-from test.api import assert_new_timestamp
+from test.api.assertions import assert_new_timestamp
 
 _tag_instance_classes = {
     'collection': CollectionTag,
@@ -21,10 +21,10 @@ _tag_instance_audit_classes = {
 
 def assert_tag_instance_output(response, tag_instance, grant_type):
     """Assert that the API response matches the given tag instance."""
+    assert response.status_code == 200
     json = response.json()
     user_id = tag_instance.get('user_id', 'odp.test.user')
     user_email = tag_instance.get('user_email', 'test@saeon.ac.za')
-    assert response.status_code == 200
     assert json['tag_id'] == tag_instance['tag_id']
     assert json['user_id'] == (user_id if grant_type == 'authorization_code' else None)
     assert json['user_name'] == ('Test User' if grant_type == 'authorization_code' else None)

@@ -9,16 +9,8 @@ from odp.const import ODPCollectionTag, ODPScope
 from odp.const.db import ScopeType
 from odp.db.models import CollectionTag, PublishedRecord, Record, RecordAudit, RecordTag, Scope, User
 from test import TestSession
-from test.api import (
-    all_scopes,
-    all_scopes_excluding,
-    assert_conflict,
-    assert_empty_result,
-    assert_forbidden,
-    assert_new_timestamp,
-    assert_not_found,
-    assert_unprocessable,
-)
+from test.api import all_scopes, all_scopes_excluding
+from test.api.assertions import assert_conflict, assert_forbidden, assert_new_timestamp, assert_not_found, assert_ok_null, assert_unprocessable
 from test.api.assertions.tags import (
     assert_tag_instance_audit_log,
     assert_tag_instance_audit_log_empty,
@@ -847,7 +839,7 @@ def test_delete_record(api, record_batch_with_ids, admin_route, scopes, collecti
             assert_db_state(record_batch_with_ids)
             assert_no_audit_log()
         else:
-            assert_empty_result(r)
+            assert_ok_null(r)
             assert_db_state(modified_record_batch)
             assert_audit_log('delete', deleted_record, api.grant_type)
     else:
@@ -1067,7 +1059,7 @@ def test_untag_record(api, record_batch_no_tags, admin_route, scopes, collection
             assert_tag_instance_db_state('record', api.grant_type, record.id, *record_tags, record_tag_1)
             assert_tag_instance_audit_log_empty('record')
         else:
-            assert_empty_result(r)
+            assert_ok_null(r)
             assert_tag_instance_db_state('record', api.grant_type, record.id, *record_tags)
             assert_tag_instance_audit_log(
                 'record', api.grant_type,

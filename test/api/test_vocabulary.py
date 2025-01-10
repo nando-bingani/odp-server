@@ -6,7 +6,8 @@ from sqlalchemy import select
 from odp.const import ODPScope
 from odp.db.models import Keyword, Vocabulary
 from test import TestSession
-from test.api import assert_forbidden, assert_not_found, test_keyword
+from test.api import test_keyword
+from test.api.assertions import assert_forbidden, assert_not_found
 from test.factories import KeywordFactory, VocabularyFactory
 
 

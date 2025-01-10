@@ -7,7 +7,7 @@ from sqlalchemy import select
 from odp.const import ODPScope
 from odp.db.models import ArchiveResource, Resource
 from test import TestSession
-from test.api import assert_forbidden, assert_new_timestamp, assert_not_found
+from test.api.assertions import assert_forbidden, assert_new_timestamp, assert_not_found
 from test.api.conftest import try_skip_user_provider_constraint
 from test.factories import ArchiveFactory, ArchiveResourceFactory, ProviderFactory, ResourceFactory
 

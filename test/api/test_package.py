@@ -8,7 +8,8 @@ from odp.const import ODPScope
 from odp.const.db import ScopeType
 from odp.db.models import Package, PackageAudit, PackageTag, Resource, Scope, Tag, User
 from test import TestSession
-from test.api import assert_empty_result, assert_forbidden, assert_new_timestamp, assert_not_found, test_resource
+from test.api import test_resource
+from test.api.assertions import assert_forbidden, assert_new_timestamp, assert_not_found, assert_ok_null
 from test.api.assertions.tags import (
     assert_tag_instance_audit_log,
     assert_tag_instance_audit_log_empty,
@@ -630,7 +631,7 @@ def _test_delete_package(
     r = api(scopes, **api_kwargs).delete(f'{route}{deleted_package.id}')
 
     if authorized:
-        assert_empty_result(r)
+        assert_ok_null(r)
         assert_db_state(package_batch[:2] + package_batch[3:])
         assert_audit_log('delete', deleted_package, api.grant_type)
     else:
@@ -925,7 +926,7 @@ def _test_untag_package(
             assert_tag_instance_db_state('package', api.grant_type, package.id, *package_tags, package_tag_1)
             assert_tag_instance_audit_log_empty('package')
         else:
-            assert_empty_result(r)
+            assert_ok_null(r)
             assert_tag_instance_db_state('package', api.grant_type, package.id, *package_tags)
             assert_tag_instance_audit_log(
                 'package', api.grant_type,

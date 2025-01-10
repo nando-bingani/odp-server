@@ -6,7 +6,7 @@ from sqlalchemy import select
 from odp.const import ODPScope
 from odp.db.models import Keyword, KeywordAudit
 from test import TestSession
-from test.api import assert_conflict, assert_empty_result, assert_forbidden, assert_new_timestamp, assert_not_found, assert_unprocessable
+from test.api.assertions import assert_conflict, assert_forbidden, assert_new_timestamp, assert_not_found, assert_ok_null, assert_unprocessable
 from test.factories import FactorySession, KeywordFactory, VocabularyFactory, create_keyword_data, create_keyword_key
 
 
@@ -412,7 +412,7 @@ def test_update_keyword(
         assert_audit_log(api.grant_type, dict(command='update', keyword=new_kw))
         changed = True
     else:
-        assert_empty_result(r)
+        assert_ok_null(r)
 
     if not changed:
         assert_db_state(keywords_flat)
@@ -454,7 +454,7 @@ def test_delete_keyword(
     elif deleted_kw.has_children:
         assert_unprocessable(r, f"Keyword '{deleted_kw.id}' has child keywords")
     else:
-        assert_empty_result(r)
+        assert_ok_null(r)
         assert_db_state(keywords_flat[:old_ix] + keywords_flat[old_ix + 1:])
         assert_audit_log(api.grant_type, dict(command='delete', keyword=deleted_kw))
         changed = True

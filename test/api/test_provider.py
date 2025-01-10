@@ -8,12 +8,9 @@ from sqlalchemy import select
 from odp.const import ODPScope
 from odp.db.models import Provider, ProviderAudit, ProviderUser
 from test import TestSession
-from test.api import (
-    assert_conflict, assert_empty_result, assert_forbidden, assert_new_timestamp,
-    assert_not_found, assert_unprocessable,
-)
+from test.api.assertions import assert_conflict, assert_forbidden, assert_new_timestamp, assert_not_found, assert_ok_null, assert_unprocessable
 from test.api.conftest import try_skip_user_provider_constraint
-from test.factories import ClientFactory, CollectionFactory, PackageFactory, ProviderFactory, RecordFactory, ResourceFactory, UserFactory
+from test.factories import ClientFactory, CollectionFactory, PackageFactory, ProviderFactory, RecordFactory, UserFactory
 
 
 @pytest.fixture
@@ -370,7 +367,7 @@ def test_update_provider(api, provider_batch, scopes):
     ))
 
     if authorized:
-        assert_empty_result(r)
+        assert_ok_null(r)
         assert_db_state(provider_batch[:2] + [provider] + provider_batch[3:])
         assert_audit_log('update', provider, api.grant_type)
     else:
@@ -449,7 +446,7 @@ def test_delete_provider(api, provider_batch, scopes, has_record, has_package):
             assert_db_state(provider_batch)
             assert_no_audit_log()
         else:
-            assert_empty_result(r)
+            assert_ok_null(r)
             assert_db_state(provider_batch[:2] + provider_batch[3:])
             assert_audit_log('delete', deleted_provider, api.grant_type)
     else:

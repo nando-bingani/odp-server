@@ -6,9 +6,14 @@ from sqlalchemy import select
 from odp.const import ODPScope
 from odp.db.models import IdentityAudit, User, UserRole
 from test import TestSession
-from test.api import (
-    all_scopes, assert_empty_result, assert_forbidden, assert_method_not_allowed, assert_new_timestamp,
-    assert_not_found, assert_unprocessable,
+from test.api import all_scopes
+from test.api.assertions import (
+    assert_forbidden,
+    assert_method_not_allowed,
+    assert_new_timestamp,
+    assert_not_found,
+    assert_ok_null,
+    assert_unprocessable,
 )
 from test.factories import CollectionTagFactory, ProviderFactory, RecordTagFactory, RoleFactory, UserFactory
 
@@ -169,7 +174,7 @@ def test_update_user(api, user_batch, scopes):
     ))
 
     if authorized:
-        assert_empty_result(r)
+        assert_ok_null(r)
         assert_db_state(user_batch[:2] + [user] + user_batch[3:])
         assert_audit_log('edit', user, api.grant_type)
     else:
@@ -220,7 +225,7 @@ def test_delete_user(api, user_batch, scopes, has_tag_instance):
             assert_db_state(user_batch)
             assert_no_audit_log()
         else:
-            assert_empty_result(r)
+            assert_ok_null(r)
             assert_db_state(user_batch[:2] + user_batch[3:])
             assert_audit_log('delete', deleted_user, api.grant_type)
     else:

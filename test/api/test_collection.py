@@ -10,16 +10,8 @@ from odp.const import DOI_REGEX, ODPScope
 from odp.const.db import ScopeType
 from odp.db.models import Collection, CollectionAudit, Scope, User
 from test import TestSession
-from test.api import (
-    all_scopes,
-    all_scopes_excluding,
-    assert_conflict,
-    assert_empty_result,
-    assert_forbidden,
-    assert_new_timestamp,
-    assert_not_found,
-    assert_unprocessable,
-)
+from test.api import all_scopes, all_scopes_excluding
+from test.api.assertions import assert_conflict, assert_forbidden, assert_new_timestamp, assert_not_found, assert_ok_null, assert_unprocessable
 from test.api.assertions.tags import (
     assert_tag_instance_audit_log,
     assert_tag_instance_audit_log_empty,
@@ -284,7 +276,7 @@ def test_update_collection(api, collection_batch, scopes, collection_constraint)
     ))
 
     if authorized:
-        assert_empty_result(r)
+        assert_ok_null(r)
         assert_db_state(modified_collection_batch)
         assert_audit_log('update', collection, api.grant_type)
     else:
@@ -389,7 +381,7 @@ def test_delete_collection(api, collection_batch, scopes, collection_constraint,
             assert_db_state(collection_batch)
             assert_no_audit_log()
         else:
-            assert_empty_result(r)
+            assert_ok_null(r)
             assert_db_state(modified_collection_batch)
             assert_audit_log('delete', deleted_collection, api.grant_type)
     else:
@@ -658,7 +650,7 @@ def test_untag_collection(api, collection_batch, admin_route, scopes, collection
             assert_tag_instance_db_state('collection', api.grant_type, collection.id, *collection_tags, collection_tag_1)
             assert_tag_instance_audit_log_empty('collection')
         else:
-            assert_empty_result(r)
+            assert_ok_null(r)
             assert_tag_instance_db_state('collection', api.grant_type, collection.id, *collection_tags)
             assert_tag_instance_audit_log(
                 'collection', api.grant_type,

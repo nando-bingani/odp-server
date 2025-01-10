@@ -9,7 +9,7 @@ from odp.const import ODPScope
 from odp.const.hydra import GrantType, ResponseType, TokenEndpointAuthMethod
 from odp.db.models import Client
 from test import TestSession
-from test.api import assert_conflict, assert_empty_result, assert_forbidden, assert_not_found, assert_unprocessable
+from test.api.assertions import assert_conflict, assert_forbidden, assert_not_found, assert_ok_null, assert_unprocessable
 from test.factories import ClientFactory, ProviderFactory, ScopeFactory, fake
 
 
@@ -153,7 +153,7 @@ def test_create_client(api, client_batch, scopes):
     ))
 
     if authorized:
-        assert_empty_result(r)
+        assert_ok_null(r)
         assert_db_state(modified_client_batch)
     else:
         assert_forbidden(r)
@@ -210,7 +210,7 @@ def test_update_client(api, client_batch, scopes):
     ))
 
     if authorized:
-        assert_empty_result(r)
+        assert_ok_null(r)
         assert_db_state(modified_client_batch)
     else:
         assert_forbidden(r)
@@ -260,7 +260,7 @@ def test_delete_client(api, client_batch, scopes):
     r = api(scopes).delete(f'/client/{client_batch[2].id}')
 
     if authorized:
-        assert_empty_result(r)
+        assert_ok_null(r)
         assert_db_state(modified_client_batch)
     else:
         assert_forbidden(r)
