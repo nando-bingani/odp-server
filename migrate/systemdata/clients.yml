@@ -31,6 +31,7 @@ ODP.Web.UI:
     - odp.package:read
     - odp.package:write
     - odp.package:doi
+    - odp.package:sdg
     - odp.provider:read
     - odp.record:read
     - odp.resource:write
