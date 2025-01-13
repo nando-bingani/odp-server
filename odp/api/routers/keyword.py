@@ -20,6 +20,46 @@ from odp.lib.schema import schema_catalog
 
 router = APIRouter()
 
+_sql = '''
+    with recursive ancestors(
+        vocabulary_id, parent_id, id, key, data, status, ids, keys
+    ) as (
+        select vocabulary_id, parent_id, id, key, data, status,
+            array[id], array[key]
+        from keyword
+        where parent_id is null
+        union all
+        select k.vocabulary_id, k.parent_id, k.id, k.key, k.data, k.status,
+            a.ids || k.id, a.keys || k.key
+        from keyword k, ancestors a
+        where k.parent_id = a.id
+    )
+    select * from ancestors
+'''
+""" Hierarchical SQL query that we create below using SQLA select
+    and cte constructs, which enable it to be adapted with filters
+    and paging. Returns keyword rows supplemented with arrays of
+    ancestor ids and keys sorted from root to self, inclusive. """
+
+ancestors = (
+    select(
+        Keyword,
+        array([Keyword.id]).label('ids'),
+        array([Keyword.key]).collate('naturalsort').label('keys_'),
+    ).where(
+        Keyword.parent_id == None
+    ).cte(recursive=True)
+)
+ancestors = ancestors.union_all(
+    select(
+        Keyword,
+        ancestors.c.ids.concat(Keyword.id).label('ids'),
+        ancestors.c.keys_.concat(Keyword.key).collate('naturalsort').label('keys_'),
+    ).where(
+        Keyword.parent_id == ancestors.c.id
+    )
+)
+
 
 async def validate_keyword_input(
         vocabulary_id: str,
@@ -124,46 +164,6 @@ async def list_all_keywords(
     Get a flat list of all keywords, optionally filtered by one or more vocabulary.
     Requires scope `odp.keyword:read_all`.
     """
-    # This is the hierarchical SQL query that we create below using SQLA select
-    # and cte constructs, which enables us to adapt it with filters, paging, etc.
-    # Returns keyword rows supplemented with arrays of ancestor ids and keys
-    # sorted from root to self, inclusive.
-    '''
-    with recursive ancestors(
-        vocabulary_id, parent_id, id, key, data, status, ids, keys
-    ) as (
-        select vocabulary_id, parent_id, id, key, data, status,
-            array[id], array[key]
-        from keyword
-        where parent_id is null
-        union all
-        select k.vocabulary_id, k.parent_id, k.id, k.key, k.data, k.status,
-            a.ids || k.id, a.keys || k.key
-        from keyword k, ancestors a
-        where k.parent_id = a.id
-    )
-    select * from ancestors
-    '''
-
-    ancestors = (
-        select(
-            Keyword,
-            array([Keyword.id]).label('ids'),
-            array([Keyword.key]).collate('naturalsort').label('keys_'),
-        ).where(
-            Keyword.parent_id == None
-        ).cte(recursive=True)
-    )
-    ancestors = ancestors.union_all(
-        select(
-            Keyword,
-            ancestors.c.ids.concat(Keyword.id).label('ids'),
-            ancestors.c.keys_.concat(Keyword.key).collate('naturalsort').label('keys_'),
-        ).where(
-            Keyword.parent_id == ancestors.c.id
-        )
-    )
-
     stmt = select(ancestors).order_by(ancestors.c.vocabulary_id, ancestors.c.keys_)
 
     if vocabulary_id:
@@ -173,6 +173,24 @@ async def list_all_keywords(
         stmt,
         lambda row: output_keyword_ancestor_model(row),
     )
+
+
+@router.get(
+    '/{keyword_id}',
+    dependencies=[Depends(Authorize(ODPScope.KEYWORD_READ_ALL))],
+)
+async def get_any_keyword(
+        keyword_id: int,
+) -> KeywordAncestorModel:
+    """
+    Get any keyword by id. Requires scope `odp.keyword:read_all`.
+    """
+    if not (row := Session.execute(
+            select(ancestors).where(ancestors.c.id == keyword_id)
+    ).one_or_none()):
+        raise HTTPException(HTTP_404_NOT_FOUND)
+
+    return output_keyword_ancestor_model(row)
 
 
 @router.get(
@@ -213,25 +231,6 @@ async def list_keywords(
         stmt,
         lambda row: output_keyword_model(row.Keyword),
     )
-
-
-@router.get(
-    '/{keyword_id}',
-    dependencies=[Depends(Authorize(ODPScope.KEYWORD_READ_ALL))],
-)
-async def get_any_keyword(
-        keyword_id: int,
-        recurse: bool = Query(False, title='Populate child keywords, recursively'),
-) -> KeywordHierarchyModel | KeywordModel:
-    """
-    Get any keyword by id. Requires scope `odp.keyword:read_all`.
-    """
-    if not (keyword := Session.execute(
-            select(Keyword).where(Keyword.id == keyword_id)
-    ).scalar_one_or_none()):
-        raise HTTPException(HTTP_404_NOT_FOUND)
-
-    return output_keyword_model(keyword, recurse=RecurseMode.ALL if recurse else None)
 
 
 @router.get(

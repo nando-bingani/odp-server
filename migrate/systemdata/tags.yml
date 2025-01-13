@@ -31,7 +31,7 @@ Package.SDG:
   cardinality: multi
   public: True
   scope_id: odp.package:sdg
-  schema_id: Tag.Keyword
+  schema_id: Tag.Generic
   vocabulary_id: SDG
 
 Collection.Published:

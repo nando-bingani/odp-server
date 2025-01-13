@@ -61,22 +61,28 @@ class Tagger:
             raise HTTPException(HTTP_404_NOT_FOUND)
 
         if tag.vocabulary_id is not None:
-            if not Session.get(Keyword, (tag.vocabulary_id, tag_instance_in.keyword_id)):
+            if not (keyword := Session.execute(
+                    select(Keyword)
+                            .where(Keyword.vocabulary_id == tag.vocabulary_id)
+                            .where(Keyword.key == tag_instance_in.keyword)
+            ).scalar_one_or_none()):
                 raise HTTPException(HTTP_404_NOT_FOUND, 'Keyword not found')
-        elif tag_instance_in.keyword_id is not None:
+
+            tag_instance_in_keyword_id = keyword.id
+
+        elif tag_instance_in.keyword is not None:
             raise HTTPException(HTTP_422_UNPROCESSABLE_ENTITY, 'Keyword not allowed')
+
+        else:
+            tag_instance_in_keyword_id = None
 
         # only one tag instance per object is allowed
         # update existing tag instance if found
         if tag.cardinality == TagCardinality.one:
             if tag_instance := Session.execute(
-                    select(
-                        self.tag_instance_cls
-                    ).where(
-                        getattr(self.tag_instance_cls, self.obj_id_col) == obj.id
-                    ).where(
-                        self.tag_instance_cls.tag_id == tag_instance_in.tag_id
-                    )
+                    select(self.tag_instance_cls)
+                            .where(getattr(self.tag_instance_cls, self.obj_id_col) == obj.id)
+                            .where(self.tag_instance_cls.tag_id == tag_instance_in.tag_id)
             ).scalar_one_or_none():
                 command = AuditCommand.update
             else:
@@ -86,15 +92,10 @@ class Tagger:
         # update a user's existing tag instance if found
         elif tag.cardinality == TagCardinality.user:
             if tag_instance := Session.execute(
-                    select(
-                        self.tag_instance_cls
-                    ).where(
-                        getattr(self.tag_instance_cls, self.obj_id_col) == obj.id
-                    ).where(
-                        self.tag_instance_cls.tag_id == tag_instance_in.tag_id
-                    ).where(
-                        self.tag_instance_cls.user_id == auth.user_id
-                    )
+                    select(self.tag_instance_cls)
+                            .where(getattr(self.tag_instance_cls, self.obj_id_col) == obj.id)
+                            .where(self.tag_instance_cls.tag_id == tag_instance_in.tag_id)
+                            .where(self.tag_instance_cls.user_id == auth.user_id)
             ).scalar_one_or_none():
                 command = AuditCommand.update
             else:
@@ -117,7 +118,7 @@ class Tagger:
 
         if (
                 tag_instance.data != tag_instance_in.data or
-                tag_instance.keyword_id != tag_instance_in.keyword_id
+                tag_instance.keyword_id != tag_instance_in_keyword_id
         ):
             tag_schema = await get_tag_schema(tag_instance_in)
             validity = tag_schema.evaluate(JSON(tag_instance_in.data)).output('detailed')
@@ -126,7 +127,7 @@ class Tagger:
 
             tag_instance.user_id = auth.user_id
             tag_instance.vocabulary_id = tag.vocabulary_id
-            tag_instance.keyword_id = tag_instance_in.keyword_id
+            tag_instance.keyword_id = tag_instance_in_keyword_id
             tag_instance.data = tag_instance_in.data
             tag_instance.timestamp = (timestamp := datetime.now(timezone.utc))
             tag_instance.save()
@@ -145,13 +146,9 @@ class Tagger:
             auth: Authorized,
     ) -> None:
         if not (tag_instance := Session.execute(
-                select(
-                    self.tag_instance_cls
-                ).where(
-                    self.tag_instance_cls.id == tag_instance_id
-                ).where(
-                    getattr(self.tag_instance_cls, self.obj_id_col) == obj.id
-                )
+                select(self.tag_instance_cls)
+                        .where(self.tag_instance_cls.id == tag_instance_id)
+                        .where(getattr(self.tag_instance_cls, self.obj_id_col) == obj.id)
         ).scalar_one_or_none()):
             raise HTTPException(HTTP_404_NOT_FOUND)
 
@@ -188,7 +185,7 @@ class Tagger:
 
 
 def output_tag_instance_model(tag_instance: Taggable) -> TagInstanceModel:
-    return TagInstanceModel(
+    tag_instance_args = dict(
         id=tag_instance.id,
         tag_id=tag_instance.tag_id,
         user_id=tag_instance.user_id,
@@ -199,6 +196,18 @@ def output_tag_instance_model(tag_instance: Taggable) -> TagInstanceModel:
         cardinality=tag_instance.tag.cardinality,
         public=tag_instance.tag.public,
         vocabulary_id=tag_instance.vocabulary_id,
-        keyword_id=tag_instance.keyword_id,
-        keyword=tag_instance.keyword.key if tag_instance.keyword_id else None,
     )
+    if tag_instance.vocabulary_id:
+        kw = tag_instance.keyword
+        kw_ids = [kw.id]
+        kw_keys = [kw.key]
+        while kw.parent_id is not None:
+            kw = kw.parent
+            kw_ids.insert(0, kw.id)
+            kw_keys.insert(0, kw.key)
+        tag_instance_args |= dict(
+            keyword_ids=kw_ids,
+            keyword_keys=kw_keys,
+        )
+
+    return TagInstanceModel(**tag_instance_args)
