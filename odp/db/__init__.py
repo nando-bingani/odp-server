@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine
+from sqlalchemy import DDL, create_engine, event
 from sqlalchemy.orm import declarative_base, scoped_session, sessionmaker
 
 from odp.config import config
@@ -36,3 +36,9 @@ class _Base:
 
 
 Base = declarative_base(cls=_Base)
+
+event.listen(
+    Base.metadata,
+    'after_create',
+    DDL("create collation naturalsort (provider = icu, locale = 'en@colNumeric=yes')")
+)

@@ -2,11 +2,13 @@ import logging
 import os
 import pathlib
 from datetime import datetime, timezone
+from typing import Iterator
 
 import yaml
 from alembic import command
 from alembic.config import Config
 from dotenv import load_dotenv
+from jschon import JSON, JSONSchema, URI
 from sqlalchemy import delete, select, text
 from sqlalchemy.exc import ProgrammingError
 
@@ -23,12 +25,12 @@ from odp.const import (
     ODPVocabulary,
     ODPVocabularySchema,
 )
-from odp.const.db import SchemaType, ScopeType
+from odp.const.db import KeywordStatus, SchemaType, ScopeType
 from odp.const.hydra import GrantType, HydraScope
 from odp.db import Base, Session, engine
-from odp.db.models import Catalog, Client, Role, Schema, Scope, Tag, Vocabulary, VocabularyTerm
+from odp.db.models import Catalog, Client, Keyword, Role, Schema, Scope, Tag, Vocabulary
 from odp.lib.hydra import HydraAdminAPI
-from odp.lib.schema import schema_md5
+from odp.lib.schema import schema_catalog, schema_md5
 from sadco.const import SADCOScope
 
 datadir = pathlib.Path(__file__).parent / 'systemdata'
@@ -198,8 +200,7 @@ def init_tags():
 def init_vocabularies():
     """Create or update vocabulary definitions.
 
-    If `static_terms` are declared in the .yml, the vocabulary is flagged
-    as static, and its terms are maintained here without audit logging.
+    If a vocabulary is static, its keywords are maintained here without audit logging.
     """
     with open(datadir / 'vocabularies.yml') as f:
         vocabulary_data = yaml.safe_load(f)
@@ -207,37 +208,57 @@ def init_vocabularies():
     for vocabulary_id in (vocabulary_ids := [v.value for v in ODPVocabulary]):
         vocabulary_spec = vocabulary_data[vocabulary_id]
         vocabulary = Session.get(Vocabulary, vocabulary_id) or Vocabulary(id=vocabulary_id)
-        vocabulary.scope_id = vocabulary_spec['scope_id']
-        vocabulary.scope_type = ScopeType.odp
+        vocabulary.uri = vocabulary_spec['uri']
+        vocabulary.static = vocabulary_spec.get('static', False)
         vocabulary.schema_id = vocabulary_spec['schema_id']
-        vocabulary.schema_type = SchemaType.vocabulary
+        vocabulary.schema_type = SchemaType.vocabulary if vocabulary.schema_id.startswith('Vocabulary') else SchemaType.keyword
         vocabulary.save()
 
-        if static_terms := vocabulary_spec.get('static_terms'):
-            vocabulary.static = True
-            term_ids = []
-            for term_spec in static_terms:
-                term_ids += [term_id := term_spec['id']]
-                term = Session.get(VocabularyTerm, (vocabulary_id, term_id)) or VocabularyTerm(
-                    vocabulary_id=vocabulary_id,
-                    term_id=term_id,
-                )
-                term.data = term_spec
-                term.save()
+        if vocabulary.static:
+            kw_schema = schema_catalog.get_schema(URI(vocabulary.schema.uri))
+            vocab_json = schema_catalog.load_json(URI(vocabulary.uri))
+            approved_ids = []
+            for kw_dict in vocab_json['keywords']:
+                approved_ids += list(_init_keyword(vocabulary_id, None, kw_dict, kw_schema))
 
-                Session.execute(
-                    delete(VocabularyTerm).
-                    where(VocabularyTerm.vocabulary_id == vocabulary_id).
-                    where(VocabularyTerm.term_id.not_in(term_ids))
-                )
-        else:
-            vocabulary.static = False
+            obsolete_keywords = Session.execute(
+                select(Keyword).
+                where(Keyword.vocabulary_id == vocabulary_id).
+                where(Keyword.id.not_in(approved_ids))
+            ).scalars().all()
+            for keyword in obsolete_keywords:
+                keyword.status = KeywordStatus.obsolete
+                keyword.save()
 
     if orphaned_yml_vocabularies := [vocabulary_id for vocabulary_id in vocabulary_data if vocabulary_id not in vocabulary_ids]:
         logger.warning(f'Orphaned vocabulary definitions in vocabularies.yml {orphaned_yml_vocabularies}')
 
     if orphaned_db_vocabularies := Session.execute(select(Vocabulary.id).where(Vocabulary.id.not_in(vocabulary_ids))).scalars().all():
         logger.warning(f'Orphaned vocabulary definitions in vocabulary table {orphaned_db_vocabularies}')
+
+
+def _init_keyword(vocab_id: str, parent_id: int | None, kw_dict: dict, kw_schema: JSONSchema) -> Iterator[int]:
+    """Create or update a keyword and its child keywords, recursively. Yield keyword ids."""
+    childkw_list = kw_dict.pop('keywords', [])
+    key = kw_dict['key']
+
+    keyword = Session.execute(select(Keyword).where(
+        Keyword.vocabulary_id == vocab_id).where(Keyword.key == key)).scalar_one_or_none()
+    if keyword is None:
+        keyword = Keyword(vocabulary_id=vocab_id, key=key)
+
+    keyword.parent_id = parent_id
+    keyword.data = kw_dict
+    keyword.status = KeywordStatus.approved
+    keyword.save()
+
+    validity = kw_schema.evaluate(JSON(kw_dict)).output('basic')
+    if not validity['valid']:
+        raise Exception(f'Invalid keyword {key} in vocab {vocab_id}')
+
+    yield keyword.id
+    for childkw_dict in childkw_list:
+        yield from _init_keyword(vocab_id, keyword.id, childkw_dict, kw_schema)
 
 
 def init_catalogs():

@@ -6,7 +6,7 @@ from sqlalchemy import select
 from odp.const import ODPScope
 from odp.db.models import Scope
 from test import TestSession
-from test.api import assert_forbidden
+from test.api.assertions import assert_forbidden
 from test.factories import ScopeFactory
 
 

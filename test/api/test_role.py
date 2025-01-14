@@ -6,7 +6,7 @@ from sqlalchemy import select
 from odp.const import ODPScope
 from odp.db.models import Role
 from test import TestSession
-from test.api import assert_conflict, assert_empty_result, assert_forbidden, assert_not_found, assert_unprocessable
+from test.api.assertions import assert_conflict, assert_forbidden, assert_not_found, assert_ok_null, assert_unprocessable
 from test.factories import CollectionFactory, RoleFactory, ScopeFactory
 
 
@@ -119,7 +119,7 @@ def test_create_role(api, role_batch, scopes):
     ))
 
     if authorized:
-        assert_empty_result(r)
+        assert_ok_null(r)
         assert_db_state(modified_role_batch)
     else:
         assert_forbidden(r)
@@ -170,7 +170,7 @@ def test_update_role(api, role_batch, scopes):
     ))
 
     if authorized:
-        assert_empty_result(r)
+        assert_ok_null(r)
         assert_db_state(modified_role_batch)
     else:
         assert_forbidden(r)
@@ -216,7 +216,7 @@ def test_delete_role(api, role_batch, scopes):
     r = api(scopes).delete(f'/role/{role_batch[2].id}')
 
     if authorized:
-        assert_empty_result(r)
+        assert_ok_null(r)
         assert_db_state(modified_role_batch)
     else:
         assert_forbidden(r)

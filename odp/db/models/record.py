@@ -122,6 +122,10 @@ class RecordTag(Base):
             f"tag_type = '{TagType.record}'",
             name='record_tag_tag_type_check',
         ),
+        ForeignKeyConstraint(
+            ('vocabulary_id', 'keyword_id'), ('keyword.vocabulary_id', 'keyword.id'),
+            name='record_tag_keyword_fkey', ondelete='RESTRICT',
+        ),
     )
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
@@ -130,12 +134,16 @@ class RecordTag(Base):
     tag_type = Column(Enum(TagType), nullable=False)
     user_id = Column(String, ForeignKey('user.id', ondelete='RESTRICT'))
 
+    vocabulary_id = Column(String)
+    keyword_id = Column(Integer)
+
     data = Column(JSONB, nullable=False)
     timestamp = Column(TIMESTAMP(timezone=True), nullable=False)
 
     record = relationship('Record')
     tag = relationship('Tag')
     user = relationship('User')
+    keyword = relationship('Keyword')
 
 
 class RecordTagAudit(Base):
@@ -154,6 +162,7 @@ class RecordTagAudit(Base):
     _tag_id = Column(String, nullable=False)
     _user_id = Column(String)
     _data = Column(JSONB, nullable=False)
+    _keyword_id = Column(Integer)
 
 
 def _doi_published_timestamp(context):

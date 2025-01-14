@@ -2,21 +2,19 @@ import re
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
-from jschon import JSON, JSONSchema
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from starlette.status import HTTP_404_NOT_FOUND, HTTP_422_UNPROCESSABLE_ENTITY
 
-from odp.api.lib.auth import Authorize, Authorized, TagAuthorize
+from odp.api.lib.auth import Authorize, Authorized, TagAuthorize, UntagAuthorize
 from odp.api.lib.paging import Paginator
-from odp.api.lib.schema import get_tag_schema
-from odp.api.lib.utils import output_tag_instance_model
+from odp.api.lib.tagging import Tagger, output_tag_instance_model
 from odp.api.models import PackageDetailModel, PackageModel, PackageModelIn, Page, TagInstanceModel, TagInstanceModelIn
 from odp.api.routers.resource import output_resource_model
 from odp.const import ODPScope
-from odp.const.db import AuditCommand, PackageStatus, TagCardinality, TagType
+from odp.const.db import AuditCommand, PackageStatus, TagType
 from odp.db import Session
-from odp.db.models import Package, PackageAudit, PackageTag, PackageTagAudit, Tag
+from odp.db.models import Package, PackageAudit, PackageTag, PackageTagAudit
 
 router = APIRouter()
 
@@ -318,75 +316,64 @@ async def _delete_package(
 
 @router.post(
     '/{package_id}/tag',
-    response_model=TagInstanceModel,
 )
 async def tag_package(
         package_id: str,
         tag_instance_in: TagInstanceModelIn,
-        tag_schema: JSONSchema = Depends(get_tag_schema),
         auth: Authorized = Depends(TagAuthorize()),
-):
+) -> TagInstanceModel | None:
+    """Set a tag instance on a package, returning the created
+    or updated instance, or null if no change was made.
+
+    Requires the scope associated with the tag.
+    """
     if not (package := Session.get(Package, package_id)):
         raise HTTPException(HTTP_404_NOT_FOUND)
 
     auth.enforce_constraint([package.provider_id])
 
-    if not (tag := Session.get(Tag, (tag_instance_in.tag_id, TagType.package))):
+    if package_tag := await Tagger(TagType.package).set_tag_instance(tag_instance_in, package, auth):
+        return output_tag_instance_model(package_tag)
+
+
+@router.delete(
+    '/{package_id}/tag/{tag_instance_id}',
+)
+async def untag_package(
+        package_id: str,
+        tag_instance_id: str,
+        auth: Authorized = Depends(UntagAuthorize(TagType.package)),
+) -> None:
+    """Remove a tag instance set by the calling user.
+
+    Requires the scope associated with the tag.
+    """
+    await _untag_package(package_id, tag_instance_id, auth)
+
+
+@router.delete(
+    '/admin/{package_id}/tag/{tag_instance_id}',
+)
+async def admin_untag_package(
+        package_id: str,
+        tag_instance_id: str,
+        auth: Authorized = Depends(Authorize(ODPScope.PACKAGE_ADMIN)),
+) -> None:
+    """Remove any tag instance from a package.
+
+    Requires scope `odp.package:admin`.
+    """
+    await _untag_package(package_id, tag_instance_id, auth)
+
+
+async def _untag_package(
+        package_id: str,
+        tag_instance_id: str,
+        auth: Authorized,
+) -> None:
+    if not (package := Session.get(Package, package_id)):
         raise HTTPException(HTTP_404_NOT_FOUND)
 
-    # only one tag instance per package is allowed
-    # update existing tag instance if found
-    if tag.cardinality == TagCardinality.one:
-        if package_tag := Session.execute(
-                select(PackageTag).
-                where(PackageTag.package_id == package_id).
-                where(PackageTag.tag_id == tag_instance_in.tag_id)
-        ).scalar_one_or_none():
-            command = AuditCommand.update
-        else:
-            command = AuditCommand.insert
+    auth.enforce_constraint([package.provider_id])
 
-    # one tag instance per user per package is allowed
-    # update a user's existing tag instance if found
-    elif tag.cardinality == TagCardinality.user:
-        if package_tag := Session.execute(
-                select(PackageTag).
-                where(PackageTag.package_id == package_id).
-                where(PackageTag.tag_id == tag_instance_in.tag_id).
-                where(PackageTag.user_id == auth.user_id)
-        ).scalar_one_or_none():
-            command = AuditCommand.update
-        else:
-            command = AuditCommand.insert
-
-    # multiple tag instances are allowed per user per package
-    # can only insert/delete
-    elif tag.cardinality == TagCardinality.multi:
-        command = AuditCommand.insert
-
-    else:
-        assert False
-
-    if command == AuditCommand.insert:
-        package_tag = PackageTag(
-            package_id=package_id,
-            tag_id=tag_instance_in.tag_id,
-            tag_type=TagType.package,
-        )
-
-    if package_tag.data != tag_instance_in.data:
-        validity = tag_schema.evaluate(JSON(tag_instance_in.data)).output('detailed')
-        if not validity['valid']:
-            raise HTTPException(HTTP_422_UNPROCESSABLE_ENTITY, validity)
-
-        package_tag.user_id = auth.user_id
-        package_tag.data = tag_instance_in.data
-        package_tag.timestamp = (timestamp := datetime.now(timezone.utc))
-        package_tag.save()
-
-        package.timestamp = timestamp
-        package.save()
-
-        create_tag_audit_record(auth, package_tag, timestamp, command)
-
-    return output_tag_instance_model(package_tag)
+    await Tagger(TagType.package).delete_tag_instance(tag_instance_id, package, auth)

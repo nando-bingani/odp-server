@@ -6,7 +6,7 @@ from sqlalchemy import select
 from odp.const import ODPScope
 from odp.db.models import Tag
 from test import TestSession
-from test.api import assert_forbidden, assert_not_found
+from test.api.assertions import assert_forbidden, assert_not_found
 from test.factories import TagFactory
 
 

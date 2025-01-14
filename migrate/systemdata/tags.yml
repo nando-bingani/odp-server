@@ -31,7 +31,7 @@ Package.SDG:
   cardinality: multi
   public: True
   scope_id: odp.package:sdg
-  schema_id: Tag.Keyword
+  schema_id: Tag.Generic
   vocabulary_id: SDG
 
 Collection.Published:
@@ -53,7 +53,7 @@ Collection.Infrastructure:
   cardinality: multi
   public: False
   scope_id: odp.collection:infrastructure
-  schema_id: Tag.Collection.Infrastructure
+  schema_id: Tag.Keyword
   vocabulary_id: Infrastructure
 
 Collection.Project:
@@ -61,7 +61,7 @@ Collection.Project:
   cardinality: multi
   public: True
   scope_id: odp.collection:project
-  schema_id: Tag.Collection.Project
+  schema_id: Tag.Keyword
   vocabulary_id: Project
 
 Collection.NotSearchable:
@@ -119,11 +119,3 @@ Record.Note:
   public: False
   scope_id: odp.record:note
   schema_id: Tag.Generic
-
-Record.SDG:
-  type: record
-  cardinality: multi
-  public: True
-  scope_id: odp.record:sdg
-  schema_id: Tag.Keyword
-  vocabulary_id: SDG

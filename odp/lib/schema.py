@@ -4,37 +4,11 @@ from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlparse
 
-from jschon import JSON, JSONSchemaError, LocalSource, URI, create_catalog
-from jschon.jsonschema import Result
-from jschon.vocabulary import Keyword
+from jschon import LocalSource, URI, create_catalog
 from jschon_translation import catalog as translation_catalog, translation_filter
 
 import odp.schema
-from odp.db import Session
-from odp.db.models import Vocabulary, VocabularyTerm
-
-
-class VocabularyKeyword(Keyword):
-    """``vocabulary`` keyword implementation
-
-    The keyword's value is an ODP vocabulary id.
-
-    Validation passes if the instance is a term in
-    the referenced vocabulary.
-    """
-
-    key = 'vocabulary'
-    instance_types = 'string',
-
-    def evaluate(self, instance: JSON, result: Result) -> None:
-        if not Session.get(Vocabulary, vocab_id := self.json.data):
-            raise JSONSchemaError(f'Unknown vocabulary {vocab_id!r}')
-
-        if Session.get(VocabularyTerm, (vocab_id, instance.data)):
-            result.annotate(vocab_id)
-        else:
-            result.fail(f'Vocabulary {vocab_id !r} does not contain the term {instance.data!r}')
-
+import odp.vocab
 
 schema_catalog = create_catalog('2020-12')
 translation_catalog.initialize(schema_catalog)
@@ -43,9 +17,12 @@ schema_catalog.add_uri_source(
     URI('https://odp.saeon.ac.za/schema/'),
     LocalSource(Path(odp.schema.__file__).parent, suffix='.json'),
 )
+schema_catalog.add_uri_source(
+    URI('https://odp.saeon.ac.za/vocab/'),
+    LocalSource(Path(odp.vocab.__file__).parent, suffix='.json'),
+)
 schema_catalog.create_vocabulary(
     URI('https://odp.saeon.ac.za/schema/__meta__'),
-    VocabularyKeyword,
 )
 schema_catalog.create_metaschema(
     URI('https://odp.saeon.ac.za/schema/__meta__/schema'),

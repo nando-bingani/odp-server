@@ -32,6 +32,24 @@ target_metadata = odp.db.Base.metadata
 # ... etc.
 
 
+def include_name(name, type_, parent_names):
+    """Prevent auto-generation of drop table ops for the obsolete
+    tables vocabulary_term and vocabulary_term_audit."""
+    if type_ == 'table' and name.startswith('vocabulary_term'):
+        return False
+
+    return True
+
+
+def include_object(object, name, type_, reflected, compare_to):
+    """Exclude this index from auto-generation, as Alembic keeps on detecting
+    'modifications' due to the way postgres expands the index expression."""
+    if type_ == 'index' and name == 'resource_package_path_uix':
+        return False
+
+    return True
+
+
 def run_migrations_offline():
     """Run migrations in 'offline' mode.
 
@@ -51,6 +69,8 @@ def run_migrations_offline():
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
+        include_name=include_name,
+        include_object=include_object,
     )
 
     with context.begin_transaction():
@@ -77,7 +97,10 @@ def run_migrations_online():
 
     with connectable.connect() as connection:
         context.configure(
-            connection=connection, target_metadata=target_metadata
+            connection=connection,
+            target_metadata=target_metadata,
+            include_name=include_name,
+            include_object=include_object,
         )
 
         with context.begin_transaction():

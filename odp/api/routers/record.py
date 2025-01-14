@@ -5,16 +5,17 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from jschon import JSON, JSONSchema
+from jschon import JSONSchema
 from pydantic import constr
 from sqlalchemy import and_, func, literal_column, null, or_, select, union_all
 from sqlalchemy.orm import aliased
-from starlette.status import HTTP_403_FORBIDDEN, HTTP_404_NOT_FOUND, HTTP_409_CONFLICT, HTTP_422_UNPROCESSABLE_ENTITY
+from starlette.status import HTTP_404_NOT_FOUND, HTTP_409_CONFLICT, HTTP_422_UNPROCESSABLE_ENTITY
 
 from odp.api.lib.auth import Authorize, Authorized, TagAuthorize, UntagAuthorize
 from odp.api.lib.paging import Paginator
-from odp.api.lib.schema import get_metadata_validity, get_record_schema, get_tag_schema
-from odp.api.lib.utils import output_published_record_model, output_tag_instance_model
+from odp.api.lib.schema import get_metadata_validity, get_record_schema
+from odp.api.lib.tagging import Tagger, output_tag_instance_model
+from odp.api.lib.utils import output_published_record_model
 from odp.api.models import (
     AuditModel,
     CatalogRecordModel,
@@ -27,7 +28,7 @@ from odp.api.models import (
     TagInstanceModelIn,
 )
 from odp.const import DOI_REGEX, ODPCollectionTag, ODPMetadataSchema, ODPScope
-from odp.const.db import AuditCommand, SchemaType, TagCardinality, TagType
+from odp.const.db import AuditCommand, SchemaType, TagType
 from odp.db import Session
 from odp.db.models import (
     CatalogRecord,
@@ -38,9 +39,7 @@ from odp.db.models import (
     RecordAudit,
     RecordTag,
     RecordTagAudit,
-    Tag,
     User,
-    VocabularyTerm,
 )
 
 router = APIRouter()
@@ -557,89 +556,26 @@ def _delete_record(
 
 @router.post(
     '/{record_id}/tag',
-    response_model=TagInstanceModel,
 )
 async def tag_record(
         record_id: str,
         tag_instance_in: TagInstanceModelIn,
-        tag_schema: JSONSchema = Depends(get_tag_schema),
         auth: Authorized = Depends(TagAuthorize()),
-):
+) -> TagInstanceModel | None:
+    """Set a tag instance on a record, returning the created
+    or updated instance, or null if no change was made.
+
+    Requires the scope associated with the tag.
+    """
     if not (record := Session.get(Record, record_id)):
         raise HTTPException(HTTP_404_NOT_FOUND)
 
     auth.enforce_constraint([record.collection_id])
 
-    if not (tag := Session.get(Tag, (tag_instance_in.tag_id, TagType.record))):
-        raise HTTPException(HTTP_404_NOT_FOUND)
+    if record_tag := await Tagger(TagType.record).set_tag_instance(tag_instance_in, record, auth):
+        touch_parent(record, record_tag.timestamp)
 
-    # only one tag instance per record is allowed
-    # update existing tag instance if found
-    if tag.cardinality == TagCardinality.one:
-        if record_tag := Session.execute(
-                select(RecordTag).
-                where(RecordTag.record_id == record_id).
-                where(RecordTag.tag_id == tag_instance_in.tag_id)
-        ).scalar_one_or_none():
-            command = AuditCommand.update
-        else:
-            command = AuditCommand.insert
-
-    # one tag instance per user per record is allowed
-    # update a user's existing tag instance if found
-    elif tag.cardinality == TagCardinality.user:
-        if record_tag := Session.execute(
-                select(RecordTag).
-                where(RecordTag.record_id == record_id).
-                where(RecordTag.tag_id == tag_instance_in.tag_id).
-                where(RecordTag.user_id == auth.user_id)
-        ).scalar_one_or_none():
-            command = AuditCommand.update
-        else:
-            command = AuditCommand.insert
-
-    # multiple tag instances are allowed per user per record
-    # can only insert/delete
-    elif tag.cardinality == TagCardinality.multi:
-        command = AuditCommand.insert
-
-    else:
-        assert False
-
-    if command == AuditCommand.insert:
-        record_tag = RecordTag(
-            record_id=record_id,
-            tag_id=tag_instance_in.tag_id,
-            tag_type=TagType.record,
-        )
-
-    if record_tag.data != tag_instance_in.data:
-        validity = tag_schema.evaluate(JSON(tag_instance_in.data)).output('detailed')
-        if not validity['valid']:
-            raise HTTPException(HTTP_422_UNPROCESSABLE_ENTITY, validity)
-
-        if tag.vocabulary_id is not None:
-            # it's a keyword tag; we expect the data to conform to the Tag.Keyword schema
-            vocab_id = tag_instance_in.data.get('vocabulary')
-            keyword_id = tag_instance_in.data.get('keyword')
-            if vocab_id != tag.vocabulary_id:
-                raise HTTPException(HTTP_422_UNPROCESSABLE_ENTITY, f'Vocabulary {vocab_id} not allowed for tag {tag.id}')
-            if not Session.get(VocabularyTerm, (vocab_id, keyword_id)):
-                raise HTTPException(HTTP_422_UNPROCESSABLE_ENTITY, f'Vocabulary {vocab_id} does not contain keyword {keyword_id}')
-
-        record_tag.user_id = auth.user_id
-        record_tag.data = tag_instance_in.data
-        record_tag.timestamp = (timestamp := datetime.now(timezone.utc))
-        record_tag.save()
-
-        record.timestamp = timestamp
-        record.save()
-
-        touch_parent(record, timestamp)
-
-        create_tag_audit_record(auth, record_tag, timestamp, command)
-
-    return output_tag_instance_model(record_tag)
+        return output_tag_instance_model(record_tag)
 
 
 @router.delete(
@@ -649,8 +585,12 @@ async def untag_record(
         record_id: str,
         tag_instance_id: str,
         auth: Authorized = Depends(UntagAuthorize(TagType.record)),
-):
-    _untag_record(record_id, tag_instance_id, auth)
+) -> None:
+    """Remove a tag instance set by the calling user.
+
+    Requires the scope associated with the tag.
+    """
+    await _untag_record(record_id, tag_instance_id, auth)
 
 
 @router.delete(
@@ -660,39 +600,27 @@ async def admin_untag_record(
         record_id: str,
         tag_instance_id: str,
         auth: Authorized = Depends(Authorize(ODPScope.RECORD_ADMIN)),
-):
-    _untag_record(record_id, tag_instance_id, auth, True)
+) -> None:
+    """Remove any tag instance from a record.
+
+    Requires scope `odp.record:admin`.
+    """
+    await _untag_record(record_id, tag_instance_id, auth)
 
 
-def _untag_record(
+async def _untag_record(
         record_id: str,
         tag_instance_id: str,
         auth: Authorized,
-        ignore_user_id: bool = False,
 ) -> None:
     if not (record := Session.get(Record, record_id)):
         raise HTTPException(HTTP_404_NOT_FOUND)
 
     auth.enforce_constraint([record.collection_id])
 
-    if not (record_tag := Session.execute(
-        select(RecordTag).
-        where(RecordTag.id == tag_instance_id).
-        where(RecordTag.record_id == record_id)
-    ).scalar_one_or_none()):
-        raise HTTPException(HTTP_404_NOT_FOUND)
+    await Tagger(TagType.record).delete_tag_instance(tag_instance_id, record, auth)
 
-    if not ignore_user_id and record_tag.user_id != auth.user_id:
-        raise HTTPException(HTTP_403_FORBIDDEN)
-
-    record_tag.delete()
-
-    record.timestamp = (timestamp := datetime.now(timezone.utc))
-    record.save()
-
-    touch_parent(record, timestamp)
-
-    create_tag_audit_record(auth, record_tag, timestamp, AuditCommand.delete)
+    touch_parent(record, datetime.now(timezone.utc))
 
 
 @router.get(

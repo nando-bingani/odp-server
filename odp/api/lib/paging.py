@@ -64,7 +64,7 @@ class Paginator:
             ]
         except (AttributeError, CompileError) as e:
             if config.ODP.ENV in ('development', 'testing'):
-                raise HTTPException(HTTP_500_INTERNAL_SERVER_ERROR, repr(e))
+                raise HTTPException(HTTP_500_INTERNAL_SERVER_ERROR, 'paginate: ' + repr(e))
             raise HTTPException(HTTP_422_UNPROCESSABLE_ENTITY, 'Invalid sort column')
 
         return Page(

@@ -15,7 +15,7 @@ from odp.config import config
 from odp.const import ODPScope
 from odp.const.db import ScopeType, TagType
 from odp.db import Session
-from odp.db.models import Archive, CollectionTag, RecordTag, Scope, Tag, Vocabulary
+from odp.db.models import Archive, CollectionTag, PackageTag, RecordTag, Scope, Tag
 from odp.lib.auth import get_client_permissions, get_user_permissions
 from odp.lib.hydra import HydraAdminAPI, OAuth2TokenIntrospection
 
@@ -150,44 +150,31 @@ class TagAuthorize(BaseAuthorize):
 
 
 class UntagAuthorize(BaseAuthorize):
+    _tag_instance_classes = {
+        TagType.collection: CollectionTag,
+        TagType.package: PackageTag,
+        TagType.record: RecordTag,
+    }
+
     def __init__(self, tag_type: TagType):
         super().__init__()
         self.tag_type = tag_type
+        self.tag_instance_cls = self._tag_instance_classes[tag_type]
 
     def __repr__(self):
         return f'{self.__class__.__name__}(tag_type={self.tag_type.value!r})'
 
     async def __call__(self, request: Request, tag_instance_id: str) -> Authorized:
-        if self.tag_type == TagType.record:
-            stmt = (
-                select(Tag.scope_id).
-                join(RecordTag).
-                where(RecordTag.id == tag_instance_id)
-            )
-        elif self.tag_type == TagType.collection:
-            stmt = (
-                select(Tag.scope_id).
-                join(CollectionTag).
-                where(CollectionTag.id == tag_instance_id)
-            )
-        else:
-            assert False
+        stmt = (
+            select(Tag.scope_id).
+            join(self.tag_instance_cls).
+            where(self.tag_instance_cls.id == tag_instance_id)
+        )
 
         if not (tag_scope_id := Session.execute(stmt).scalar_one_or_none()):
             raise HTTPException(HTTP_404_NOT_FOUND)
 
         return _authorize_request(request, ODPScope(tag_scope_id))
-
-
-class VocabularyAuthorize(BaseAuthorize):
-    async def __call__(self, request: Request, vocabulary_id: str) -> Authorized:
-        if not (vocabulary_scope_id := Session.execute(
-                select(Vocabulary.scope_id).
-                where(Vocabulary.id == vocabulary_id)
-        ).scalar_one_or_none()):
-            raise HTTPException(HTTP_404_NOT_FOUND)
-
-        return _authorize_request(request, ODPScope(vocabulary_scope_id))
 
 
 def select_scopes(

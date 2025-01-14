@@ -12,7 +12,7 @@ from odp.catalog.saeon import SAEONCatalog
 from odp.const import ODPScope
 from odp.db.models import Catalog, Tag
 from test import TestSession, datacite4_example, isequal, iso19115_example, ris_example
-from test.api import assert_forbidden, assert_new_timestamp, assert_not_found, assert_redirect
+from test.api.assertions import assert_forbidden, assert_new_timestamp, assert_not_found, assert_redirect
 from test.factories import CatalogFactory, CollectionTagFactory, FactorySession, RecordFactory, RecordTagFactory
 
 

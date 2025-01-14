@@ -22,13 +22,9 @@ Keyword.Institution:
   type: keyword
   uri: https://odp.saeon.ac.za/schema/keyword/institution
 
-Tag.Collection.Infrastructure:
-  type: tag
-  uri: https://odp.saeon.ac.za/schema/tag/collection/infrastructure
-
-Tag.Collection.Project:
-  type: tag
-  uri: https://odp.saeon.ac.za/schema/tag/collection/project
+Keyword.SDG:
+  type: keyword
+  uri: https://odp.saeon.ac.za/schema/keyword/sdg
 
 Tag.Record.QC:
   type: tag
@@ -73,7 +69,3 @@ Vocabulary.Infrastructure:
 Vocabulary.Project:
   type: vocabulary
   uri: https://odp.saeon.ac.za/schema/vocabulary/project
-
-Vocabulary.SDG:
-  type: vocabulary
-  uri: https://odp.saeon.ac.za/schema/vocabulary/sdg
