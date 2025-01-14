@@ -6,8 +6,7 @@ import pytest
 from sqlalchemy import select
 
 from odp.const import ODPCollectionTag, ODPScope
-from odp.const.db import ScopeType
-from odp.db.models import CollectionTag, PublishedRecord, Record, RecordAudit, RecordTag, Scope, User
+from odp.db.models import CollectionTag, PublishedRecord, Record, RecordAudit, RecordTag, User
 from test import TestSession
 from test.api import all_scopes, all_scopes_excluding
 from test.api.assertions import assert_conflict, assert_forbidden, assert_new_timestamp, assert_not_found, assert_ok_null, assert_unprocessable
@@ -16,16 +15,16 @@ from test.api.assertions.tags import (
     assert_tag_instance_audit_log_empty,
     assert_tag_instance_db_state,
     assert_tag_instance_output,
+    keyword_tag_args,
+    new_generic_tag,
 )
 from test.api.conftest import try_skip_collection_constraint
 from test.factories import (
     CollectionFactory,
     CollectionTagFactory,
     FactorySession,
-    KeywordFactory,
     RecordFactory,
     RecordTagFactory,
-    SchemaFactory,
     TagFactory,
 )
 
@@ -128,18 +127,6 @@ def record_ident(request):
 @pytest.fixture(params=[None, 'parent_id'])  # todo: this can be expanded
 def record_list_filter(request):
     return request.param
-
-
-def new_generic_tag(cardinality):
-    tag = TagFactory(
-        type='record',
-        cardinality=cardinality,
-        scope=FactorySession.get(Scope, (ODPScope.RECORD_QC, ScopeType.odp)),
-        schema=SchemaFactory(type='tag', uri='https://odp.saeon.ac.za/schema/tag/generic'),
-    )
-    if tag.vocabulary:
-        KeywordFactory.create_batch(3, vocabulary=tag.vocabulary)
-    return tag
 
 
 def assert_db_state(records):
@@ -880,7 +867,7 @@ def test_tag_record(api, record_batch_no_tags, scopes, collection_constraint, ta
         authorized_collections = [r.collection for r in record_batch_no_tags[0:2]]
 
     client = api(scopes, user_collections=authorized_collections)
-    tag = new_generic_tag(tag_cardinality)
+    tag = new_generic_tag('record', tag_cardinality)
 
     # TAG 1
     r = client.post(
@@ -888,12 +875,9 @@ def test_tag_record(api, record_batch_no_tags, scopes, collection_constraint, ta
         json=(record_tag_1 := dict(
             tag_id=tag.id,
             data={'comment': 'test1'},
-            keyword=tag.vocabulary.keywords[0].key if tag.vocabulary else None,
-            keyword_id=tag.vocabulary.keywords[0].id if tag.vocabulary else None,
-            vocabulary_id=tag.vocabulary_id,
             cardinality=tag_cardinality,
             public=tag.public,
-        )))
+        ) | keyword_tag_args(tag.vocabulary, 0)))
 
     if authorized:
         assert_tag_instance_output(r, record_tag_1, api.grant_type)
@@ -909,12 +893,9 @@ def test_tag_record(api, record_batch_no_tags, scopes, collection_constraint, ta
             json=(record_tag_2 := dict(
                 tag_id=tag.id,
                 data=record_tag_1['data'] if tag.vocabulary else {'comment': 'test2'},
-                keyword=tag.vocabulary.keywords[1].key if tag.vocabulary else None,
-                keyword_id=tag.vocabulary.keywords[1].id if tag.vocabulary else None,
-                vocabulary_id=tag.vocabulary_id,
                 cardinality=tag_cardinality,
                 public=tag.public,
-            )))
+            ) | keyword_tag_args(tag.vocabulary, 1)))
 
         assert_tag_instance_output(r, record_tag_2, api.grant_type)
         if tag_cardinality in ('one', 'user'):
@@ -946,16 +927,13 @@ def test_tag_record(api, record_batch_no_tags, scopes, collection_constraint, ta
             json=(record_tag_3 := dict(
                 tag_id=tag.id,
                 data=record_tag_1['data'] if tag.vocabulary else {'comment': 'test3'},
-                keyword=tag.vocabulary.keywords[2].key if tag.vocabulary else None,
-                keyword_id=tag.vocabulary.keywords[2].id if tag.vocabulary else None,
-                vocabulary_id=tag.vocabulary_id,
                 cardinality=tag_cardinality,
                 public=tag.public,
                 auth_client_id='testclient2',
                 auth_user_id='testuser2' if api.grant_type == 'authorization_code' else None,
                 user_id='testuser2' if api.grant_type == 'authorization_code' else None,
                 user_email='test2@saeon.ac.za' if api.grant_type == 'authorization_code' else None,
-            )))
+            ) | keyword_tag_args(tag.vocabulary, 2)))
 
         assert_tag_instance_output(r, record_tag_3, api.grant_type)
         if tag_cardinality == 'one':
@@ -1010,7 +988,7 @@ def test_tag_record(api, record_batch_no_tags, scopes, collection_constraint, ta
     (True, all_scopes),
     (True, all_scopes_excluding(ODPScope.RECORD_ADMIN)),
 ])
-def test_untag_record(api, record_batch_no_tags, admin_route, scopes, collection_constraint, tag_cardinality, is_same_user):
+def test_untag_record(api, record_batch_no_tags, admin_route, scopes, collection_constraint, is_same_user):
     route = '/record/admin/' if admin_route else '/record/'
 
     authorized = admin_route and ODPScope.RECORD_ADMIN in scopes or \
@@ -1030,7 +1008,7 @@ def test_untag_record(api, record_batch_no_tags, admin_route, scopes, collection
     record = record_batch_no_tags[2]
     record_tags = RecordTagFactory.create_batch(randint(1, 3), record=record)
 
-    tag = new_generic_tag(tag_cardinality)
+    tag = new_generic_tag('record')
     if is_same_user:
         record_tag_1 = RecordTagFactory(
             record=record,

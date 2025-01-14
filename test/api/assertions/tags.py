@@ -2,9 +2,11 @@ from datetime import datetime
 
 from sqlalchemy import select
 
-from odp.db.models import CollectionTag, CollectionTagAudit, PackageTag, PackageTagAudit, RecordTag, RecordTagAudit
+from odp.const.db import ScopeType
+from odp.db.models import CollectionTag, CollectionTagAudit, PackageTag, PackageTagAudit, RecordTag, RecordTagAudit, Scope
 from test import TestSession
 from test.api.assertions import assert_new_timestamp
+from test.factories import FactorySession, KeywordFactory, SchemaFactory, TagFactory
 
 _tag_instance_classes = {
     'collection': CollectionTag,
@@ -17,6 +19,57 @@ _tag_instance_audit_classes = {
     'package': PackageTagAudit,
     'record': RecordTagAudit,
 }
+
+
+def new_generic_tag(tag_type, cardinality=None):
+    """Create a usable ODP tag definition object in the factory session."""
+    tag_scope = {
+        'collection': 'odp.collection:freeze',
+        'package': 'odp.package:doi',
+        'record': 'odp.record:qc',
+    }
+    tag_kwargs = dict(
+        type=tag_type,
+        scope=FactorySession.get(Scope, (tag_scope[tag_type], ScopeType.odp)),
+        schema=SchemaFactory(type='tag', uri='https://odp.saeon.ac.za/schema/tag/generic'),
+    )
+    if cardinality:
+        tag_kwargs |= dict(cardinality=cardinality)
+
+    tag = TagFactory(**tag_kwargs)
+    if tag.vocabulary:
+        KeywordFactory.create_batch(3, vocabulary=tag.vocabulary)
+
+    return tag
+
+
+def keyword_tag_args(vocab, kw_index):
+    """Set up keyword-related args for keyword tag instance API input (keyword)
+    and output (vocabulary_id, keyword_id, keyword, keyword_ids, keywords)."""
+    if vocab:
+        kw = vocab.keywords[kw_index]
+        args = dict(
+            vocabulary_id=vocab.id,
+            keyword_id=kw.id,
+            keyword=kw.key,
+        )
+        hierarchy = []
+        while kw:
+            hierarchy.insert(0, kw)
+            kw = kw.parent
+        args |= dict(
+            keyword_ids=[kw.id for kw in hierarchy],
+            keywords=[kw.key for kw in hierarchy],
+        )
+        return args
+
+    return dict(
+        vocabulary_id=None,
+        keyword_id=None,
+        keyword=None,
+        keyword_ids=None,
+        keywords=None,
+    )
 
 
 def assert_tag_instance_output(response, tag_instance, grant_type):
@@ -36,6 +89,8 @@ def assert_tag_instance_output(response, tag_instance, grant_type):
     assert json['vocabulary_id'] == tag_instance['vocabulary_id']
     assert json['keyword_id'] == tag_instance['keyword_id']
     assert json['keyword'] == tag_instance['keyword']
+    assert json['keyword_ids'] == tag_instance['keyword_ids']
+    assert json['keywords'] == tag_instance['keywords']
 
 
 def assert_tag_instance_db_state(tag_type, grant_type, object_id, *tag_instances):

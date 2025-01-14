@@ -5,8 +5,7 @@ import pytest
 from sqlalchemy import select
 
 from odp.const import ODPScope
-from odp.const.db import ScopeType
-from odp.db.models import Package, PackageAudit, PackageTag, Resource, Scope, Tag, User
+from odp.db.models import Package, PackageAudit, PackageTag, Resource, Tag, User
 from test import TestSession
 from test.api import test_resource
 from test.api.assertions import assert_forbidden, assert_new_timestamp, assert_not_found, assert_ok_null
@@ -15,17 +14,16 @@ from test.api.assertions.tags import (
     assert_tag_instance_audit_log_empty,
     assert_tag_instance_db_state,
     assert_tag_instance_output,
+    keyword_tag_args,
+    new_generic_tag,
 )
 from test.api.conftest import try_skip_user_provider_constraint
 from test.factories import (
     FactorySession,
-    KeywordFactory,
     PackageFactory,
     PackageTagFactory,
     ProviderFactory,
     ResourceFactory,
-    SchemaFactory,
-    TagFactory,
 )
 
 
@@ -661,23 +659,6 @@ def test_delete_package_not_found(
     assert_no_audit_log()
 
 
-def new_generic_tag(cardinality=None):
-    # we can use any scope; just make it something other than PACKAGE_ADMIN
-    tag_kwargs = dict(
-        type='package',
-        scope=FactorySession.get(Scope, (ODPScope.PACKAGE_DOI, ScopeType.odp)),
-        schema=SchemaFactory(type='tag', uri='https://odp.saeon.ac.za/schema/tag/generic'),
-    )
-    if cardinality:
-        tag_kwargs |= dict(cardinality=cardinality)
-
-    tag = TagFactory(**tag_kwargs)
-    if tag.vocabulary:
-        KeywordFactory.create_batch(3, vocabulary=tag.vocabulary)
-
-    return tag
-
-
 @pytest.mark.require_scope(ODPScope.PACKAGE_DOI)
 def test_tag_package(
         api,
@@ -700,7 +681,7 @@ def test_tag_package(
     )
 
     client = api(scopes, **api_kwargs)
-    tag = new_generic_tag(tag_cardinality)
+    tag = new_generic_tag('package', tag_cardinality)
 
     # TAG 1
     r = client.post(
@@ -708,12 +689,9 @@ def test_tag_package(
         json=(package_tag_1 := dict(
             tag_id=tag.id,
             data={'comment': 'test1'},
-            keyword=tag.vocabulary.keywords[0].key if tag.vocabulary else None,
-            keyword_id=tag.vocabulary.keywords[0].id if tag.vocabulary else None,
-            vocabulary_id=tag.vocabulary_id,
             cardinality=tag_cardinality,
             public=tag.public,
-        )))
+        ) | keyword_tag_args(tag.vocabulary, 0)))
 
     if authorized:
         assert_tag_instance_output(r, package_tag_1, api.grant_type)
@@ -729,12 +707,9 @@ def test_tag_package(
             json=(package_tag_2 := dict(
                 tag_id=tag.id,
                 data=package_tag_1['data'] if tag.vocabulary else {'comment': 'test2'},
-                keyword=tag.vocabulary.keywords[1].key if tag.vocabulary else None,
-                keyword_id=tag.vocabulary.keywords[1].id if tag.vocabulary else None,
-                vocabulary_id=tag.vocabulary_id,
                 cardinality=tag_cardinality,
                 public=tag.public,
-            )))
+            ) | keyword_tag_args(tag.vocabulary, 1)))
 
         assert_tag_instance_output(r, package_tag_2, api.grant_type)
         if tag_cardinality in ('one', 'user'):
@@ -766,16 +741,13 @@ def test_tag_package(
             json=(package_tag_3 := dict(
                 tag_id=tag.id,
                 data=package_tag_1['data'] if tag.vocabulary else {'comment': 'test3'},
-                keyword=tag.vocabulary.keywords[2].key if tag.vocabulary else None,
-                keyword_id=tag.vocabulary.keywords[2].id if tag.vocabulary else None,
-                vocabulary_id=tag.vocabulary_id,
                 cardinality=tag_cardinality,
                 public=tag.public,
                 auth_client_id='testclient2',
                 auth_user_id='testuser2' if api.grant_type == 'authorization_code' else None,
                 user_id='testuser2' if api.grant_type == 'authorization_code' else None,
                 user_email='test2@saeon.ac.za' if api.grant_type == 'authorization_code' else None,
-            )))
+            ) | keyword_tag_args(tag.vocabulary, 2)))
 
         assert_tag_instance_output(r, package_tag_3, api.grant_type)
         if tag_cardinality == 'one':
@@ -897,7 +869,7 @@ def _test_untag_package(
     package = package_batch[2]
     package_tags = PackageTagFactory.create_batch(randint(1, 3), package=package)
 
-    tag = new_generic_tag()
+    tag = new_generic_tag('package')
     if same_user:
         package_tag_1 = PackageTagFactory(
             package=package,

@@ -196,6 +196,8 @@ def output_tag_instance_model(tag_instance: Taggable) -> TagInstanceModel:
         cardinality=tag_instance.tag.cardinality,
         public=tag_instance.tag.public,
         vocabulary_id=tag_instance.vocabulary_id,
+        keyword_id=tag_instance.keyword_id,
+        keyword=tag_instance.keyword.key if tag_instance.keyword_id else None,
     )
     if tag_instance.vocabulary_id:
         kw = tag_instance.keyword
@@ -207,7 +209,7 @@ def output_tag_instance_model(tag_instance: Taggable) -> TagInstanceModel:
             kw_keys.insert(0, kw.key)
         tag_instance_args |= dict(
             keyword_ids=kw_ids,
-            keyword_keys=kw_keys,
+            keywords=kw_keys,
         )
 
     return TagInstanceModel(**tag_instance_args)

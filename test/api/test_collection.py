@@ -7,8 +7,7 @@ import pytest
 from sqlalchemy import select
 
 from odp.const import DOI_REGEX, ODPScope
-from odp.const.db import ScopeType
-from odp.db.models import Collection, CollectionAudit, Scope, User
+from odp.db.models import Collection, CollectionAudit, User
 from test import TestSession
 from test.api import all_scopes, all_scopes_excluding
 from test.api.assertions import assert_conflict, assert_forbidden, assert_new_timestamp, assert_not_found, assert_ok_null, assert_unprocessable
@@ -17,17 +16,16 @@ from test.api.assertions.tags import (
     assert_tag_instance_audit_log_empty,
     assert_tag_instance_db_state,
     assert_tag_instance_output,
+    keyword_tag_args,
+    new_generic_tag,
 )
 from test.api.conftest import try_skip_collection_constraint
 from test.factories import (
     CollectionFactory,
     CollectionTagFactory,
     FactorySession,
-    KeywordFactory,
     ProviderFactory,
     RecordFactory,
-    SchemaFactory,
-    TagFactory,
 )
 
 
@@ -439,19 +437,6 @@ def test_get_new_doi(api, collection_batch, scopes, collection_constraint):
     assert_no_audit_log()
 
 
-def new_generic_tag(cardinality):
-    # we can use any scope; just make it something other than COLLECTION_ADMIN
-    tag = TagFactory(
-        type='collection',
-        cardinality=cardinality,
-        scope=FactorySession.get(Scope, (ODPScope.COLLECTION_FREEZE, ScopeType.odp)),
-        schema=SchemaFactory(type='tag', uri='https://odp.saeon.ac.za/schema/tag/generic'),
-    )
-    if tag.vocabulary:
-        KeywordFactory.create_batch(3, vocabulary=tag.vocabulary)
-    return tag
-
-
 @pytest.mark.require_scope(ODPScope.COLLECTION_FREEZE)  # scope associated with the generic tag
 def test_tag_collection(api, collection_batch, scopes, collection_constraint, tag_cardinality):
     authorized = ODPScope.COLLECTION_FREEZE in scopes and collection_constraint in ('collection_any', 'collection_match')
@@ -466,7 +451,7 @@ def test_tag_collection(api, collection_batch, scopes, collection_constraint, ta
         authorized_collections = collection_batch[0:2]
 
     client = api(scopes, user_collections=authorized_collections)
-    tag = new_generic_tag(tag_cardinality)
+    tag = new_generic_tag('collection', tag_cardinality)
 
     # TAG 1
     r = client.post(
@@ -474,12 +459,9 @@ def test_tag_collection(api, collection_batch, scopes, collection_constraint, ta
         json=(collection_tag_1 := dict(
             tag_id=tag.id,
             data={'comment': 'test1'},
-            keyword=tag.vocabulary.keywords[0].key if tag.vocabulary else None,
-            keyword_id=tag.vocabulary.keywords[0].id if tag.vocabulary else None,
-            vocabulary_id=tag.vocabulary_id,
             cardinality=tag_cardinality,
             public=tag.public,
-        )))
+        ) | keyword_tag_args(tag.vocabulary, 0)))
 
     if authorized:
         assert_tag_instance_output(r, collection_tag_1, api.grant_type)
@@ -495,12 +477,9 @@ def test_tag_collection(api, collection_batch, scopes, collection_constraint, ta
             json=(collection_tag_2 := dict(
                 tag_id=tag.id,
                 data=collection_tag_1['data'] if tag.vocabulary else {'comment': 'test2'},
-                keyword=tag.vocabulary.keywords[1].key if tag.vocabulary else None,
-                keyword_id=tag.vocabulary.keywords[1].id if tag.vocabulary else None,
-                vocabulary_id=tag.vocabulary_id,
                 cardinality=tag_cardinality,
                 public=tag.public,
-            )))
+            ) | keyword_tag_args(tag.vocabulary, 1)))
 
         assert_tag_instance_output(r, collection_tag_2, api.grant_type)
         if tag_cardinality in ('one', 'user'):
@@ -532,16 +511,13 @@ def test_tag_collection(api, collection_batch, scopes, collection_constraint, ta
             json=(collection_tag_3 := dict(
                 tag_id=tag.id,
                 data=collection_tag_1['data'] if tag.vocabulary else {'comment': 'test3'},
-                keyword=tag.vocabulary.keywords[2].key if tag.vocabulary else None,
-                keyword_id=tag.vocabulary.keywords[2].id if tag.vocabulary else None,
-                vocabulary_id=tag.vocabulary_id,
                 cardinality=tag_cardinality,
                 public=tag.public,
                 auth_client_id='testclient2',
                 auth_user_id='testuser2' if api.grant_type == 'authorization_code' else None,
                 user_id='testuser2' if api.grant_type == 'authorization_code' else None,
                 user_email='test2@saeon.ac.za' if api.grant_type == 'authorization_code' else None,
-            )))
+            ) | keyword_tag_args(tag.vocabulary, 2)))
 
         assert_tag_instance_output(r, collection_tag_3, api.grant_type)
         if tag_cardinality == 'one':
@@ -601,7 +577,7 @@ def same_user(request):
     (True, all_scopes),
     (True, all_scopes_excluding(ODPScope.COLLECTION_ADMIN)),
 ])
-def test_untag_collection(api, collection_batch, admin_route, scopes, collection_constraint, tag_cardinality, same_user):
+def test_untag_collection(api, collection_batch, admin_route, scopes, collection_constraint, same_user):
     route = '/collection/admin/' if admin_route else '/collection/'
 
     authorized = admin_route and ODPScope.COLLECTION_ADMIN in scopes or \
@@ -621,7 +597,7 @@ def test_untag_collection(api, collection_batch, admin_route, scopes, collection
     collection = collection_batch[2]
     collection_tags = CollectionTagFactory.create_batch(randint(1, 3), collection=collection)
 
-    tag = new_generic_tag(tag_cardinality)
+    tag = new_generic_tag('collection')
     if same_user:
         collection_tag_1 = CollectionTagFactory(
             collection=collection,
