@@ -34,6 +34,27 @@ Package.SDG:
   schema_id: Tag.Generic
   vocabulary_id: SDG
 
+Package.Abstract:
+  type: package
+  cardinality: one
+  public: True
+  scope_id: odp.package:write
+  schema_id: Tag.Abstract
+
+Package.Lineage:
+  type: package
+  cardinality: one
+  public: True
+  scope_id: odp.package:write
+  schema_id: Tag.Lineage
+
+Package.Purpose:
+  type: package
+  cardinality: one
+  public: True
+  scope_id: odp.package:write
+  schema_id: Tag.Purpose
+
 Collection.Published:
   type: collection
   cardinality: one
