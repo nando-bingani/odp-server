@@ -1,11 +1,11 @@
-from datetime import datetime
+from datetime import datetime, date
 from random import randint
 
 import pytest
 from sqlalchemy import select
 
-from odp.const import ODPScope
-from odp.db.models import Package, PackageAudit, PackageTag, Resource, Tag, User
+from odp.const import ODPScope, ODPTagSchema, ODPDateRangeIncType, ODPPackageTag
+from odp.db.models import Package, PackageAudit, PackageTag, PackageTagAudit, Resource, Tag, User, Scope
 from test import TestSession
 from test.api import test_resource
 from test.api.assertions import assert_forbidden, assert_new_timestamp, assert_not_found, assert_ok_null
@@ -24,6 +24,9 @@ from test.factories import (
     PackageTagFactory,
     ProviderFactory,
     ResourceFactory,
+    SchemaFactory,
+    TagFactory,
+    ScopeFactory
 )
 
 
@@ -775,7 +778,8 @@ def test_tag_package(
                 dict(command=tag3_command, object_id=package_id, tag_instance=package_tag_3),
             )
         elif tag_cardinality == 'multi':
-            assert_tag_instance_db_state('package', api.grant_type, package_id, package_tag_1, package_tag_2, package_tag_3)
+            assert_tag_instance_db_state('package', api.grant_type, package_id, package_tag_1, package_tag_2,
+                                         package_tag_3)
             assert_tag_instance_audit_log(
                 'package', api.grant_type,
                 dict(command='insert', object_id=package_id, tag_instance=package_tag_1),
@@ -911,3 +915,62 @@ def _test_untag_package(
 
     assert_db_state(package_batch)
     assert_no_audit_log()
+
+
+def get_date_range_tag(schema_id: str, schema_uri: str, tag_id: str):
+    date_range_schema = SchemaFactory(
+        id=schema_id,
+        uri=schema_uri,
+        type='tag',
+    )
+
+    return TagFactory(
+        id=tag_id,
+        type='package',
+        cardinality='one',
+        scope=FactorySession.get(Scope, (ODPScope.PACKAGE_WRITE, 'odp')),
+        schema=date_range_schema
+    )
+
+
+def test_inc_end_date():
+    from odp.package.date_range import DateRangeInc
+
+    test_package = PackageFactory()
+
+    PackageTagFactory(
+        package=test_package,
+        tag=get_date_range_tag(
+            ODPTagSchema.DATERANGEINC,
+            'https://odp.saeon.ac.za/schema/tag/daterangeinc',
+            ODPPackageTag.DATERANGEINC
+        ),
+        data={
+            'end': ODPDateRangeIncType.CURRENT_DATE
+        }
+    )
+
+    PackageTagFactory(
+        package=test_package,
+        tag=get_date_range_tag(
+            ODPTagSchema.DATERANGE,
+            'https://odp.saeon.ac.za/schema/tag/daterange',
+            ODPPackageTag.DATERANGE
+        ),
+        data={
+            'start': '1990/01/01',
+            'end': '2000/01/01'
+        }
+    )
+
+    DateRangeInc().execute()
+
+    stmt = (
+        select(Package, PackageTag)
+        .where(PackageTag.package_id == test_package.id)
+        .where(PackageTag.tag_id == ODPPackageTag.DATERANGE.value)
+    )
+
+    res = TestSession.execute(stmt).first()
+
+    assert res.PackageTag.data['end'] == date.today().isoformat()
