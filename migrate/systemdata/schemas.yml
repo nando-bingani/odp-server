@@ -70,10 +70,6 @@ Tag.Lineage:
   type: tag
   uri: https://odp.saeon.ac.za/schema/tag/lineage
 
-Tag.Purpose:
-  type: tag
-  uri: https://odp.saeon.ac.za/schema/tag/purpose
-
 Vocabulary.Infrastructure:
   type: vocabulary
   uri: https://odp.saeon.ac.za/schema/vocabulary/infrastructure
