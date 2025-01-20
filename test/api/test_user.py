@@ -39,7 +39,7 @@ def user_build(**attr):
     Associated roles are however committed."""
     user = UserFactory.build(
         **attr,
-        roles=RoleFactory.create_batch(randint(0, 3)),
+        roles=RoleFactory.create_batch(randint(1, 3)),
     )
     user.role_ids = [role.id for role in user.roles]
     user.provider_keys = {}
