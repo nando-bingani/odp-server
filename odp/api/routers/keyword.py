@@ -11,7 +11,6 @@ from starlette.status import HTTP_404_NOT_FOUND, HTTP_409_CONFLICT, HTTP_422_UNP
 from odp.api.lib.auth import Authorize, Authorized
 from odp.api.lib.paging import Paginator
 from odp.api.models import KeywordHierarchyModel, KeywordModel, KeywordModelAdmin, KeywordModelIn, Page
-from odp.api.models.keyword import KeywordAncestorModel
 from odp.const import ODPScope
 from odp.const.db import AuditCommand, KeywordStatus
 from odp.db import Session
@@ -91,45 +90,28 @@ class RecurseMode(Enum):
     APPROVED = 'approved'
 
 
-def output_keyword_ancestor_model(row) -> KeywordAncestorModel:
-    return KeywordAncestorModel(
-        vocabulary_id=row.vocabulary_id,
-        id=row.id,
-        key=row.key,
-        data=row.data,
-        status=row.status,
-        ids=row.ids,
-        keys_=row.keys_,
-    )
-
-
-def output_keyword_model(
-        keyword: Keyword,
-        *,
-        recurse: RecurseMode = None,
-) -> KeywordModel | KeywordHierarchyModel:
-    cls = KeywordHierarchyModel if recurse else KeywordModel
-
-    kwargs = dict(
+def output_keyword_model(keyword: Keyword) -> KeywordModel:
+    return KeywordModel(
         vocabulary_id=keyword.vocabulary_id,
         id=keyword.id,
         key=keyword.key,
         data=keyword.data,
         status=keyword.status,
         parent_id=keyword.parent_id,
-        parent_key=keyword.parent.key if keyword.parent_id else None,
     )
 
-    if recurse:
-        kwargs |= dict(
-            child_keywords=[
-                output_keyword_model(child, recurse=recurse)
-                for child in keyword.children
-                if recurse == RecurseMode.ALL or child.status == KeywordStatus.approved
-            ]
-        )
 
-    return cls(**kwargs)
+def output_keyword_hierarchy_model(row) -> KeywordHierarchyModel:
+    return KeywordHierarchyModel(
+        vocabulary_id=row.vocabulary_id,
+        id=row.id,
+        key=row.key,
+        data=row.data,
+        status=row.status,
+        parent_id=row.parent_id,
+        ids=row.ids,
+        keys_=row.keys_,
+    )
 
 
 def create_audit_record(
@@ -159,7 +141,7 @@ def create_audit_record(
 async def list_all_keywords(
         vocabulary_id: list[str] = Query(None, title='Filter by vocabulary(-ies)'),
         paginator: Paginator = Depends(),
-) -> Page[KeywordAncestorModel]:
+) -> Page[KeywordHierarchyModel]:
     """
     Get a flat list of all keywords, optionally filtered by one or more vocabulary.
     Requires scope `odp.keyword:read_all`.
@@ -171,7 +153,7 @@ async def list_all_keywords(
 
     return paginator.paginate(
         stmt,
-        lambda row: output_keyword_ancestor_model(row),
+        lambda row: output_keyword_hierarchy_model(row),
     )
 
 
@@ -181,7 +163,7 @@ async def list_all_keywords(
 )
 async def get_any_keyword(
         keyword_id: int,
-) -> KeywordAncestorModel:
+) -> KeywordHierarchyModel:
     """
     Get any keyword by id. Requires scope `odp.keyword:read_all`.
     """
@@ -190,7 +172,7 @@ async def get_any_keyword(
     ).one_or_none()):
         raise HTTPException(HTTP_404_NOT_FOUND)
 
-    return output_keyword_ancestor_model(row)
+    return output_keyword_hierarchy_model(row)
 
 
 @router.get(
@@ -199,11 +181,13 @@ async def get_any_keyword(
 )
 async def list_keywords(
         vocabulary_id: str,
+        parent_key: str = None,
         include_proposed: bool = False,
         paginator: Paginator = Depends(),
-) -> Page[KeywordModel]:
+) -> Page[KeywordHierarchyModel]:
     """
     Get a flat list of approved and (optionally) proposed keywords for a vocabulary.
+    Specify `parent_key` to return only immediate child keywords of a keyword.
     Requires scope `odp.keyword:read`.
     """
     if not Session.get(Vocabulary, vocabulary_id):
@@ -211,25 +195,33 @@ async def list_keywords(
             HTTP_404_NOT_FOUND, 'Vocabulary not found'
         )
 
-    # Note: If a parent keyword is not approved but has approved children,
-    # we should ideally not include those children in the response. We are,
-    # however, simply returning all approved keywords from anywhere in the
-    # hierarchy. In this (edge) case, the caller will see such child keywords
-    # as being orphaned.
-
     include_statuses = [KeywordStatus.approved]
     if include_proposed:
         include_statuses += [KeywordStatus.proposed]
 
+    # Note: If a parent keyword is not approved but has approved children,
+    # we should ideally not include those children in the response. This is,
+    # however, an unlikely scenario, and we are simply returning all approved
+    # keywords from anywhere in the hierarchy.
+
     stmt = (
-        select(Keyword).
-        where(Keyword.vocabulary_id == vocabulary_id).
-        where(Keyword.status.in_(include_statuses))
+        select(ancestors).
+        where(ancestors.c.vocabulary_id == vocabulary_id).
+        where(ancestors.c.status.in_(include_statuses))
     )
+
+    if parent_key is not None:
+        if not (parent_id := Session.execute(
+                select(Keyword.id).where(Keyword.vocabulary_id == vocabulary_id).where(Keyword.key == parent_key)
+        ).scalar_one_or_none()):
+            raise HTTPException(
+                HTTP_404_NOT_FOUND, 'Parent keyword not found'
+            )
+        stmt = stmt.where(ancestors.c.parent_id == parent_id)
 
     return paginator.paginate(
         stmt,
-        lambda row: output_keyword_model(row.Keyword),
+        lambda row: output_keyword_hierarchy_model(row),
     )
 
 
@@ -240,21 +232,23 @@ async def list_keywords(
 async def get_keyword(
         vocabulary_id: str,
         key: str,
-        recurse: bool = Query(False, title='Populate child keywords, recursively'),
-) -> KeywordHierarchyModel | KeywordModel:
+) -> KeywordHierarchyModel:
     """
-    Get an approved keyword, optionally with child keywords. Requires scope `odp.keyword:read`.
+    Get an approved keyword. Requires scope `odp.keyword:read`.
     """
+    stmt = (
+        select(ancestors).
+        where(ancestors.c.vocabulary_id == vocabulary_id).
+        where(ancestors.c.key == key)
+    )
     found = False
-    if keyword := Session.execute(
-            select(Keyword).where(Keyword.vocabulary_id == vocabulary_id).where(Keyword.key == key)
-    ).scalar_one_or_none():
-        found = keyword.status == KeywordStatus.approved
+    if row := Session.execute(stmt).one_or_none():
+        found = row.status == KeywordStatus.approved
 
     if not found:
         raise HTTPException(HTTP_404_NOT_FOUND)
 
-    return output_keyword_model(keyword, recurse=RecurseMode.APPROVED if recurse else None)
+    return output_keyword_hierarchy_model(row)
 
 
 @router.post(

@@ -21,6 +21,16 @@ def keyword_batch(request):
     for n in range(randint(3, 5)):
         keywords_top += [KeywordFactory(vocabulary=choice(vocabs))]
     keywords_flat = FactorySession.execute(select(Keyword)).scalars().all()
+
+    for keyword in keywords_flat:
+        keyword.ids = [keyword.id]
+        keyword.keys_ = [keyword.key]
+        parent = keyword.parent
+        while parent:
+            keyword.ids.insert(0, parent.id)
+            keyword.keys_.insert(0, parent.key)
+            parent = parent.parent
+
     return keywords_top, keywords_flat
 
 
@@ -69,8 +79,8 @@ def assert_no_audit_log():
     assert TestSession.execute(select(KeywordAudit)).first() is None
 
 
-def assert_json_result(response, json, keyword, recurse=None):
-    """Verify that the API result matches the given keyword object."""
+def assert_json_result(response, json, keyword, hierarchy=False):
+    """Assert that the API response matches the given keyword object."""
     assert response.status_code == 200
     assert json['vocabulary_id'] == keyword.vocabulary_id
     assert json['id'] == keyword.id
@@ -78,27 +88,19 @@ def assert_json_result(response, json, keyword, recurse=None):
     assert json['data'] == keyword.data
     assert json['status'] == keyword.status
     assert json['parent_id'] == keyword.parent_id
-    assert json['parent_key'] == (keyword.parent.key if keyword.parent_id else None)
-
-    if recurse:
-        kw_children = list(filter(lambda k: k.status == 'approved', keyword.children)) \
-            if recurse == 'approved' \
-            else keyword.children
-        assert len(json['child_keywords']) == len(kw_children)
-        for i, kw_child in enumerate(kw_children):
-            assert_json_result(response, json['child_keywords'][i], kw_child, recurse)
-    else:
-        assert 'child_keywords' not in json
+    if hierarchy:
+        assert json['ids'] == keyword.ids
+        assert json['keys_'] == keyword.keys_
 
 
-def assert_json_results(response, json, keywords, recurse=False):
-    """Verify that the API result list matches the given keyword batch."""
+def assert_json_results(response, json, keywords, hierarchy=False):
+    """Assert that the API response list matches the given keyword batch."""
     items = json['items']
     assert json['total'] == len(items) == len(keywords)
     items.sort(key=lambda i: i['id'])
     keywords.sort(key=lambda k: k.id)
     for n, keyword in enumerate(keywords):
-        assert_json_result(response, items[n], keyword, recurse)
+        assert_json_result(response, items[n], keyword, hierarchy)
 
 
 @pytest.mark.require_scope(ODPScope.KEYWORD_READ_ALL)
@@ -115,20 +117,18 @@ def test_list_all_keywords(
     if not authorized:
         assert_forbidden(r)
     else:
-        assert_json_results(r, r.json(), keywords_flat)
+        assert_json_results(r, r.json(), keywords_flat, hierarchy=True)
 
     assert_db_state(keywords_flat)
     assert_no_audit_log()
 
 
 @pytest.mark.require_scope(ODPScope.KEYWORD_READ_ALL)
-@pytest.mark.parametrize('recurse', [False, True])
 @pytest.mark.parametrize('error', [None, 'kw_404'])
 def test_get_any_keyword(
         api,
         scopes,
         keyword_batch,
-        recurse,
         error,
 ):
     authorized = ODPScope.KEYWORD_READ_ALL in scopes
@@ -138,14 +138,14 @@ def test_get_any_keyword(
     old_kw = keywords_flat[old_ix]
     kw_id = 0 if error == 'kw_404' else old_kw.id
 
-    r = api(scopes).get(f'/keyword/{kw_id}?recurse={recurse}')
+    r = api(scopes).get(f'/keyword/{kw_id}')
 
     if not authorized:
         assert_forbidden(r)
     elif error == 'kw_404':
         assert_not_found(r)
     else:
-        assert_json_result(r, r.json(), old_kw, 'all' if recurse else None)
+        assert_json_result(r, r.json(), old_kw, hierarchy=True)
 
     assert_db_state(keywords_flat)
     assert_no_audit_log()
@@ -153,44 +153,61 @@ def test_get_any_keyword(
 
 @pytest.mark.require_scope(ODPScope.KEYWORD_READ)
 @pytest.mark.parametrize('error', [None, 'vocab_404'])
+@pytest.mark.parametrize('parent_key', [None, True])
+@pytest.mark.parametrize('include_proposed', [False, True])
 def test_list_keywords(
         api,
         scopes,
         keyword_batch,
         error,
+        parent_key,
+        include_proposed,
 ):
     authorized = ODPScope.KEYWORD_READ in scopes
     keywords_top, keywords_flat = keyword_batch
 
     vocab_id = 'foo' if error == 'vocab_404' else keywords_top[2].vocabulary_id
-    # TODO: ideally we should expect a 'chain of approval' starting at
-    #  top-level keywords; see comments in the list_keywords API function.
-    keywords_expected = list(filter(
-        lambda k: k.vocabulary_id == vocab_id and k.status == 'approved',
-        keywords_flat
-    ))
+    statuses = ['approved']
+    if include_proposed:
+        statuses += ['proposed']
 
-    r = api(scopes).get(f'/keyword/{vocab_id}/?size=0')
+    if parent_key:
+        candidate_children = list(filter(lambda k: k.vocabulary_id == vocab_id and k.parent_id is not None, keywords_flat))
+        if not candidate_children:
+            pytest.skip('empty candidate set')
+        child_ix = randint(0, len(candidate_children) - 1)
+        parent = candidate_children[child_ix].parent
+        parent_arg = f'&parent_key={parent.key}'
+        keywords_expected = list(filter(
+            lambda k: k.vocabulary_id == vocab_id and k.status in statuses and k.parent_id == parent.id,
+            keywords_flat
+        ))
+    else:
+        parent_arg = ''
+        keywords_expected = list(filter(
+            lambda k: k.vocabulary_id == vocab_id and k.status in statuses,
+            keywords_flat
+        ))
+
+    r = api(scopes).get(f'/keyword/{vocab_id}/?size=0{parent_arg}&include_proposed={include_proposed}')
 
     if not authorized:
         assert_forbidden(r)
     elif error == 'vocab_404':
         assert_not_found(r, 'Vocabulary not found')
     else:
-        assert_json_results(r, r.json(), keywords_expected)
+        assert_json_results(r, r.json(), keywords_expected, hierarchy=True)
 
     assert_db_state(keywords_flat)
     assert_no_audit_log()
 
 
 @pytest.mark.require_scope(ODPScope.KEYWORD_READ)
-@pytest.mark.parametrize('recurse', [False, True])
 @pytest.mark.parametrize('error', [None, 'unapproved_kw', 'wrong_vocab', 'unknown_kw'])
 def test_get_keyword(
         api,
         scopes,
         keyword_batch,
-        recurse,
         error,
 ):
     authorized = ODPScope.KEYWORD_READ in scopes
@@ -212,14 +229,14 @@ def test_get_keyword(
     key = 'foo' if error == 'unknown_kw' else old_kw.key
     vocab_id = vocab_0_id if error == 'wrong_vocab' else old_kw.vocabulary_id
 
-    r = api(scopes).get(f'/keyword/{vocab_id}/{key}?recurse={recurse}')
+    r = api(scopes).get(f'/keyword/{vocab_id}/{key}')
 
     if not authorized:
         assert_forbidden(r)
     elif error is not None:
         assert_not_found(r)
     else:
-        assert_json_result(r, r.json(), old_kw, recurse='approved' if recurse else None)
+        assert_json_result(r, r.json(), old_kw, hierarchy=True)
 
     assert_db_state(keywords_flat)
     assert_no_audit_log()

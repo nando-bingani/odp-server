@@ -1,7 +1,7 @@
 import re
 import sys
 from datetime import datetime, timezone
-from random import choice, randint
+from random import choice, choices, randint
 
 import factory
 from factory.alchemy import SQLAlchemyModelFactory
@@ -297,7 +297,7 @@ class KeywordFactory(ODPModelFactory):
 
     key = factory.LazyAttributeSequence(create_keyword_key)
     data = factory.LazyAttributeSequence(create_keyword_data)
-    status = factory.LazyFunction(lambda: choice(('proposed', 'approved', 'rejected', 'obsolete')))
+    status = factory.LazyFunction(lambda: choices(('proposed', 'approved', 'rejected', 'obsolete'), weights=(3, 14, 1, 2))[0])
     parent = None
     parent_id = None
     vocabulary = factory.SubFactory(VocabularyFactory)
