@@ -97,14 +97,15 @@ def create_tag_audit_record(
 
 @router.get(
     '/',
-    response_model=Page[PackageModel],
-    description=f'List provider-accessible packages. Requires `{ODPScope.PACKAGE_READ}` scope.'
 )
 async def list_packages(
         auth: Authorized = Depends(Authorize(ODPScope.PACKAGE_READ)),
         provider_id: str = None,
         paginator: Paginator = Depends(),
-):
+) -> Page[PackageModel]:
+    """
+    List provider-accessible packages. Requires scope `odp.package:read`.
+    """
     stmt = select(Package)
 
     if auth.object_ids != '*':
@@ -122,14 +123,15 @@ async def list_packages(
 
 @router.get(
     '/all/',
-    response_model=Page[PackageModel],
     dependencies=[Depends(Authorize(ODPScope.PACKAGE_READ_ALL))],
-    description=f'List all packages. Requires `{ODPScope.PACKAGE_READ_ALL}` scope.'
 )
 async def list_all_packages(
         provider_id: str = None,
         paginator: Paginator = Depends(),
-):
+) -> Page[PackageModel]:
+    """
+    List all packages. Requires scope `odp.package:read_all`.
+    """
     stmt = select(Package)
 
     if provider_id:
@@ -143,13 +145,14 @@ async def list_all_packages(
 
 @router.get(
     '/{package_id}',
-    response_model=PackageDetailModel,
-    description=f'Get a provider-accessible package. Requires `{ODPScope.PACKAGE_READ}` scope.'
 )
 async def get_package(
         package_id: str,
         auth: Authorized = Depends(Authorize(ODPScope.PACKAGE_READ)),
-):
+) -> PackageDetailModel:
+    """
+    Get a provider-accessible package. Requires scope `odp.package:read`.
+    """
     if not (package := Session.get(Package, package_id)):
         raise HTTPException(HTTP_404_NOT_FOUND)
 
@@ -160,13 +163,14 @@ async def get_package(
 
 @router.get(
     '/all/{package_id}',
-    response_model=PackageDetailModel,
     dependencies=[Depends(Authorize(ODPScope.PACKAGE_READ_ALL))],
-    description=f'Get any package. Requires `{ODPScope.PACKAGE_READ_ALL}` scope.'
 )
 async def get_any_package(
         package_id: str,
-):
+) -> PackageDetailModel:
+    """
+    Get any package. Requires scope `odp.package:read_all`.
+    """
     if not (package := Session.get(Package, package_id)):
         raise HTTPException(HTTP_404_NOT_FOUND)
 
@@ -175,26 +179,27 @@ async def get_any_package(
 
 @router.post(
     '/',
-    response_model=PackageDetailModel,
-    description=f'Create a package. Requires access to the referenced provider. '
-                f'Requires `{ODPScope.PACKAGE_WRITE}` scope.'
 )
 async def create_package(
         package_in: PackageModelIn,
         auth: Authorized = Depends(Authorize(ODPScope.PACKAGE_WRITE)),
-):
+) -> PackageDetailModel:
+    """
+    Create a provider-accessible package. Requires scope `odp.package:write`.
+    """
     return await _create_package(package_in, auth)
 
 
 @router.post(
     '/admin/',
-    response_model=PackageDetailModel,
-    description=f'Create a package for any provider. Requires `{ODPScope.PACKAGE_ADMIN}` scope.'
 )
 async def admin_create_package(
         package_in: PackageModelIn,
         auth: Authorized = Depends(Authorize(ODPScope.PACKAGE_ADMIN)),
-):
+) -> PackageDetailModel:
+    """
+    Create a package for any provider. Requires scope `odp.package:admin`.
+    """
     return await _create_package(package_in, auth)
 
 
@@ -219,28 +224,29 @@ async def _create_package(
 
 @router.put(
     '/{package_id}',
-    response_model=PackageDetailModel,
-    description=f'Update a package. Requires access to the referenced provider (both existing '
-                f'and new, if different). Requires `{ODPScope.PACKAGE_WRITE}` scope.'
 )
 async def update_package(
         package_id: str,
         package_in: PackageModelIn,
         auth: Authorized = Depends(Authorize(ODPScope.PACKAGE_WRITE)),
-):
+) -> PackageDetailModel:
+    """
+    Update a provider-accessible package. Requires scope `odp.package:write`.
+    """
     return await _update_package(package_id, package_in, auth)
 
 
 @router.put(
     '/admin/{package_id}',
-    response_model=PackageDetailModel,
-    description=f'Update a package for any provider. Requires `{ODPScope.PACKAGE_ADMIN}` scope.'
 )
 async def admin_update_package(
         package_id: str,
         package_in: PackageModelIn,
         auth: Authorized = Depends(Authorize(ODPScope.PACKAGE_ADMIN)),
-):
+) -> PackageDetailModel:
+    """
+    Update any package. Requires scope `odp.package:admin`.
+    """
     return await _update_package(package_id, package_in, auth)
 
 
@@ -274,25 +280,28 @@ async def _update_package(
 
 @router.delete(
     '/{package_id}',
-    description=f"Delete a package. Requires access to the package provider. "
-                f"Requires `{ODPScope.PACKAGE_WRITE}` scope."
 )
 async def delete_package(
         package_id: str,
         auth: Authorized = Depends(Authorize(ODPScope.PACKAGE_WRITE)),
-):
-    return await _delete_package(package_id, auth)
+) -> None:
+    """
+    Delete a provider-accessible package. Requires scope `odp.package:write`.
+    """
+    await _delete_package(package_id, auth)
 
 
 @router.delete(
     '/admin/{package_id}',
-    description=f"Delete a package for any provider. Requires `{ODPScope.PACKAGE_ADMIN}` scope."
 )
 async def admin_delete_package(
         package_id: str,
         auth: Authorized = Depends(Authorize(ODPScope.PACKAGE_ADMIN)),
-):
-    return await _delete_package(package_id, auth)
+) -> None:
+    """
+    Delete any package. Requires scope `odp.package:admin`.
+    """
+    await _delete_package(package_id, auth)
 
 
 async def _delete_package(
@@ -310,7 +319,8 @@ async def _delete_package(
         package.delete()
     except IntegrityError as e:
         raise HTTPException(
-            HTTP_422_UNPROCESSABLE_ENTITY, 'A package cannot be deleted if it is associated with a record.'
+            HTTP_422_UNPROCESSABLE_ENTITY,
+            'A package with an associated record or resources cannot be deleted.',
         ) from e
 
 
@@ -322,10 +332,9 @@ async def tag_package(
         tag_instance_in: TagInstanceModelIn,
         auth: Authorized = Depends(TagAuthorize()),
 ) -> TagInstanceModel | None:
-    """Set a tag instance on a package, returning the created
-    or updated instance, or null if no change was made.
-
-    Requires the scope associated with the tag.
+    """
+    Set a tag instance on a package, returning the created or updated instance,
+    or null if no change was made. Requires the scope associated with the tag.
     """
     if not (package := Session.get(Package, package_id)):
         raise HTTPException(HTTP_404_NOT_FOUND)
@@ -344,9 +353,8 @@ async def untag_package(
         tag_instance_id: str,
         auth: Authorized = Depends(UntagAuthorize(TagType.package)),
 ) -> None:
-    """Remove a tag instance set by the calling user.
-
-    Requires the scope associated with the tag.
+    """
+    Remove a tag instance set by the calling user. Requires the scope associated with the tag.
     """
     await _untag_package(package_id, tag_instance_id, auth)
 
@@ -359,9 +367,8 @@ async def admin_untag_package(
         tag_instance_id: str,
         auth: Authorized = Depends(Authorize(ODPScope.PACKAGE_ADMIN)),
 ) -> None:
-    """Remove any tag instance from a package.
-
-    Requires scope `odp.package:admin`.
+    """
+    Remove any tag instance from a package. Requires scope `odp.package:admin`.
     """
     await _untag_package(package_id, tag_instance_id, auth)
 

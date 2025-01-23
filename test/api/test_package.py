@@ -1,14 +1,14 @@
-from datetime import datetime, date
+from datetime import date, datetime
 from random import randint
 
 import pytest
 from sqlalchemy import select
 
-from odp.const import ODPScope, ODPTagSchema, ODPDateRangeIncType, ODPPackageTag
-from odp.db.models import Package, PackageAudit, PackageTag, PackageTagAudit, Resource, Tag, User, Scope
+from odp.const import ODPDateRangeIncType, ODPPackageTag, ODPScope, ODPTagSchema
+from odp.db.models import Package, PackageAudit, PackageTag, Resource, Scope, Tag, User
 from test import TestSession
 from test.api import test_resource
-from test.api.assertions import assert_forbidden, assert_new_timestamp, assert_not_found, assert_ok_null
+from test.api.assertions import assert_forbidden, assert_new_timestamp, assert_not_found, assert_ok_null, assert_unprocessable
 from test.api.assertions.tags import (
     assert_tag_instance_audit_log,
     assert_tag_instance_audit_log_empty,
@@ -26,7 +26,6 @@ from test.factories import (
     ResourceFactory,
     SchemaFactory,
     TagFactory,
-    ScopeFactory
 )
 
 
@@ -35,10 +34,14 @@ def package_batch(request):
     """Create and commit a batch of Package instances, with
     associated resources."""
     with_tags = request.node.get_closest_marker('package_batch_with_tags') is not None
+    package_2_no_resources = request.node.get_closest_marker('package_2_no_resources') is not None
 
     packages = PackageFactory.create_batch(randint(3, 5))
-    for package in packages:
-        resources = ResourceFactory.create_batch(randint(0, 4), package=package)
+    for n, package in enumerate(packages):
+        if n == 2 and package_2_no_resources:
+            resources = []
+        else:
+            resources = ResourceFactory.create_batch(randint(0, 4), package=package)
         package.resource_ids = [resource.id for resource in resources]
         if with_tags:
             PackageTagFactory.create_batch(randint(0, 3), package=package)
@@ -564,12 +567,15 @@ def test_update_package_not_found(
 
 
 @pytest.mark.require_scope(ODPScope.PACKAGE_WRITE)
+@pytest.mark.parametrize('error', [None, 'not_found', 'has_resources', 'has_record'])
+@pytest.mark.package_2_no_resources
 def test_delete_package(
         api,
         scopes,
         package_batch,
         client_provider_constraint,
         user_provider_constraint,
+        error,
 ):
     api_kwargs = parameterize_api_fixture(
         package_batch,
@@ -577,8 +583,8 @@ def test_delete_package(
         client_provider_constraint,
         user_provider_constraint,
     )
-    authorized = (
-            ODPScope.PACKAGE_WRITE in scopes and
+    authorized_scope = ODPScope.PACKAGE_WRITE in scopes
+    authorized_constraint = (
             client_provider_constraint in ('client_provider_any', 'client_provider_match') and
             (api.grant_type == 'client_credentials' or user_provider_constraint == 'user_provider_match')
     )
@@ -588,18 +594,23 @@ def test_delete_package(
         scopes,
         package_batch,
         '/package/',
-        authorized,
+        authorized_scope,
+        authorized_constraint,
         api_kwargs,
+        error,
     )
 
 
 @pytest.mark.require_scope(ODPScope.PACKAGE_ADMIN)
+@pytest.mark.parametrize('error', [None, 'not_found', 'has_resources', 'has_record'])
+@pytest.mark.package_2_no_resources
 def test_admin_delete_package(
         api,
         scopes,
         package_batch,
         client_provider_constraint,
         user_provider_constraint,
+        error,
 ):
     api_kwargs = parameterize_api_fixture(
         package_batch,
@@ -607,15 +618,16 @@ def test_admin_delete_package(
         client_provider_constraint,
         user_provider_constraint,
     )
-    authorized = ODPScope.PACKAGE_ADMIN in scopes
 
     _test_delete_package(
         api,
         scopes,
         package_batch,
         '/package/admin/',
-        authorized,
+        ODPScope.PACKAGE_ADMIN in scopes,
+        True,
         api_kwargs,
+        error,
     )
 
 
@@ -624,42 +636,51 @@ def _test_delete_package(
         scopes,
         package_batch,
         route,
-        authorized,
+        authorized_scope,
+        authorized_constraint,
         api_kwargs,
+        error,
 ):
-    deleted_package = package_batch[2]
+    if error == 'not_found':
+        deleted_package_id = 'foo'
+    elif error == 'has_resources':
+        resources = ResourceFactory.create_batch(randint(1, 4), package=package_batch[2])
+        package_batch[2].resource_ids = [resource.id for resource in resources]
+        deleted_package_id = package_batch[2].id
+    elif error == 'has_record':
+        # TODO record-package linkage
+        pytest.skip('TODO')
+    else:
+        deleted_package = PackageFactory.stub(
+            id=package_batch[2].id,
+            key=package_batch[2].key,
+            title=package_batch[2].title,
+            status=package_batch[2].status,
+            provider_id=package_batch[2].provider_id,
+            resource_ids=[],
+        )
+        deleted_package_id = deleted_package.id
 
-    r = api(scopes, **api_kwargs).delete(f'{route}{deleted_package.id}')
+    r = api(scopes, **api_kwargs).delete(f'{route}{deleted_package_id}')
 
-    if authorized:
+    changed = False
+    if not authorized_scope:
+        assert_forbidden(r)
+    elif error == 'not_found':
+        assert_not_found(r)
+    elif not authorized_constraint:
+        assert_forbidden(r)
+    elif error in ('has_resources', 'has_record'):
+        assert_unprocessable(r, 'A package with an associated record or resources cannot be deleted.')
+    else:
         assert_ok_null(r)
         assert_db_state(package_batch[:2] + package_batch[3:])
         assert_audit_log('delete', deleted_package, api.grant_type)
-    else:
-        assert_forbidden(r)
+        changed = True
+
+    if not changed:
         assert_db_state(package_batch)
         assert_no_audit_log()
-
-
-@pytest.mark.parametrize('route', ['/package/', '/package/admin/'])
-def test_delete_package_not_found(
-        api,
-        route,
-        package_batch,
-        client_provider_constraint,
-        user_provider_constraint,
-):
-    scopes = [ODPScope.PACKAGE_ADMIN] if 'admin' in route else [ODPScope.PACKAGE_WRITE]
-    api_kwargs = parameterize_api_fixture(
-        package_batch,
-        api.grant_type,
-        client_provider_constraint,
-        user_provider_constraint,
-    )
-    r = api(scopes, **api_kwargs).delete(f'{route}foo')
-    assert_not_found(r)
-    assert_db_state(package_batch)
-    assert_no_audit_log()
 
 
 @pytest.mark.require_scope(ODPScope.PACKAGE_DOI)
