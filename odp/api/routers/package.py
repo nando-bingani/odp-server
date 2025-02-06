@@ -2,19 +2,22 @@ import re
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
+from jschon import JSON, JSONPatch, URI
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from starlette.status import HTTP_404_NOT_FOUND, HTTP_422_UNPROCESSABLE_ENTITY
 
 from odp.api.lib.auth import Authorize, Authorized, TagAuthorize, UntagAuthorize
 from odp.api.lib.paging import Paginator
+from odp.api.lib.schema import get_metadata_validity
 from odp.api.lib.tagging import Tagger, output_tag_instance_model
 from odp.api.models import PackageDetailModel, PackageModel, PackageModelIn, Page, TagInstanceModel, TagInstanceModelIn
 from odp.api.routers.resource import output_resource_model
-from odp.const import ODPScope
-from odp.const.db import AuditCommand, PackageStatus, TagType
+from odp.const import ODPMetadataSchema, ODPScope
+from odp.const.db import PackageCommand, PackageStatus, SchemaType, TagType
 from odp.db import Session
-from odp.db.models import Package, PackageAudit, PackageTag, PackageTagAudit
+from odp.db.models import Package, PackageAudit, Schema
+from odp.lib.schema import schema_catalog
 
 router = APIRouter()
 
@@ -37,6 +40,10 @@ def output_package_model(package: Package, *, detail=False) -> PackageModel | Pa
         provider_id=package.provider_id,
         provider_key=package.provider.key,
         resource_ids=[resource.id for resource in package.resources],
+        schema_id=package.schema_id,
+        schema_uri=package.schema.uri,
+        metadata=package.metadata_,
+        validity=package.validity,
         record_id=record.id if record else None,
         record_doi=record.doi if record else None,
         record_sid=record.sid if record else None,
@@ -60,7 +67,7 @@ def create_audit_record(
         auth: Authorized,
         package: Package,
         timestamp: datetime,
-        command: AuditCommand,
+        command: PackageCommand,
 ) -> None:
     PackageAudit(
         client_id=auth.client_id,
@@ -72,26 +79,8 @@ def create_audit_record(
         _title=package.title,
         _status=package.status,
         _provider_id=package.provider_id,
+        _schema_id=package.schema_id,
         _resources=[resource.id for resource in package.resources],
-    ).save()
-
-
-def create_tag_audit_record(
-        auth: Authorized,
-        package_tag: PackageTag,
-        timestamp: datetime,
-        command: AuditCommand,
-) -> None:
-    PackageTagAudit(
-        client_id=auth.client_id,
-        user_id=auth.user_id,
-        command=command,
-        timestamp=timestamp,
-        _id=package_tag.id,
-        _package_id=package_tag.package_id,
-        _tag_id=package_tag.tag_id,
-        _user_id=package_tag.user_id,
-        _data=package_tag.data,
     ).save()
 
 
@@ -215,9 +204,11 @@ async def _create_package(
         status=PackageStatus.pending,
         timestamp=(timestamp := datetime.now(timezone.utc)),
         provider_id=package_in.provider_id,
+        schema_id=package_in.schema_id,
+        schema_type=SchemaType.metadata,
     )
     package.save()
-    create_audit_record(auth, package, timestamp, AuditCommand.insert)
+    create_audit_record(auth, package, timestamp, PackageCommand.insert)
 
     return output_package_model(package, detail=True)
 
@@ -232,6 +223,8 @@ async def update_package(
 ) -> PackageDetailModel:
     """
     Update a provider-accessible package. Requires scope `odp.package:write`.
+
+    TODO: allow only if package status is pending
     """
     return await _update_package(package_id, package_in, auth)
 
@@ -262,7 +255,8 @@ async def _update_package(
 
     if (
             package.title != package_in.title or
-            package.provider_id != package_in.provider_id
+            package.provider_id != package_in.provider_id or
+            package.schema_id != package_in.schema_id
     ):
         # change the key only if the package has no resources,
         # as it is used in resource archival paths
@@ -272,8 +266,9 @@ async def _update_package(
         package.title = package_in.title
         package.timestamp = (timestamp := datetime.now(timezone.utc))
         package.provider_id = package_in.provider_id
+        package.schema_id = package_in.schema_id
         package.save()
-        create_audit_record(auth, package, timestamp, AuditCommand.update)
+        create_audit_record(auth, package, timestamp, PackageCommand.update)
 
     return output_package_model(package, detail=True)
 
@@ -287,6 +282,8 @@ async def delete_package(
 ) -> None:
     """
     Delete a provider-accessible package. Requires scope `odp.package:write`.
+
+    TODO: allow only if package status is pending
     """
     await _delete_package(package_id, auth)
 
@@ -313,7 +310,7 @@ async def _delete_package(
 
     auth.enforce_constraint([package.provider_id])
 
-    create_audit_record(auth, package, datetime.now(timezone.utc), AuditCommand.delete)
+    create_audit_record(auth, package, datetime.now(timezone.utc), PackageCommand.delete)
 
     try:
         package.delete()
@@ -335,6 +332,8 @@ async def tag_package(
     """
     Set a tag instance on a package, returning the created or updated instance,
     or null if no change was made. Requires the scope associated with the tag.
+
+    TODO: allow only if package status is pending
     """
     if not (package := Session.get(Package, package_id)):
         raise HTTPException(HTTP_404_NOT_FOUND)
@@ -355,6 +354,8 @@ async def untag_package(
 ) -> None:
     """
     Remove a tag instance set by the calling user. Requires the scope associated with the tag.
+
+    TODO: allow only if package status is pending
     """
     await _untag_package(package_id, tag_instance_id, auth)
 
@@ -384,3 +385,114 @@ async def _untag_package(
     auth.enforce_constraint([package.provider_id])
 
     await Tagger(TagType.package).delete_tag_instance(tag_instance_id, package, auth)
+
+
+@router.post(
+    '/{package_id}/submit',
+)
+async def submit_package(
+        package_id: str,
+        auth: Authorized = Depends(Authorize(ODPScope.PACKAGE_WRITE)),
+) -> None:
+    """
+    Submit a provider-accessible package. Requires scope `odp.package:write`.
+    """
+    await _submit_package(package_id, auth)
+
+
+@router.post(
+    '/admin/{package_id}/submit',
+)
+async def admin_submit_package(
+        package_id: str,
+        auth: Authorized = Depends(Authorize(ODPScope.PACKAGE_ADMIN)),
+) -> None:
+    """
+    Submit any package. Requires scope `odp.package:admin`.
+    """
+    await _submit_package(package_id, auth)
+
+
+async def _submit_package(
+        package_id: str,
+        auth: Authorized,
+):
+    if not (package := Session.get(Package, package_id)):
+        raise HTTPException(HTTP_404_NOT_FOUND)
+
+    auth.enforce_constraint([package.provider_id])
+
+    if package.status != PackageStatus.pending:
+        raise HTTPException(
+            HTTP_422_UNPROCESSABLE_ENTITY, f"Package status must be '{PackageStatus.pending}'"
+        )
+
+    translation_schemes = {
+        ODPMetadataSchema.SAEON_DATACITE4: 'saeon/datacite4',
+        ODPMetadataSchema.SAEON_ISO19115: 'saeon/iso19115',
+    }
+    _schema = Session.get(Schema, (package.schema_id, package.schema_type))
+    metadata_schema = schema_catalog.get_schema(URI(_schema.uri))
+    for package_tag in package.tags:
+        tag_schema = schema_catalog.get_schema(URI(package_tag.tag.schema.uri))
+        tag_schema_result = tag_schema.evaluate(JSON(package_tag.data))
+        tag_patch = tag_schema_result.output(
+            'translation-patch', scheme=translation_schemes[package.schema_id]
+        )
+        package.metadata_ = JSONPatch(*tag_patch).evaluate(package.metadata_ or {})
+
+    package.validity = await get_metadata_validity(package.metadata_, metadata_schema)
+    package.status = PackageStatus.submitted
+    package.timestamp = (timestamp := datetime.now(timezone.utc))
+    package.save()
+
+    create_audit_record(auth, package, timestamp, PackageCommand.submit)
+
+
+@router.post(
+    '/{package_id}/cancel',
+)
+async def cancel_package(
+        package_id: str,
+        auth: Authorized = Depends(Authorize(ODPScope.PACKAGE_WRITE)),
+) -> None:
+    """
+    Cancel submission of a provider-accessible package. Requires scope `odp.package:write`.
+    """
+    await _cancel_package(package_id, auth)
+
+
+@router.post(
+    '/admin/{package_id}/cancel',
+)
+async def admin_cancel_package(
+        package_id: str,
+        auth: Authorized = Depends(Authorize(ODPScope.PACKAGE_ADMIN)),
+) -> None:
+    """
+    Cancel submission of any package. Requires scope `odp.package:admin`.
+    """
+    await _cancel_package(package_id, auth)
+
+
+async def _cancel_package(
+        package_id: str,
+        auth: Authorized,
+):
+    if not (package := Session.get(Package, package_id)):
+        raise HTTPException(HTTP_404_NOT_FOUND)
+
+    auth.enforce_constraint([package.provider_id])
+
+    if package.status != PackageStatus.submitted:
+        raise HTTPException(
+            HTTP_422_UNPROCESSABLE_ENTITY, f"Package status must be '{PackageStatus.submitted}'"
+        )
+
+    package.status = PackageStatus.pending
+    package.metadata_ = None
+    package.validity = None
+    package.timestamp = (timestamp := datetime.now(timezone.utc))
+    package.save()
+
+    create_audit_record(auth, package, timestamp, PackageCommand.cancel)

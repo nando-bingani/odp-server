@@ -5,7 +5,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.associationproxy import association_proxy
 from sqlalchemy.orm import relationship
 
-from odp.const.db import AuditCommand, PackageStatus, TagType
+from odp.const.db import AuditCommand, PackageCommand, PackageStatus, SchemaType, TagType
 from odp.db import Base
 
 
@@ -22,6 +22,14 @@ class Package(Base):
 
     __table_args__ = (
         UniqueConstraint('provider_id', 'key'),
+        ForeignKeyConstraint(
+            ('schema_id', 'schema_type'), ('schema.id', 'schema.type'),
+            name='package_schema_fkey', ondelete='RESTRICT',
+        ),
+        CheckConstraint(
+            f"schema_type = '{SchemaType.metadata}'",
+            name='package_schema_type_check',
+        ),
     )
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
@@ -39,13 +47,19 @@ class Package(Base):
     # view of associated tags (one-to-many)
     tags = relationship('PackageTag', viewonly=True)
 
+    metadata_ = Column(JSONB)
+    validity = Column(JSONB)
+    schema_id = Column(String, nullable=False)
+    schema_type = Column(Enum(SchemaType), nullable=False)
+    schema = relationship('Schema')
+
     # view of associated record via one-to-many record_package relation
     # the plural 'records' is used because these attributes are collections,
     # although there can be only zero or one related record
     package_records = relationship('RecordPackage', viewonly=True)
     records = association_proxy('package_records', 'record')
 
-    _repr_ = 'id', 'key', 'title', 'status', 'provider_id'
+    _repr_ = 'id', 'key', 'title', 'status', 'provider_id', 'schema_id'
 
 
 class PackageAudit(Base):
@@ -56,7 +70,7 @@ class PackageAudit(Base):
     id = Column(Integer, Identity(), primary_key=True)
     client_id = Column(String, nullable=False)
     user_id = Column(String)
-    command = Column(Enum(AuditCommand), nullable=False)
+    command = Column(Enum(PackageCommand), nullable=False)
     timestamp = Column(TIMESTAMP(timezone=True), nullable=False)
 
     _id = Column(String, nullable=False)
@@ -64,6 +78,7 @@ class PackageAudit(Base):
     _title = Column(String, nullable=False)
     _status = Column(String, nullable=False)
     _provider_id = Column(String, nullable=False)
+    _schema_id = Column(String, nullable=False)
     _resources = Column(ARRAY(String))
 
 
