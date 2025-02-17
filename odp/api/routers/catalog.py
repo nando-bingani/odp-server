@@ -393,3 +393,7 @@ async def redirect_to(
     url += catalog_record.record.doi if catalog_record.record.doi else catalog_record.record_id
 
     return RedirectResponse(url)
+
+
+
+###Subset Route
