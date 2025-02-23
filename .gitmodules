@@ -1,0 +1,6 @@
+[submodule "jschon"]
+	path = jschon
+	url = https://github.com/marksparkza/jschon.git
+[submodule "jschon-translation"]
+	path = jschon-translation
+	url = https://github.com/marksparkza/jschon-translation.git
