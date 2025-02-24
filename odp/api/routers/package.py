@@ -42,8 +42,6 @@ def output_package_model(package: Package, *, detail=False) -> PackageModel | Pa
         resource_ids=[resource.id for resource in package.resources],
         schema_id=package.schema_id,
         schema_uri=package.schema.uri,
-        metadata=package.metadata_,
-        validity=package.validity,
         record_id=record.id if record else None,
         record_doi=record.doi if record else None,
         record_sid=record.sid if record else None,
@@ -58,6 +56,8 @@ def output_package_model(package: Package, *, detail=False) -> PackageModel | Pa
                 output_tag_instance_model(package_tag)
                 for package_tag in package.tags
             ],
+            metadata=package.metadata_,
+            validity=package.validity,
         )
 
     return cls(**kwargs)
