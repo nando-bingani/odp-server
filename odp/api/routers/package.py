@@ -433,14 +433,16 @@ async def _submit_package(
     }
     _schema = Session.get(Schema, (package.schema_id, package.schema_type))
     metadata_schema = schema_catalog.get_schema(URI(_schema.uri))
+    metadata_template = schema_catalog.load_json(URI(_schema.template_uri))
+    tag_patch = []
     for package_tag in package.tags:
         tag_schema = schema_catalog.get_schema(URI(package_tag.tag.schema.uri))
         tag_schema_result = tag_schema.evaluate(JSON(package_tag.data))
-        tag_patch = tag_schema_result.output(
+        tag_patch += tag_schema_result.output(
             'translation-patch', scheme=translation_schemes[package.schema_id]
         )
-        package.metadata_ = JSONPatch(*tag_patch).evaluate(package.metadata_ or {})
 
+    package.metadata_ = JSONPatch(*tag_patch).evaluate(metadata_template, resolve_array_inserts=True)
     package.validity = await get_metadata_validity(package.metadata_, metadata_schema)
     package.status = PackageStatus.submitted
     package.timestamp = (timestamp := datetime.now(timezone.utc))

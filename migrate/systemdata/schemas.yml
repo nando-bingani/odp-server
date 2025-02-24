@@ -1,6 +1,7 @@
 SAEON.DataCite4:
   type: metadata
   uri: https://odp.saeon.ac.za/schema/metadata/saeon/datacite4
+  template_uri: https://odp.saeon.ac.za/schema/metadata/saeon/datacite4-template
 
 SAEON.ISO19115:
   type: metadata
