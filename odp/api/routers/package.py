@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from jschon import JSON, JSONPatch, URI
+from jschon_translation import remove_empty_children
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from starlette.status import HTTP_404_NOT_FOUND, HTTP_422_UNPROCESSABLE_ENTITY
@@ -13,7 +14,7 @@ from odp.api.lib.schema import get_metadata_validity
 from odp.api.lib.tagging import Tagger, output_tag_instance_model
 from odp.api.models import PackageDetailModel, PackageModel, PackageModelIn, Page, TagInstanceModel, TagInstanceModelIn
 from odp.api.routers.resource import output_resource_model
-from odp.const import ODPMetadataSchema, ODPScope
+from odp.const import ODPScope
 from odp.const.db import PackageCommand, PackageStatus, SchemaType, TagType
 from odp.db import Session
 from odp.db.models import Package, PackageAudit, Schema
@@ -427,22 +428,19 @@ async def _submit_package(
             HTTP_422_UNPROCESSABLE_ENTITY, f"Package status must be '{PackageStatus.pending}'"
         )
 
-    translation_schemes = {
-        ODPMetadataSchema.SAEON_DATACITE4: 'saeon/datacite4',
-        ODPMetadataSchema.SAEON_ISO19115: 'saeon/iso19115',
-    }
-    _schema = Session.get(Schema, (package.schema_id, package.schema_type))
-    metadata_schema = schema_catalog.get_schema(URI(_schema.uri))
-    metadata_template = schema_catalog.load_json(URI(_schema.template_uri))
     tag_patch = []
     for package_tag in package.tags:
         tag_schema = schema_catalog.get_schema(URI(package_tag.tag.schema.uri))
         tag_schema_result = tag_schema.evaluate(JSON(package_tag.data))
-        tag_patch += tag_schema_result.output(
-            'translation-patch', scheme=translation_schemes[package.schema_id]
-        )
+        tag_patch += tag_schema_result.output('translation-patch', scheme=package.schema_id)
 
-    package.metadata_ = JSONPatch(*tag_patch).evaluate(metadata_template, resolve_array_inserts=True)
+    _schema = Session.get(Schema, (package.schema_id, package.schema_type))
+    metadata_schema = schema_catalog.get_schema(URI(_schema.uri))
+    metadata_template = schema_catalog.load_json(URI(_schema.template_uri))
+    metadata = JSONPatch(*tag_patch).evaluate(metadata_template, resolve_array_inserts=True)
+    remove_empty_children(metadata)
+
+    package.metadata_ = metadata
     package.validity = await get_metadata_validity(package.metadata_, metadata_schema)
     package.status = PackageStatus.submitted
     package.timestamp = (timestamp := datetime.now(timezone.utc))
