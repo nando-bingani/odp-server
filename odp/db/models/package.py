@@ -119,6 +119,8 @@ class PackageTag(Base):
     user = relationship('User')
     keyword = relationship('Keyword')
 
+    _repr_ = 'id', 'package_id', 'tag_id', 'user_id', 'vocabulary_id', 'keyword_id'
+
 
 class PackageTagAudit(Base):
     """Package tag audit log."""
