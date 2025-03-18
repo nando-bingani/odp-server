@@ -1,4 +1,3 @@
-import re
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -17,16 +16,10 @@ from odp.api.routers.resource import output_resource_model
 from odp.const import ODPScope
 from odp.const.db import PackageCommand, PackageStatus, SchemaType, TagType
 from odp.db import Session
-from odp.db.models import Package, PackageAudit, Schema
+from odp.db.models import Package, PackageAudit, Provider, Schema
 from odp.lib.schema import schema_catalog
 
 router = APIRouter()
-
-
-def _package_key(title: str) -> str:
-    """Calculate package key from title by replacing any non-word
-    character with an underscore."""
-    return re.sub(r'\W', '_', title)
 
 
 def output_package_model(package: Package, *, detail=False) -> PackageModel | PackageDetailModel:
@@ -35,7 +28,6 @@ def output_package_model(package: Package, *, detail=False) -> PackageModel | Pa
     kwargs = dict(
         id=package.id,
         key=package.key,
-        title=package.title,
         status=package.status,
         timestamp=package.timestamp.isoformat(),
         provider_id=package.provider_id,
@@ -77,7 +69,6 @@ def create_audit_record(
         timestamp=timestamp,
         _id=package.id,
         _key=package.key,
-        _title=package.title,
         _status=package.status,
         _provider_id=package.provider_id,
         _schema_id=package.schema_id,
@@ -199,16 +190,28 @@ async def _create_package(
 ):
     auth.enforce_constraint([package_in.provider_id])
 
-    package = Package(
-        key=_package_key(package_in.title),
-        title=package_in.title,
-        status=PackageStatus.pending,
-        timestamp=(timestamp := datetime.now(timezone.utc)),
-        provider_id=package_in.provider_id,
-        schema_id=package_in.schema_id,
-        schema_type=SchemaType.metadata,
-    )
-    package.save()
+    if not (provider := Session.get(Provider, package_in.provider_id)):
+        raise HTTPException(HTTP_404_NOT_FOUND)
+
+    timestamp = datetime.now(timezone.utc)
+    date = timestamp.strftime('%Y_%m_%d')
+    n = 1
+    while True:
+        try:
+            package = Package(
+                key=f'{provider.key}_{date}_{n:03}',
+                status=PackageStatus.pending,
+                timestamp=timestamp,
+                provider_id=package_in.provider_id,
+                schema_id=package_in.schema_id,
+                schema_type=SchemaType.metadata,
+            )
+            package.save()
+            break
+        except IntegrityError:
+            Session.rollback()
+            n += 1
+
     create_audit_record(auth, package, timestamp, PackageCommand.insert)
 
     return output_package_model(package, detail=True)
@@ -255,16 +258,9 @@ async def _update_package(
     auth.enforce_constraint([package.provider_id, package_in.provider_id])
 
     if (
-            package.title != package_in.title or
             package.provider_id != package_in.provider_id or
             package.schema_id != package_in.schema_id
     ):
-        # change the key only if the package has no resources,
-        # as it is used in resource archival paths
-        if package.title != package_in.title and not package.resources:
-            package.key = _package_key(package_in.title)
-
-        package.title = package_in.title
         package.timestamp = (timestamp := datetime.now(timezone.utc))
         package.provider_id = package_in.provider_id
         package.schema_id = package_in.schema_id

@@ -15,7 +15,7 @@ class Package(Base):
 
     The package `key` is unique to the provider.
 
-    All package metadata - besides the title - are supplied via tags.
+    All package metadata are supplied via tags.
     """
 
     __tablename__ = 'package'
@@ -34,7 +34,6 @@ class Package(Base):
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     key = Column(String, nullable=False)
-    title = Column(String, nullable=False)
     status = Column(Enum(PackageStatus), nullable=False)
     timestamp = Column(TIMESTAMP(timezone=True), nullable=False)
 
@@ -59,7 +58,7 @@ class Package(Base):
     package_records = relationship('RecordPackage', viewonly=True)
     records = association_proxy('package_records', 'record')
 
-    _repr_ = 'id', 'key', 'title', 'status', 'provider_id', 'schema_id'
+    _repr_ = 'id', 'key', 'status', 'provider_id', 'schema_id'
 
 
 class PackageAudit(Base):
@@ -75,7 +74,6 @@ class PackageAudit(Base):
 
     _id = Column(String, nullable=False)
     _key = Column(String, nullable=False)
-    _title = Column(String, nullable=False)
     _status = Column(String, nullable=False)
     _provider_id = Column(String, nullable=False)
     _schema_id = Column(String, nullable=False)
