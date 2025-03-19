@@ -76,6 +76,14 @@ def create_audit_record(
     ).save()
 
 
+def ensure_status(package: Package, status: PackageStatus) -> None:
+    if package.status != status:
+        raise HTTPException(
+            HTTP_422_UNPROCESSABLE_ENTITY,
+            f"Package status must be '{status}'"
+        )
+
+
 @router.get(
     '/',
 )
@@ -262,10 +270,14 @@ async def delete_package(
         auth: Authorized = Depends(Authorize(ODPScope.PACKAGE_WRITE)),
 ) -> None:
     """
-    Delete a provider-accessible package. Requires scope `odp.package:write`.
-
-    TODO: allow only if package status is pending
+    Delete a provider-accessible package. The package status must be `pending`.
+    Requires scope `odp.package:write`.
     """
+    if not (package := Session.get(Package, package_id)):
+        raise HTTPException(HTTP_404_NOT_FOUND)
+
+    ensure_status(package, PackageStatus.pending)
+
     await _delete_package(package_id, auth)
 
 
@@ -312,14 +324,15 @@ async def tag_package(
 ) -> TagInstanceModel | None:
     """
     Set a tag instance on a package, returning the created or updated instance,
-    or null if no change was made. Requires the scope associated with the tag.
-
-    TODO: allow only if package status is pending
+    or null if no change was made. The package status must be `pending`. Requires
+    the scope associated with the tag.
     """
     if not (package := Session.get(Package, package_id)):
         raise HTTPException(HTTP_404_NOT_FOUND)
 
     auth.enforce_constraint([package.provider_id])
+
+    ensure_status(package, PackageStatus.pending)
 
     if package_tag := await Tagger(TagType.package).set_tag_instance(tag_instance_in, package, auth):
         return output_tag_instance_model(package_tag)
@@ -334,10 +347,14 @@ async def untag_package(
         auth: Authorized = Depends(UntagAuthorize(TagType.package)),
 ) -> None:
     """
-    Remove a tag instance set by the calling user. Requires the scope associated with the tag.
-
-    TODO: allow only if package status is pending
+    Remove a tag instance set by the calling user. The package status must be `pending`.
+    Requires the scope associated with the tag.
     """
+    if not (package := Session.get(Package, package_id)):
+        raise HTTPException(HTTP_404_NOT_FOUND)
+
+    ensure_status(package, PackageStatus.pending)
+
     await _untag_package(package_id, tag_instance_id, auth)
 
 
@@ -403,10 +420,7 @@ async def _submit_package(
 
     auth.enforce_constraint([package.provider_id])
 
-    if package.status != PackageStatus.pending:
-        raise HTTPException(
-            HTTP_422_UNPROCESSABLE_ENTITY, f"Package status must be '{PackageStatus.pending}'"
-        )
+    ensure_status(package, PackageStatus.pending)
 
     tag_patch = []
     for package_tag in package.tags:
@@ -464,10 +478,7 @@ async def _cancel_package(
 
     auth.enforce_constraint([package.provider_id])
 
-    if package.status != PackageStatus.submitted:
-        raise HTTPException(
-            HTTP_422_UNPROCESSABLE_ENTITY, f"Package status must be '{PackageStatus.submitted}'"
-        )
+    ensure_status(package, PackageStatus.submitted)
 
     package.status = PackageStatus.pending
     package.metadata_ = None
