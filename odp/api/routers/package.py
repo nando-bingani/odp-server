@@ -38,17 +38,17 @@ def output_package_model(package: Package, *, detail=False) -> PackageModel | Pa
         record_id=record.id if record else None,
         record_doi=record.doi if record else None,
         record_sid=record.sid if record else None,
+        resources=[
+            output_resource_model(resource)
+            for resource in package.resources
+        ],
+        tags=[
+            output_tag_instance_model(package_tag)
+            for package_tag in package.tags
+        ],
     )
     if detail:
         kwargs |= dict(
-            resources=[
-                output_resource_model(resource)
-                for resource in package.resources
-            ],
-            tags=[
-                output_tag_instance_model(package_tag)
-                for package_tag in package.tags
-            ],
             metadata=package.metadata_,
             validity=package.validity,
         )
@@ -215,22 +215,6 @@ async def _create_package(
     create_audit_record(auth, package, timestamp, PackageCommand.insert)
 
     return output_package_model(package, detail=True)
-
-
-@router.put(
-    '/{package_id}',
-)
-async def update_package(
-        package_id: str,
-        package_in: PackageModelIn,
-        auth: Authorized = Depends(Authorize(ODPScope.PACKAGE_WRITE)),
-) -> PackageDetailModel:
-    """
-    Update a provider-accessible package. Requires scope `odp.package:write`.
-
-    TODO: allow only if package status is pending
-    """
-    return await _update_package(package_id, package_in, auth)
 
 
 @router.put(

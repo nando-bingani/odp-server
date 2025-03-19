@@ -48,6 +48,10 @@ Tag.DOI:
   type: tag
   uri: https://odp.saeon.ac.za/schema/tag/doi
 
+Tag.Title:
+  type: tag
+  uri: https://odp.saeon.ac.za/schema/tag/title
+
 Tag.Contributor:
   type: tag
   uri: https://odp.saeon.ac.za/schema/tag/contributor
