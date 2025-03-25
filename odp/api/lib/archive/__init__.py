@@ -52,16 +52,14 @@ class ArchiveAdapter:
 
 
 async def get_archive_adapter(archive_id: str) -> ArchiveAdapter:
-    from .filesystem import FileSystemArchiveAdapter
-    from .nextcloud import NextcloudArchiveAdapter
+    from .filestore import FilestoreArchiveAdapter
     from .website import WebsiteArchiveAdapter
 
     if not (archive := Session.get(Archive, archive_id)):
         raise HTTPException(HTTP_404_NOT_FOUND)
 
     adapter_cls = {
-        Adapter.filesystem: FileSystemArchiveAdapter,
-        Adapter.nextcloud: NextcloudArchiveAdapter,
+        Adapter.filestore: FilestoreArchiveAdapter,
         Adapter.website: WebsiteArchiveAdapter,
     }[archive.adapter]
 
