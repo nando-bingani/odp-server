@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from starlette.status import HTTP_404_NOT_FOUND
@@ -26,6 +28,7 @@ def output_resource_model(resource: Resource) -> ResourceModel:
         timestamp=resource.timestamp.isoformat(),
         package_id=resource.package_id,
         package_key=resource.package.key,
+        package_path=str(Path(resource.folder) / resource.filename),
         archive_paths={
             ar.archive_id: ar.path
             for ar in resource.archive_resources

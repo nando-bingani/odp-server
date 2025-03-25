@@ -9,8 +9,8 @@ pyyaml
 fastapi
 pydantic<2
 starlette
-jschon
-jschon-translation
+-e file:jschon
+-e file:jschon-translation
 redis
 authlib
 flask

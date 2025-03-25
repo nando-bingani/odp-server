@@ -7,8 +7,13 @@ from fastapi import HTTPException, UploadFile
 from odp.api.lib.archive import ArchiveAdapter, FileInfo
 
 
-class NextcloudArchiveAdapter(ArchiveAdapter):
-    """Adapter for a Nextcloud archive."""
+class FilestoreArchiveAdapter(ArchiveAdapter):
+    """Adapter for the ODP file storage service, providing read-write
+    access to Nextcloud or other filesystem-based archives.
+
+    Integrates with `ODP Filing <https://github.com/SAEON/odp-filing>`_,
+    which must be running on the server.
+    """
 
     async def put(
             self,
@@ -44,6 +49,7 @@ class NextcloudArchiveAdapter(ArchiveAdapter):
                 url,
                 files=files,
                 params=params,
+                timeout=10.0,
             )
             r.raise_for_status()
             return r.json()

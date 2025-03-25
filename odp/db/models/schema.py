@@ -14,5 +14,6 @@ class Schema(Base):
     uri = Column(String, nullable=False)
     md5 = Column(String, nullable=False)
     timestamp = Column(TIMESTAMP(timezone=True), nullable=False)
+    template_uri = Column(String)
 
     _repr_ = 'id', 'type', 'uri'

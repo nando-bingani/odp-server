@@ -164,6 +164,7 @@ def init_schemas():
         schema_type = schema_spec['type']
         schema = Session.get(Schema, (schema_id, schema_type)) or Schema(id=schema_id, type=schema_type)
         schema.uri = schema_spec['uri']
+        schema.template_uri = schema_spec.get('template_uri')
 
         if (md5 := schema_md5(schema.uri)) != schema.md5:
             schema.md5 = md5

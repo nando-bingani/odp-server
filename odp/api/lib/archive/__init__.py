@@ -10,7 +10,7 @@ from odp.db import Session
 from odp.db.models import Archive
 
 FileInfo = namedtuple('FileInfo', (
-    'relpath', 'size', 'sha256'
+    'path', 'size', 'sha256'
 ))
 
 
@@ -45,23 +45,21 @@ class ArchiveAdapter:
         """Add or unpack `file` into `folder` relative to the
         archive's upload directory.
 
-        Return a list of FileInfo tuple(relpath, size, sha256)
+        Return a list of FileInfo tuple(path, size, sha256)
         for each written file.
         """
         raise NotImplementedError
 
 
 async def get_archive_adapter(archive_id: str) -> ArchiveAdapter:
-    from .filesystem import FileSystemArchiveAdapter
-    from .nextcloud import NextcloudArchiveAdapter
+    from .filestore import FilestoreArchiveAdapter
     from .website import WebsiteArchiveAdapter
 
     if not (archive := Session.get(Archive, archive_id)):
         raise HTTPException(HTTP_404_NOT_FOUND)
 
     adapter_cls = {
-        Adapter.filesystem: FileSystemArchiveAdapter,
-        Adapter.nextcloud: NextcloudArchiveAdapter,
+        Adapter.filestore: FilestoreArchiveAdapter,
         Adapter.website: WebsiteArchiveAdapter,
     }[archive.adapter]
 

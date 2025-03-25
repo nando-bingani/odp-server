@@ -66,25 +66,6 @@ def create_audit_record(
     ).save()
 
 
-def create_tag_audit_record(
-        auth: Authorized,
-        collection_tag: CollectionTag,
-        timestamp: datetime,
-        command: AuditCommand,
-) -> None:
-    CollectionTagAudit(
-        client_id=auth.client_id,
-        user_id=auth.user_id,
-        command=command,
-        timestamp=timestamp,
-        _id=collection_tag.id,
-        _collection_id=collection_tag.collection_id,
-        _tag_id=collection_tag.tag_id,
-        _user_id=collection_tag.user_id,
-        _data=collection_tag.data,
-    ).save()
-
-
 @router.get(
     '/',
     response_model=Page[CollectionModel],

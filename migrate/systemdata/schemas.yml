@@ -1,10 +1,12 @@
 SAEON.DataCite4:
   type: metadata
   uri: https://odp.saeon.ac.za/schema/metadata/saeon/datacite4
+  template_uri: https://odp.saeon.ac.za/schema/metadata/saeon/datacite4-template
 
 SAEON.ISO19115:
   type: metadata
   uri: https://odp.saeon.ac.za/schema/metadata/saeon/iso19115
+  template_uri: https://odp.saeon.ac.za/schema/metadata/saeon/iso19115-template
 
 DataCite.4.3:
   type: metadata
@@ -45,6 +47,10 @@ Tag.Generic:
 Tag.DOI:
   type: tag
   uri: https://odp.saeon.ac.za/schema/tag/doi
+
+Tag.Title:
+  type: tag
+  uri: https://odp.saeon.ac.za/schema/tag/title
 
 Tag.Contributor:
   type: tag
