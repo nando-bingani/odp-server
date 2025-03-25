@@ -128,14 +128,14 @@ async def upload_file(
         raise HTTPException(HTTP_405_METHOD_NOT_ALLOWED, f'Operation not supported for {archive.id}')
 
     for file_info in file_info_list:
-        archive_path = file_info.relpath
-        package_path = file_info.relpath.removeprefix(f'{package_key}/')
+        archive_path = file_info.path
+        package_path = file_info.path.removeprefix(f'{package_key}/')
 
         resource = Resource(
             package_id=package.id,
             folder=str(pathlib.Path(package_path).parent),
-            filename=pathlib.Path(file_info.relpath).name,
-            mimetype=mimetypes.guess_type(file_info.relpath, strict=False)[0],
+            filename=pathlib.Path(file_info.path).name,
+            mimetype=mimetypes.guess_type(file_info.path, strict=False)[0],
             size=file_info.size,
             hash=file_info.sha256,
             hash_algorithm=HashAlgorithm.sha256,
