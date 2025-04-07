@@ -5,6 +5,7 @@ import requests
 from fastapi import HTTPException, UploadFile
 
 from odp.api.lib.archive import ArchiveAdapter, FileInfo
+from odp.config import config
 
 
 class FilestoreArchiveAdapter(ArchiveAdapter):
@@ -14,6 +15,10 @@ class FilestoreArchiveAdapter(ArchiveAdapter):
     Integrates with `ODP Filing <https://github.com/SAEON/odp-filing>`_,
     which must be running on the server.
     """
+
+    def __init__(self, download_url: str | None, upload_url: str | None) -> None:
+        super().__init__(download_url, upload_url)
+        self.timeout = 3600.0 if config.ODP.ENV == 'development' else 10.0
 
     async def put(
             self,
@@ -39,8 +44,7 @@ class FilestoreArchiveAdapter(ArchiveAdapter):
             for path, info in result.items()
         ]
 
-    @staticmethod
-    def _send_request(method, url, files, params) -> Any:
+    def _send_request(self, method, url, files, params) -> Any:
         """Send a request to the ODP file storage service and return
         its JSON response."""
         try:
@@ -49,7 +53,7 @@ class FilestoreArchiveAdapter(ArchiveAdapter):
                 url,
                 files=files,
                 params=params,
-                timeout=10.0,
+                timeout=self.timeout,
             )
             r.raise_for_status()
             return r.json()
