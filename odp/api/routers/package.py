@@ -1,22 +1,26 @@
+import mimetypes
+import pathlib
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, HTTPException, Path, Query, UploadFile
 from jschon import JSON, JSONPatch, URI
 from jschon_translation import remove_empty_children
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
-from starlette.status import HTTP_404_NOT_FOUND, HTTP_422_UNPROCESSABLE_ENTITY
+from starlette.status import HTTP_404_NOT_FOUND, HTTP_405_METHOD_NOT_ALLOWED, HTTP_422_UNPROCESSABLE_ENTITY
+from werkzeug.utils import secure_filename
 
-from odp.api.lib.auth import Authorize, Authorized, TagAuthorize, UntagAuthorize
+from odp.api.lib.archive import ArchiveAdapter, get_archive_adapter
+from odp.api.lib.auth import ArchiveAuthorize, Authorize, Authorized, TagAuthorize, UntagAuthorize
 from odp.api.lib.paging import Paginator
 from odp.api.lib.schema import get_metadata_validity
 from odp.api.lib.tagging import Tagger, output_tag_instance_model
 from odp.api.models import PackageDetailModel, PackageModel, PackageModelIn, Page, TagInstanceModel, TagInstanceModelIn
 from odp.api.routers.resource import output_resource_model
 from odp.const import ODPScope
-from odp.const.db import PackageCommand, PackageStatus, SchemaType, TagType
+from odp.const.db import HashAlgorithm, PackageCommand, PackageStatus, SchemaType, TagType
 from odp.db import Session
-from odp.db.models import Package, PackageAudit, Provider, Schema
+from odp.db.models import Archive, ArchiveResource, Package, PackageAudit, Provider, Resource, Schema
 from odp.lib.schema import schema_catalog
 
 router = APIRouter()
@@ -487,3 +491,114 @@ async def _cancel_package(
     package.save()
 
     create_audit_record(auth, package, timestamp, PackageCommand.cancel)
+
+
+@router.put(
+    '/{package_id}/files/{folder:path}',
+    dependencies=[Depends(ArchiveAuthorize())],
+)
+async def upload_file(
+        package_id: str,
+        archive_id: str,
+        folder: str = Path(..., title='Path to containing folder relative to package root'),
+        file: UploadFile = File(..., title='File upload'),
+        filename: str = Query(..., title='File name'),
+        sha256: str = Query(..., title='SHA-256 checksum'),
+        title: str = Query(None, title='Resource title'),
+        description: str = Query(None, title='Resource description'),
+        unpack: bool = Query(False, title='Unpack zip file into folder'),
+        overwrite: bool = Query(False, title='Overwrite existing file(s)'),
+        archive_adapter: ArchiveAdapter = Depends(get_archive_adapter),
+        auth: Authorized = Depends(Authorize(ODPScope.PACKAGE_WRITE)),
+) -> None:
+    """
+    Upload a file to an archive and add/unpack it into a package folder.
+
+    By default, a single resource is created and associated with the archive
+    and the package. If unpack is true and the file is a supported zip format,
+    its contents are unpacked into the folder and, for each unpacked file, a
+    resource is created and similarly associated.
+
+    Requires scope `odp.package:write` along with the scope associated with
+    the archive. The package status must be `pending`.
+    """
+    if not (package := Session.get(Package, package_id)):
+        raise HTTPException(HTTP_404_NOT_FOUND, 'Package not found')
+
+    ensure_status(package, PackageStatus.pending)
+
+    await _upload_file(
+        package_id, archive_id, folder, file, filename, sha256,
+        title, description, unpack, overwrite, archive_adapter, auth,
+    )
+
+
+async def _upload_file(
+        package_id: str,
+        archive_id: str,
+        folder: str,
+        file: UploadFile,
+        filename: str,
+        sha256: str,
+        title: str | None,
+        description: str | None,
+        unpack: bool,
+        overwrite: bool,
+        archive_adapter: ArchiveAdapter,
+        auth: Authorized,
+):
+    if not (archive := Session.get(Archive, archive_id)):
+        raise HTTPException(HTTP_404_NOT_FOUND, 'Archive not found')
+
+    if not (package := Session.get(Package, package_id)):
+        raise HTTPException(HTTP_404_NOT_FOUND, 'Package not found')
+
+    auth.enforce_constraint([package.provider_id])
+
+    if '..' in folder:
+        raise HTTPException(HTTP_422_UNPROCESSABLE_ENTITY, "'..' not allowed in folder")
+
+    if pathlib.Path(folder).is_absolute():
+        raise HTTPException(HTTP_422_UNPROCESSABLE_ENTITY, 'folder must be relative')
+
+    if not (filename := secure_filename(filename)):
+        raise HTTPException(HTTP_422_UNPROCESSABLE_ENTITY, 'invalid filename')
+
+    archive_folder = f'{package.key}/{folder}'
+    try:
+        file_info_list = await archive_adapter.put(
+            archive_folder, filename, file, sha256, unpack
+        )
+    except NotImplementedError:
+        raise HTTPException(HTTP_405_METHOD_NOT_ALLOWED, f'Operation not supported for {archive.id}')
+
+    for file_info in file_info_list:
+        archive_path = file_info.path
+        package_path = file_info.path.removeprefix(f'{package.key}/')
+
+        resource = Resource(
+            package_id=package.id,
+            folder=str(pathlib.Path(package_path).parent),
+            filename=pathlib.Path(file_info.path).name,
+            mimetype=mimetypes.guess_type(file_info.path, strict=False)[0],
+            size=file_info.size,
+            hash=file_info.sha256,
+            hash_algorithm=HashAlgorithm.sha256,
+            title=title,
+            description=description,
+            timestamp=(timestamp := datetime.now(timezone.utc)),
+        )
+        resource.save()
+
+        try:
+            archive_resource = ArchiveResource(
+                archive_id=archive.id,
+                resource_id=resource.id,
+                path=archive_path,
+                timestamp=timestamp,
+            )
+            archive_resource.save()
+        except IntegrityError:
+            raise HTTPException(
+                HTTP_422_UNPROCESSABLE_ENTITY, f"Path '{archive_path}' already exists in archive"
+            )
