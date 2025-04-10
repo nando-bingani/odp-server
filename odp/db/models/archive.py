@@ -1,7 +1,7 @@
 from sqlalchemy import CheckConstraint, Column, Enum, ForeignKey, ForeignKeyConstraint, String, TIMESTAMP, UniqueConstraint
 from sqlalchemy.orm import relationship
 
-from odp.const.db import ArchiveType, ScopeType
+from odp.const.db import ArchiveType, ResourceStatus, ScopeType
 from odp.db import Base
 
 
@@ -52,6 +52,7 @@ class ArchiveResource(Base):
     resource = relationship('Resource')
 
     path = Column(String, nullable=False)
+    status = Column(Enum(ResourceStatus), nullable=False)
     timestamp = Column(TIMESTAMP(timezone=True), nullable=False)
 
-    _repr_ = 'archive_id', 'resource_id', 'path'
+    _repr_ = 'archive_id', 'resource_id', 'path', 'status'

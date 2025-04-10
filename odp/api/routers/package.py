@@ -19,7 +19,7 @@ from odp.api.lib.tagging import Tagger, output_tag_instance_model
 from odp.api.models import PackageDetailModel, PackageModel, PackageModelIn, Page, TagInstanceModel, TagInstanceModelIn
 from odp.api.routers.resource import output_resource_model
 from odp.const import ODPScope
-from odp.const.db import HashAlgorithm, PackageCommand, PackageStatus, SchemaType, TagType
+from odp.const.db import HashAlgorithm, PackageCommand, PackageStatus, ResourceStatus, SchemaType, TagType
 from odp.db import Session
 from odp.db.models import Archive, ArchiveResource, Package, PackageAudit, Provider, Resource, Schema
 from odp.lib.archive import ArchiveAdapter, ArchiveError
@@ -599,10 +599,22 @@ async def _upload_file(
                 archive_id=archive.id,
                 resource_id=resource.id,
                 path=archive_path,
+                status=ResourceStatus.valid,
                 timestamp=timestamp,
             )
             archive_resource.save()
-        except IntegrityError:
+        except IntegrityError as e:
             raise HTTPException(
                 HTTP_422_UNPROCESSABLE_ENTITY, f"Path '{archive_path}' already exists in archive"
-            )
+            ) from e
+
+
+@router.delete(
+    '/{package_id}/files/{resource_id}',
+)
+async def delete_file(
+        package_id: str,
+        resource_id: str,
+        auth: Authorized = Depends(Authorize(ODPScope.PACKAGE_WRITE)),
+) -> None:
+    ...
