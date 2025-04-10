@@ -1,11 +1,10 @@
-from typing import Any
+from typing import Any, BinaryIO
 from urllib.parse import urljoin
 
 import requests
-from fastapi import HTTPException, UploadFile
 
-from odp.api.lib.archive import ArchiveAdapter, FileInfo
 from odp.config import config
+from odp.lib.archive import ArchiveAdapter, ArchiveError, ArchiveFileInfo
 
 
 class FilestoreArchiveAdapter(ArchiveAdapter):
@@ -24,11 +23,10 @@ class FilestoreArchiveAdapter(ArchiveAdapter):
             self,
             folder: str,
             filename: str,
-            file: UploadFile,
+            file: BinaryIO,
             sha256: str,
             unpack: bool,
-    ) -> list[FileInfo]:
-        await file.seek(0)
+    ) -> list[ArchiveFileInfo]:
         params = {'filename': filename, 'sha256': sha256}
         if unpack:
             params |= {'unpack': 1}
@@ -36,11 +34,11 @@ class FilestoreArchiveAdapter(ArchiveAdapter):
         result = self._send_request(
             'PUT',
             urljoin(self.upload_url, folder),
-            files={'file': file.file},
+            files={'file': file},
             params=params,
         )
         return [
-            FileInfo(path, info[0], info[1])
+            ArchiveFileInfo(path, info[0], info[1])
             for path, info in result.items()
         ]
 
@@ -69,4 +67,4 @@ class FilestoreArchiveAdapter(ArchiveAdapter):
                 status_code = 503
                 error_detail = str(e)
 
-            raise HTTPException(status_code, error_detail) from e
+            raise ArchiveError(status_code, error_detail) from e

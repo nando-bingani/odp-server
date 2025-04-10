@@ -1,6 +1,7 @@
 import mimetypes
 import pathlib
 from datetime import datetime, timezone
+from typing import BinaryIO
 
 from fastapi import APIRouter, Depends, File, HTTPException, Path, Query, UploadFile
 from jschon import JSON, JSONPatch, URI
@@ -10,7 +11,7 @@ from sqlalchemy.exc import IntegrityError
 from starlette.status import HTTP_404_NOT_FOUND, HTTP_405_METHOD_NOT_ALLOWED, HTTP_422_UNPROCESSABLE_ENTITY
 from werkzeug.utils import secure_filename
 
-from odp.api.lib.archive import ArchiveAdapter, get_archive_adapter
+from odp.api.lib.archive import get_archive_adapter
 from odp.api.lib.auth import ArchiveAuthorize, Authorize, Authorized, TagAuthorize, UntagAuthorize
 from odp.api.lib.paging import Paginator
 from odp.api.lib.schema import get_metadata_validity
@@ -21,6 +22,7 @@ from odp.const import ODPScope
 from odp.const.db import HashAlgorithm, PackageCommand, PackageStatus, SchemaType, TagType
 from odp.db import Session
 from odp.db.models import Archive, ArchiveResource, Package, PackageAudit, Provider, Resource, Schema
+from odp.lib.archive import ArchiveAdapter, ArchiveError
 from odp.lib.schema import schema_catalog
 
 router = APIRouter()
@@ -507,7 +509,7 @@ async def upload_file(
         title: str = Query(None, title='Resource title'),
         description: str = Query(None, title='Resource description'),
         unpack: bool = Query(False, title='Unpack zip file into folder'),
-        overwrite: bool = Query(False, title='Overwrite existing file(s)'),
+        overwrite: bool = Query(False, title='Overwrite existing file(s)'),  # todo
         archive_adapter: ArchiveAdapter = Depends(get_archive_adapter),
         auth: Authorized = Depends(Authorize(ODPScope.PACKAGE_WRITE)),
 ) -> None:
@@ -528,7 +530,7 @@ async def upload_file(
     ensure_status(package, PackageStatus.pending)
 
     await _upload_file(
-        package_id, archive_id, folder, file, filename, sha256,
+        package_id, archive_id, folder, file.file, filename, sha256,
         title, description, unpack, overwrite, archive_adapter, auth,
     )
 
@@ -537,7 +539,7 @@ async def _upload_file(
         package_id: str,
         archive_id: str,
         folder: str,
-        file: UploadFile,
+        file: BinaryIO,
         filename: str,
         sha256: str,
         title: str | None,
@@ -569,6 +571,8 @@ async def _upload_file(
         file_info_list = await archive_adapter.put(
             archive_folder, filename, file, sha256, unpack
         )
+    except ArchiveError as e:
+        raise HTTPException(e.status_code, e.error_detail) from e
     except NotImplementedError:
         raise HTTPException(HTTP_405_METHOD_NOT_ALLOWED, f'Operation not supported for {archive.id}')
 
