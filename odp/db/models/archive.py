@@ -1,7 +1,7 @@
 from sqlalchemy import CheckConstraint, Column, Enum, ForeignKey, ForeignKeyConstraint, String, TIMESTAMP, UniqueConstraint
 from sqlalchemy.orm import relationship
 
-from odp.const.db import ArchiveAdapter, ScopeType
+from odp.const.db import ArchiveType, ScopeType
 from odp.db import Base
 
 
@@ -22,7 +22,7 @@ class Archive(Base):
     )
 
     id = Column(String, primary_key=True)
-    adapter = Column(Enum(ArchiveAdapter), nullable=False)
+    type = Column(Enum(ArchiveType), nullable=False)
     download_url = Column(String)
     upload_url = Column(String)
 
@@ -30,7 +30,7 @@ class Archive(Base):
     scope_type = Column(Enum(ScopeType), nullable=False)
     scope = relationship('Scope')
 
-    _repr_ = 'id', 'adapter', 'download_url', 'upload_url', 'scope_id'
+    _repr_ = 'id', 'type', 'download_url', 'upload_url', 'scope_id'
 
 
 class ArchiveResource(Base):

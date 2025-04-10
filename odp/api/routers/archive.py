@@ -15,10 +15,10 @@ router = APIRouter()
 def output_archive_model(result) -> ArchiveModel:
     return ArchiveModel(
         id=result.Archive.id,
-        download_url=result.Archive.download_url,
-        upload_url=result.Archive.upload_url,
-        adapter=result.Archive.adapter,
+        type=result.Archive.type,
         scope_id=result.Archive.scope_id,
+        upload_url=result.Archive.upload_url,
+        download_url=result.Archive.download_url,
         resource_count=result.count,
     )
 
