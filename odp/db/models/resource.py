@@ -4,7 +4,7 @@ from sqlalchemy import BigInteger, CheckConstraint, Column, Enum, ForeignKey, In
 from sqlalchemy.ext.associationproxy import association_proxy
 from sqlalchemy.orm import relationship
 
-from odp.const.db import HashAlgorithm
+from odp.const.db import HashAlgorithm, ResourceStatus
 from odp.db import Base
 
 
@@ -35,6 +35,7 @@ class Resource(Base):
     hash_algorithm = Column(Enum(HashAlgorithm))
     title = Column(String)
     description = Column(String)
+    status = Column(Enum(ResourceStatus), nullable=False)
     timestamp = Column(TIMESTAMP(timezone=True), nullable=False)
 
     package_id = Column(String, ForeignKey('package.id', ondelete='RESTRICT'), nullable=False)
@@ -44,4 +45,4 @@ class Resource(Base):
     archive_resources = relationship('ArchiveResource', viewonly=True)
     archives = association_proxy('archive_resources', 'archive')
 
-    _repr_ = 'id', 'folder', 'filename', 'mimetype', 'size', 'hash', 'package_id'
+    _repr_ = 'id', 'folder', 'filename', 'mimetype', 'size', 'hash', 'package_id', 'status'
