@@ -11,7 +11,6 @@ from sqlalchemy.exc import IntegrityError
 from starlette.status import HTTP_404_NOT_FOUND, HTTP_405_METHOD_NOT_ALLOWED, HTTP_422_UNPROCESSABLE_ENTITY
 from werkzeug.utils import secure_filename
 
-from odp.api.lib.archive import get_archive_adapter
 from odp.api.lib.auth import ArchiveAuthorize, Authorize, Authorized, TagAuthorize, UntagAuthorize
 from odp.api.lib.paging import Paginator
 from odp.api.lib.schema import get_metadata_validity
@@ -510,7 +509,6 @@ async def upload_file(
         description: str = Query(None, title='Resource description'),
         unpack: bool = Query(False, title='Unpack zip file into folder'),
         overwrite: bool = Query(False, title='Overwrite existing file(s)'),  # todo
-        archive_adapter: ArchiveAdapter = Depends(get_archive_adapter),
         auth: Authorized = Depends(Authorize(ODPScope.PACKAGE_WRITE)),
 ) -> None:
     """
@@ -531,7 +529,7 @@ async def upload_file(
 
     await _upload_file(
         package_id, archive_id, folder, file.file, filename, sha256,
-        title, description, unpack, overwrite, archive_adapter, auth,
+        title, description, unpack, overwrite, auth,
     )
 
 
@@ -546,7 +544,6 @@ async def _upload_file(
         description: str | None,
         unpack: bool,
         overwrite: bool,
-        archive_adapter: ArchiveAdapter,
         auth: Authorized,
 ):
     if not (archive := Session.get(Archive, archive_id)):
@@ -566,10 +563,11 @@ async def _upload_file(
     if not (filename := secure_filename(filename)):
         raise HTTPException(HTTP_422_UNPROCESSABLE_ENTITY, 'invalid filename')
 
-    archive_folder = f'{package.key}/{folder}'
+    archive_path = f'{package.key}/{folder or "."}/{filename}'
+    archive_adapter = ArchiveAdapter.get_instance(archive)
     try:
         file_info_list = await archive_adapter.put(
-            archive_folder, filename, file, sha256, unpack
+            archive_path, file, sha256, unpack
         )
     except ArchiveError as e:
         raise HTTPException(e.status_code, e.error_detail) from e
@@ -617,4 +615,24 @@ async def delete_file(
         resource_id: str,
         auth: Authorized = Depends(Authorize(ODPScope.PACKAGE_WRITE)),
 ) -> None:
-    ...
+    """Delete a file.
+
+    Flags archive-resource link(s) as `delete_pending`; actual file deletions
+    are performed by a background service.
+
+    Requires scope `odp.package:write`. The package status must be `pending`.
+    """
+    if not (package := Session.get(Package, package_id)):
+        raise HTTPException(HTTP_404_NOT_FOUND, 'Package not found')
+
+    auth.enforce_constraint([package.provider_id])
+    ensure_status(package, PackageStatus.pending)
+
+    if not (resource := Session.get(Resource, resource_id)):
+        raise HTTPException(HTTP_404_NOT_FOUND, 'Resource not found')
+
+    if resource.package_id != package_id:
+        raise HTTPException(HTTP_404_NOT_FOUND, 'Resource not found')
+
+    for archive_resource in resource.archive_resources:
+        archive_resource.status = ResourceStatus.delete_pending
