@@ -18,7 +18,7 @@ from odp.api.lib.tagging import Tagger, output_tag_instance_model
 from odp.api.models import PackageDetailModel, PackageModel, PackageModelIn, Page, TagInstanceModel, TagInstanceModelIn
 from odp.api.routers.resource import output_resource_model
 from odp.const import ODPScope
-from odp.const.db import HashAlgorithm, PackageCommand, PackageStatus, ResourceStatus, SchemaType, TagType
+from odp.const.db import ArchiveResourceStatus, HashAlgorithm, PackageCommand, PackageStatus, ResourceStatus, SchemaType, TagType
 from odp.db import Session
 from odp.db.models import Archive, ArchiveResource, Package, PackageAudit, Provider, Resource, Schema
 from odp.lib.archive import ArchiveAdapter, ArchiveError
@@ -588,6 +588,7 @@ async def _upload_file(
             hash_algorithm=HashAlgorithm.sha256,
             title=title,
             description=description,
+            status=ResourceStatus.active,
             timestamp=(timestamp := datetime.now(timezone.utc)),
         )
         resource.save()
@@ -597,7 +598,7 @@ async def _upload_file(
                 archive_id=archive.id,
                 resource_id=resource.id,
                 path=archive_path,
-                status=ResourceStatus.valid,
+                status=ArchiveResourceStatus.valid,
                 timestamp=timestamp,
             )
             archive_resource.save()
@@ -617,7 +618,7 @@ async def delete_file(
 ) -> None:
     """Delete a file.
 
-    Flags archive-resource link(s) as `delete_pending`; actual file deletions
+    Updates the resource status to `delete_pending`; actual file deletions
     are performed by a background service.
 
     Requires scope `odp.package:write`. The package status must be `pending`.
@@ -634,5 +635,6 @@ async def delete_file(
     if resource.package_id != package_id:
         raise HTTPException(HTTP_404_NOT_FOUND, 'Resource not found')
 
-    for archive_resource in resource.archive_resources:
-        archive_resource.status = ResourceStatus.delete_pending
+    resource.status = ResourceStatus.delete_pending
+    resource.timestamp = datetime.now(timezone.utc)
+    resource.save()
