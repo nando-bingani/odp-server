@@ -8,7 +8,7 @@ from jschon import JSON, JSONPatch, URI
 from jschon_translation import remove_empty_children
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
-from starlette.status import HTTP_404_NOT_FOUND, HTTP_405_METHOD_NOT_ALLOWED, HTTP_422_UNPROCESSABLE_ENTITY
+from starlette.status import HTTP_400_BAD_REQUEST, HTTP_404_NOT_FOUND, HTTP_405_METHOD_NOT_ALLOWED, HTTP_422_UNPROCESSABLE_ENTITY
 from werkzeug.utils import secure_filename
 
 from odp.api.lib.auth import ArchiveAuthorize, Authorize, Authorized, TagAuthorize, UntagAuthorize
@@ -495,29 +495,29 @@ async def _cancel_package(
 
 
 @router.put(
-    '/{package_id}/files/{folder:path}',
+    '/{package_id}/files/{path:path}',
     dependencies=[Depends(ArchiveAuthorize())],
 )
 async def upload_file(
         package_id: str,
         archive_id: str,
-        folder: str = Path(..., title='Path to containing folder relative to package root'),
-        file: UploadFile = File(..., title='File upload'),
-        filename: str = Query(..., title='File name'),
+        path: str = Path(..., title='File path relative to the package root'),
+        file: UploadFile = File(..., title='File data'),
         sha256: str = Query(..., title='SHA-256 checksum'),
         title: str = Query(None, title='Resource title'),
         description: str = Query(None, title='Resource description'),
-        unpack: bool = Query(False, title='Unpack zip file into folder'),
-        overwrite: bool = Query(False, title='Overwrite existing file(s)'),  # todo
+        unpack: bool = Query(False, title='Unpack zipped file data'),
         auth: Authorized = Depends(Authorize(ODPScope.PACKAGE_WRITE)),
 ) -> None:
     """
     Upload a file to an archive and add/unpack it into a package folder.
 
-    By default, a single resource is created and associated with the archive
-    and the package. If unpack is true and the file is a supported zip format,
-    its contents are unpacked into the folder and, for each unpacked file, a
-    resource is created and similarly associated.
+    By default, a single resource is created and associated with the package
+    and the archive. If `unpack` is True, `file` is assumed to be zipped data
+    and its contents are unpacked at the parent directory of `path`. For each
+    unpacked file, a resource is created and similarly associated.
+
+    Existing files are replaced.
 
     Requires scope `odp.package:write` along with the scope associated with
     the archive. The package status must be `pending`.
@@ -528,46 +528,42 @@ async def upload_file(
     ensure_status(package, PackageStatus.pending)
 
     await _upload_file(
-        package_id, archive_id, folder, file.file, filename, sha256,
-        title, description, unpack, overwrite, auth,
+        package_id, archive_id, path, file.file, sha256, title, description, unpack, auth,
     )
 
 
 async def _upload_file(
         package_id: str,
         archive_id: str,
-        folder: str,
+        path: str,
         file: BinaryIO,
-        filename: str,
         sha256: str,
         title: str | None,
         description: str | None,
         unpack: bool,
-        overwrite: bool,
         auth: Authorized,
 ):
-    if not (archive := Session.get(Archive, archive_id)):
-        raise HTTPException(HTTP_404_NOT_FOUND, 'Archive not found')
-
     if not (package := Session.get(Package, package_id)):
         raise HTTPException(HTTP_404_NOT_FOUND, 'Package not found')
 
+    if not (archive := Session.get(Archive, archive_id)):
+        raise HTTPException(HTTP_404_NOT_FOUND, 'Archive not found')
+
     auth.enforce_constraint([package.provider_id])
 
-    if '..' in folder:
-        raise HTTPException(HTTP_422_UNPROCESSABLE_ENTITY, "'..' not allowed in folder")
+    path = pathlib.Path(path)
+    if path.is_absolute():
+        raise HTTPException(HTTP_400_BAD_REQUEST, 'path must be relative')
 
-    if pathlib.Path(folder).is_absolute():
-        raise HTTPException(HTTP_422_UNPROCESSABLE_ENTITY, 'folder must be relative')
+    for part in path.parts:
+        if part != secure_filename(part):
+            raise HTTPException(HTTP_400_BAD_REQUEST, 'invalid path')
 
-    if not (filename := secure_filename(filename)):
-        raise HTTPException(HTTP_422_UNPROCESSABLE_ENTITY, 'invalid filename')
-
-    archive_path = f'{package.key}/{folder or "."}/{filename}'
     archive_adapter = ArchiveAdapter.get_instance(archive)
+    archive_resource_path = f'{package.key}/{path}'
     try:
         file_info_list = await archive_adapter.put(
-            archive_path, file, sha256, unpack
+            archive_resource_path, file, sha256, unpack
         )
     except ArchiveError as e:
         raise HTTPException(e.status_code, e.error_detail) from e
@@ -575,37 +571,41 @@ async def _upload_file(
         raise HTTPException(HTTP_405_METHOD_NOT_ALLOWED, f'Operation not supported for {archive.id}')
 
     for file_info in file_info_list:
-        archive_path = file_info.path
-        package_path = file_info.path.removeprefix(f'{package.key}/')
+        archive_resource_path = file_info.path
+        resource_path = file_info.path.removeprefix(f'{package.key}/')
 
-        resource = Resource(
-            package_id=package.id,
-            folder=str(pathlib.Path(package_path).parent),
-            filename=pathlib.Path(file_info.path).name,
-            mimetype=mimetypes.guess_type(file_info.path, strict=False)[0],
-            size=file_info.size,
-            hash=file_info.sha256,
-            hash_algorithm=HashAlgorithm.sha256,
-            title=title,
-            description=description,
-            status=ResourceStatus.active,
-            timestamp=(timestamp := datetime.now(timezone.utc)),
-        )
+        if not (resource := Session.execute(
+                select(Resource)
+                        .where(Resource.package_id == package_id)
+                        .where(Resource.path == resource_path)
+        ).scalar_one_or_none()):
+            resource = Resource(
+                package_id=package_id,
+                path=resource_path,
+            )
+
+        resource.mimetype = mimetypes.guess_type(file_info.path, strict=False)[0]
+        resource.size = file_info.size
+        resource.hash = file_info.sha256
+        resource.hash_algorithm = HashAlgorithm.sha256
+        resource.title = title
+        resource.description = description
+        resource.status = ResourceStatus.active
+        resource.timestamp = (timestamp := datetime.now(timezone.utc))
         resource.save()
 
-        try:
+        if not (archive_resource := Session.get(ArchiveResource, (archive_id, resource.id))):
             archive_resource = ArchiveResource(
                 archive_id=archive.id,
                 resource_id=resource.id,
-                path=archive_path,
-                status=ArchiveResourceStatus.valid,
-                timestamp=timestamp,
             )
-            archive_resource.save()
-        except IntegrityError as e:
-            raise HTTPException(
-                HTTP_422_UNPROCESSABLE_ENTITY, f"Path '{archive_path}' already exists in archive"
-            ) from e
+
+        archive_resource.path = archive_resource_path
+        archive_resource.status = ArchiveResourceStatus.valid
+        archive_resource.timestamp = timestamp
+        archive_resource.save()
+
+        # TODO: what about existing archive_resource records for other archives?
 
 
 @router.delete(
@@ -635,6 +635,7 @@ async def delete_file(
     if resource.package_id != package_id:
         raise HTTPException(HTTP_404_NOT_FOUND, 'Resource not found')
 
-    resource.status = ResourceStatus.delete_pending
-    resource.timestamp = datetime.now(timezone.utc)
-    resource.save()
+    if resource.status != ResourceStatus.delete_pending:
+        resource.status = ResourceStatus.delete_pending
+        resource.timestamp = datetime.now(timezone.utc)
+        resource.save()

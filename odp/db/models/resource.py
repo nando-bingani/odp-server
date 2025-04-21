@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import BigInteger, CheckConstraint, Column, Enum, ForeignKey, Index, String, TIMESTAMP, text
+from sqlalchemy import BigInteger, CheckConstraint, Column, Enum, ForeignKey, String, TIMESTAMP, UniqueConstraint
 from sqlalchemy.ext.associationproxy import association_proxy
 from sqlalchemy.orm import relationship
 
@@ -15,11 +15,7 @@ class Resource(Base):
     __tablename__ = 'resource'
 
     __table_args__ = (
-        Index(
-            'resource_package_path_uix',
-            text("(package_id || '/' || folder || '/' || filename)"),
-            unique=True,
-        ),
+        UniqueConstraint('package_id', 'path'),
         CheckConstraint(
             'hash is null or hash_algorithm is not null',
             name='resource_hash_algorithm_check',
@@ -27,8 +23,7 @@ class Resource(Base):
     )
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    folder = Column(String, nullable=False)
-    filename = Column(String, nullable=False)
+    path = Column(String, nullable=False)
     mimetype = Column(String)
     size = Column(BigInteger)
     hash = Column(String)
@@ -45,4 +40,4 @@ class Resource(Base):
     archive_resources = relationship('ArchiveResource', viewonly=True)
     archives = association_proxy('archive_resources', 'archive')
 
-    _repr_ = 'id', 'folder', 'filename', 'mimetype', 'size', 'hash', 'package_id', 'status'
+    _repr_ = 'id', 'path', 'mimetype', 'size', 'hash', 'package_id', 'status'
