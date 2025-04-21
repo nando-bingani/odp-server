@@ -25,6 +25,7 @@ def output_resource_model(resource: Resource) -> ResourceModel:
         size=resource.size,
         hash=resource.hash,
         hash_algorithm=resource.hash_algorithm,
+        status=resource.status,
         timestamp=resource.timestamp.isoformat(),
         package_id=resource.package_id,
         package_key=resource.package.key,
