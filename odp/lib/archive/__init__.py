@@ -17,7 +17,8 @@ class ArchiveResponse:
 
 
 class ArchiveFileResponse(ArchiveResponse):
-    """TODO"""
+    def __init__(self, file: BinaryIO):
+        self.file = file
 
 
 class ArchiveRedirectResponse(ArchiveResponse):
@@ -58,26 +59,34 @@ class ArchiveAdapter:
         return instance
 
     def __init__(
-            self, download_url: str | None, upload_url: str | None
+            self,
+            download_url: str | None,
+            upload_url: str | None,
     ) -> None:
         self.download_url = download_url
         self.upload_url = upload_url
 
     async def get(
-            self, path: str | PathLike
-    ) -> ArchiveFileResponse | ArchiveRedirectResponse:
+            self,
+            path: str | PathLike,
+    ) -> ArchiveResponse:
         """Return the contents of the file at `path`, or a redirect."""
         raise NotImplementedError
 
     async def get_zip(
-            self, *paths: str | PathLike
+            self,
+            *paths: str | PathLike,
     ) -> ArchiveFileResponse:
         """Return a zip file of the directories (recursively) and
         files at `paths`."""
         raise NotImplementedError
 
     async def put(
-            self, path: str, file: BinaryIO, sha256: str, unpack: bool
+            self,
+            path: str,
+            file: BinaryIO,
+            sha256: str,
+            unpack: bool,
     ) -> list[ArchiveFileInfo]:
         """Store `file` at `path` relative to the upload URL.
 
@@ -89,7 +98,8 @@ class ArchiveAdapter:
         raise NotImplementedError
 
     async def delete(
-            self, path: str | PathLike
+            self,
+            path: str | PathLike,
     ) -> None:
         """Delete the file at `path`."""
         raise NotImplementedError

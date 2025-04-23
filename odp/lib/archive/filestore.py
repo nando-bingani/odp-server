@@ -1,3 +1,4 @@
+from io import BytesIO
 from os import PathLike
 from typing import Any, BinaryIO
 from urllib.parse import urljoin
@@ -5,20 +6,30 @@ from urllib.parse import urljoin
 import requests
 
 from odp.config import config
-from odp.lib.archive import ArchiveAdapter, ArchiveError, ArchiveFileInfo
+from odp.lib.archive import ArchiveAdapter, ArchiveError, ArchiveFileInfo, ArchiveFileResponse
 
 
 class FilestoreArchiveAdapter(ArchiveAdapter):
     """Adapter for the ODP file storage service, providing read-write
     access to Nextcloud or other filesystem-based archives.
 
-    Integrates with `ODP Filing <https://github.com/SAEON/odp-filing>`_,
-    which must be running on the server.
+    Integrates with `ODP Filing <https://github.com/SAEON/odp-filing>`_.
     """
 
     def __init__(self, *args) -> None:
         super().__init__(*args)
         self.timeout = 3600.0 if config.ODP.ENV == 'development' else 10.0
+
+    async def get(
+            self,
+            path: str | PathLike,
+    ) -> ArchiveFileResponse:
+        data = self._send_request(
+            'GET',
+            urljoin(self.download_url, path),
+            return_bytes=True,
+        )
+        return ArchiveFileResponse(BytesIO(data))
 
     async def put(
             self,
@@ -51,7 +62,15 @@ class FilestoreArchiveAdapter(ArchiveAdapter):
             urljoin(self.upload_url, path),
         )
 
-    def _send_request(self, method, url, *, params=None, files=None) -> Any:
+    def _send_request(
+            self,
+            method,
+            url,
+            *,
+            params=None,
+            files=None,
+            return_bytes=False,
+    ) -> Any:
         """Send a request to the ODP file storage service and return
         its JSON response."""
         try:
@@ -63,7 +82,7 @@ class FilestoreArchiveAdapter(ArchiveAdapter):
                 timeout=self.timeout,
             )
             r.raise_for_status()
-            return r.json()
+            return r.content if return_bytes else r.json()
 
         except requests.RequestException as e:
             if e.response is not None:

@@ -8,6 +8,7 @@ from jschon import JSON, JSONPatch, URI
 from jschon_translation import remove_empty_children
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
+from starlette.responses import StreamingResponse
 from starlette.status import HTTP_400_BAD_REQUEST, HTTP_404_NOT_FOUND, HTTP_405_METHOD_NOT_ALLOWED, HTTP_422_UNPROCESSABLE_ENTITY
 from werkzeug.utils import secure_filename
 
@@ -21,7 +22,7 @@ from odp.const import ODPScope
 from odp.const.db import ArchiveResourceStatus, HashAlgorithm, PackageCommand, PackageStatus, ResourceStatus, SchemaType, TagType
 from odp.db import Session
 from odp.db.models import Archive, ArchiveResource, Package, PackageAudit, Provider, Resource, Schema
-from odp.lib.archive import ArchiveAdapter, ArchiveError
+from odp.lib.archive import ArchiveAdapter, ArchiveError, ArchiveFileResponse
 from odp.lib.schema import schema_catalog
 
 router = APIRouter()
@@ -606,6 +607,57 @@ async def _upload_file(
         archive_resource.save()
 
         # TODO: what about existing archive_resource records for other archives?
+
+
+@router.get(
+    '/{package_id}/files/{resource_id}',
+    dependencies=[Depends(ArchiveAuthorize())],
+)
+async def download_file(
+        package_id: str,
+        resource_id: str,
+        archive_id: str,
+        auth: Authorized = Depends(Authorize(ODPScope.PACKAGE_READ)),
+) -> StreamingResponse:
+    """
+    Download a package file from an archive. Requires scope `odp.package:read`
+    along with the scope associated with the archive.
+    """
+    if not (package := Session.get(Package, package_id)):
+        raise HTTPException(HTTP_404_NOT_FOUND, 'Package not found')
+
+    auth.enforce_constraint([package.provider_id])
+
+    if (
+            not (resource := Session.get(Resource, resource_id)) or
+            resource.package_id != package_id or
+            resource.status != ResourceStatus.active
+    ):
+        raise HTTPException(HTTP_404_NOT_FOUND, 'Resource not found')
+
+    if not (archive := Session.get(Archive, archive_id)):
+        raise HTTPException(HTTP_404_NOT_FOUND, 'Archive not found')
+
+    if not (archive_resource := Session.get(ArchiveResource, (archive_id, resource_id))):
+        raise HTTPException(HTTP_404_NOT_FOUND, 'Resource not found in archive')
+
+    if archive_resource.status != ArchiveResourceStatus.valid:
+        raise HTTPException(HTTP_422_UNPROCESSABLE_ENTITY, f'Archived resource is {archive_resource.status}')
+
+    archive_adapter = ArchiveAdapter.get_instance(archive)
+    archive_response = await archive_adapter.get(archive_resource.path)
+
+    if not isinstance(archive_response, ArchiveFileResponse):
+        raise HTTPException(HTTP_422_UNPROCESSABLE_ENTITY, 'Resource is not a file')
+
+    filename = pathlib.Path(resource.path).name
+    return StreamingResponse(
+        archive_response.file,
+        media_type=resource.mimetype,
+        headers={
+            'Content-Disposition': f'attachment; filename="{filename}"'
+        }
+    )
 
 
 @router.delete(
