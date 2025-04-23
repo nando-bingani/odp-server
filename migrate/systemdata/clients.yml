@@ -34,7 +34,7 @@ ODP.Web.UI:
     - odp.package:sdg
     - odp.provider:read
     - odp.record:read
-    - odp.resource:write
+    - odp.resource:read
     - odp.token:read
     - openid
     - offline_access
