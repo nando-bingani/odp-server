@@ -97,15 +97,15 @@ def test_create_archive():
     result = TestSession.execute(select(Archive)).scalar_one()
     assert (
                result.id,
+               result.type,
                result.download_url,
                result.upload_url,
-               result.adapter,
                result.scope_id,
            ) == (
                archive.id,
+               archive.type,
                archive.download_url,
                archive.upload_url,
-               archive.adapter,
                archive.scope_id,
            )
 
@@ -201,17 +201,21 @@ def test_create_package():
     assert (
                result.id,
                result.key,
-               result.title,
                result.status,
-               result.provider_id,
                result.timestamp,
+               result.provider_id,
+               result.schema_id,
+               result.metadata_,
+               result.validity,
            ) == (
                package.id,
                package.key,
-               package.title,
                package.status,
-               package.provider_id,
                package.timestamp,
+               package.provider_id,
+               package.schema_id,
+               package.metadata_,
+               package.validity,
            )
 
 
@@ -296,26 +300,26 @@ def test_create_resource():
     result = TestSession.execute(select(Resource)).scalar_one()
     assert (
                result.id,
-               result.title,
-               result.description,
-               result.folder,
-               result.filename,
+               result.path,
                result.mimetype,
                result.size,
                result.hash,
                result.hash_algorithm,
+               result.title,
+               result.description,
+               result.status,
                result.timestamp,
                result.package_id,
            ) == (
                resource.id,
-               resource.title,
-               resource.description,
-               resource.folder,
-               resource.filename,
+               resource.path,
                resource.mimetype,
                resource.size,
                resource.hash,
                resource.hash_algorithm,
+               resource.title,
+               resource.description,
+               resource.status,
                resource.timestamp,
                resource.package_id,
            )

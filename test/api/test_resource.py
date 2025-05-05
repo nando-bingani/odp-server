@@ -42,14 +42,14 @@ def assert_db_state(resources):
     assert len(result) == len(resources)
     for n, row in enumerate(result):
         assert row.id == resources[n].id
-        assert row.title == resources[n].title
-        assert row.description == resources[n].description
-        assert row.folder == resources[n].folder
-        assert row.filename == resources[n].filename
+        assert row.path == resources[n].path
         assert row.mimetype == resources[n].mimetype
         assert row.size == resources[n].size
         assert row.hash == resources[n].hash
         assert row.hash_algorithm == resources[n].hash_algorithm
+        assert row.title == resources[n].title
+        assert row.description == resources[n].description
+        assert row.status == resources[n].status
         assert row.package_id == resources[n].package_id
         assert_new_timestamp(row.timestamp)
 
@@ -80,12 +80,12 @@ def assert_json_result(response, json, resource):
     assert json['id'] == resource.id
     assert json['title'] == resource.title
     assert json['description'] == resource.description
-    assert json['folder'] == resource.folder
-    assert json['filename'] == resource.filename
+    assert json['path'] == resource.path
     assert json['mimetype'] == resource.mimetype
     assert json['size'] == resource.size
     assert json['hash'] == resource.hash
     assert json['hash_algorithm'] == resource.hash_algorithm
+    assert json['status'] == resource.status
     assert json['package_id'] == resource.package_id
     assert json['package_key'] == resource.package.key
     assert json['archive_paths'] == resource.archive_paths

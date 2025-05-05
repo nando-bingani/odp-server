@@ -57,30 +57,39 @@ def _sanitize_id(val):
     return re.sub(r'[^-.:\w]', '_', val)
 
 
-def create_metadata(record, n):
-    if record.use_example_metadata:
-        if record.schema_id == 'SAEON.DataCite4':
+def create_metadata(record_or_package, n):
+    try:
+        if record_or_package.status == 'pending':
+            return None
+    except AttributeError:
+        pass  # only applies to packages
+
+    if record_or_package.use_example_metadata:
+        if record_or_package.schema_id == 'SAEON.DataCite4':
             metadata = datacite4_example()
-        elif record.schema_id == 'SAEON.ISO19115':
+        elif record_or_package.schema_id == 'SAEON.ISO19115':
             metadata = iso19115_example()
     else:
         metadata = {'foo': f'test-{n}'}
 
-    if record.doi:
-        metadata |= {'doi': record.doi}
-    else:
-        metadata.pop('doi', None)
+    try:
+        if record_or_package.doi:
+            metadata |= {'doi': record_or_package.doi}
+        else:
+            metadata.pop('doi', None)
 
-    if record.parent_doi:
-        metadata.setdefault("relatedIdentifiers", [])
-        metadata["relatedIdentifiers"] += [{
-            "relatedIdentifier": record.parent_doi,
-            "relatedIdentifierType": "DOI",
-            "relationType": "IsPartOf"
-        }]
+        if record_or_package.parent_doi:
+            metadata.setdefault("relatedIdentifiers", [])
+            metadata["relatedIdentifiers"] += [{
+                "relatedIdentifier": record_or_package.parent_doi,
+                "relatedIdentifierType": "DOI",
+                "relationType": "IsPartOf"
+            }]
+    except AttributeError:
+        pass  # only applies to records
 
     # non-DOI relatedIdentifierType should be ignored for parent_id calculation
-    if not record.use_example_metadata and randint(0, 1):
+    if not record_or_package.use_example_metadata and randint(0, 1):
         metadata.setdefault("relatedIdentifiers", [])
         metadata["relatedIdentifiers"] += [{
             "relatedIdentifier": "foo",
@@ -89,7 +98,7 @@ def create_metadata(record, n):
         }]
 
     # non-IsPartOf relationType should be ignored for parent_id calculation
-    if not record.use_example_metadata and randint(0, 1):
+    if not record_or_package.use_example_metadata and randint(0, 1):
         metadata.setdefault("relatedIdentifiers", [])
         metadata["relatedIdentifiers"] += [{
             "relatedIdentifier": "bar",
@@ -98,6 +107,12 @@ def create_metadata(record, n):
         }]
 
     return metadata
+
+
+def create_package_key(package, n):
+    timestamp = datetime.now(timezone.utc)
+    date = timestamp.strftime('%Y_%m_%d')
+    return f'{package.provider.key}_{date}_{n:03}'
 
 
 def create_keyword_key(kw, n, invalid=False):
@@ -220,13 +235,21 @@ class ProviderFactory(ODPModelFactory):
 class PackageFactory(ODPModelFactory):
     class Meta:
         model = Package
+        exclude = ('parent_doi', 'use_example_metadata')
 
     id = factory.Faker('uuid4')
-    key = factory.LazyAttribute(lambda p: re.sub(r'\W', '_', p.title))
-    title = factory.Sequence(lambda n: f'{fake.catch_phrase()}.{n}')
-    status = factory.LazyFunction(lambda: choice(('pending', 'submitted', 'archived', 'deleted')))
-    provider = factory.SubFactory(ProviderFactory)
+    key = factory.LazyAttributeSequence(create_package_key)
+    status = factory.LazyFunction(lambda: choices(('pending', 'submitted', 'archived', 'deleted'), weights=(12, 4, 3, 1))[0])
     timestamp = factory.LazyFunction(lambda: datetime.now(timezone.utc))
+    provider = factory.SubFactory(ProviderFactory)
+
+    schema_id = factory.LazyFunction(lambda: choice(('SAEON.DataCite4', 'SAEON.ISO19115')))
+    schema_type = 'metadata'
+    schema = factory.LazyAttribute(lambda p: FactorySession.get(Schema, (p.schema_id, 'metadata')) or
+                                             SchemaFactory(id=p.schema_id, type='metadata'))
+    use_example_metadata = False
+    metadata_ = factory.LazyAttributeSequence(create_metadata)
+    validity = factory.LazyAttribute(lambda p: dict(valid=p.use_example_metadata))
 
 
 class ResourceFactory(ODPModelFactory):
@@ -234,16 +257,16 @@ class ResourceFactory(ODPModelFactory):
         model = Resource
 
     id = factory.Faker('uuid4')
-    folder = factory.LazyFunction(lambda: choice(('', f'{fake.uri_path(deep=randint(1, 4))}')))
-    filename = factory.Sequence(lambda n: f'{fake.file_name()}.{n}')
-    title = factory.Faker('catch_phrase')
-    description = factory.Faker('sentence')
+    path = factory.Sequence(lambda n: f'{fake.uri(deep=randint(1, 4))}.{n}')
     mimetype = factory.Faker('mime_type')
     size = factory.LazyFunction(lambda: randint(1, sys.maxsize))
     hash = factory.LazyAttribute(lambda r: fake.md5() if r.hash_algorithm == 'md5' else fake.sha256())
     hash_algorithm = factory.LazyFunction(lambda: choice(('md5', 'sha256')))
-    package = factory.SubFactory(PackageFactory)
+    title = factory.Faker('catch_phrase')
+    description = factory.Faker('sentence')
+    status = factory.LazyFunction(lambda: choices(('active', 'delete_pending'), weights=(9, 1))[0])
     timestamp = factory.LazyFunction(lambda: datetime.now(timezone.utc))
+    package = factory.SubFactory(PackageFactory)
 
 
 class CollectionFactory(ODPModelFactory):
@@ -438,9 +461,9 @@ class ArchiveFactory(ODPModelFactory):
         model = Archive
 
     id = factory.Sequence(lambda n: f'{fake.slug()}.{n}')
+    type = factory.LazyFunction(lambda: choice(('filestore', 'website')))
     download_url = factory.Faker('url')
     upload_url = factory.Faker('url')
-    adapter = factory.LazyFunction(lambda: choice(('filesystem', 'nextcloud', 'website')))
     scope = factory.SubFactory(ScopeFactory, type='odp')
 
 
@@ -450,5 +473,6 @@ class ArchiveResourceFactory(ODPModelFactory):
 
     archive = factory.SubFactory(ArchiveFactory)
     resource = factory.SubFactory(ResourceFactory)
-    path = factory.LazyAttribute(lambda a: f'{fake.uri_path(deep=randint(1, 5))}/{a.resource.filename}')
+    path = factory.Sequence(lambda n: f'{fake.uri(deep=randint(1, 4))}.{n}')
+    status = factory.LazyFunction(lambda: choices(('pending', 'valid', 'missing', 'corrupt'), weights=(4, 14, 1, 1))[0])
     timestamp = factory.LazyFunction(lambda: datetime.now(timezone.utc))

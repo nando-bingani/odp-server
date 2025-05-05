@@ -279,12 +279,7 @@ async def delete_package(
     Delete a provider-accessible package. The package status must be `pending`.
     Requires scope `odp.package:write`.
     """
-    if not (package := Session.get(Package, package_id)):
-        raise HTTPException(HTTP_404_NOT_FOUND)
-
-    ensure_status(package, PackageStatus.pending)
-
-    await _delete_package(package_id, auth)
+    await _delete_package(package_id, auth, True)
 
 
 @router.delete(
@@ -297,17 +292,23 @@ async def admin_delete_package(
     """
     Delete any package. Requires scope `odp.package:admin`.
     """
-    await _delete_package(package_id, auth)
+    await _delete_package(package_id, auth, False)
 
 
 async def _delete_package(
         package_id: str,
         auth: Authorized,
+        check_status: bool,
 ):
+    # TODO: allow deletion of package with resources - flag resources as delete_pending
+
     if not (package := Session.get(Package, package_id)):
         raise HTTPException(HTTP_404_NOT_FOUND)
 
     auth.enforce_constraint([package.provider_id])
+
+    if check_status:
+        ensure_status(package, PackageStatus.pending)
 
     create_audit_record(auth, package, datetime.now(timezone.utc), PackageCommand.delete)
 
@@ -356,12 +357,7 @@ async def untag_package(
     Remove a tag instance set by the calling user. The package status must be `pending`.
     Requires the scope associated with the tag.
     """
-    if not (package := Session.get(Package, package_id)):
-        raise HTTPException(HTTP_404_NOT_FOUND)
-
-    ensure_status(package, PackageStatus.pending)
-
-    await _untag_package(package_id, tag_instance_id, auth)
+    await _untag_package(package_id, tag_instance_id, auth, True)
 
 
 @router.delete(
@@ -375,18 +371,22 @@ async def admin_untag_package(
     """
     Remove any tag instance from a package. Requires scope `odp.package:admin`.
     """
-    await _untag_package(package_id, tag_instance_id, auth)
+    await _untag_package(package_id, tag_instance_id, auth, False)
 
 
 async def _untag_package(
         package_id: str,
         tag_instance_id: str,
         auth: Authorized,
+        check_status: bool,
 ) -> None:
     if not (package := Session.get(Package, package_id)):
         raise HTTPException(HTTP_404_NOT_FOUND)
 
     auth.enforce_constraint([package.provider_id])
+
+    if check_status:
+        ensure_status(package, PackageStatus.pending)
 
     await Tagger(TagType.package).delete_tag_instance(tag_instance_id, package, auth)
 

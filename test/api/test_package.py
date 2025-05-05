@@ -7,8 +7,15 @@ from sqlalchemy import select
 from odp.const import ODPDateRangeIncType, ODPPackageTag, ODPScope, ODPTagSchema
 from odp.db.models import Package, PackageAudit, PackageTag, Resource, Scope, Tag, User
 from test import TestSession
-from test.api import test_resource
-from test.api.assertions import assert_forbidden, assert_new_timestamp, assert_not_found, assert_ok_null, assert_unprocessable
+from test.api import all_scopes, test_resource
+from test.api.assertions import (
+    assert_forbidden,
+    assert_method_not_allowed,
+    assert_new_timestamp,
+    assert_not_found,
+    assert_ok_null,
+    assert_unprocessable,
+)
 from test.api.assertions.tags import (
     assert_tag_instance_audit_log,
     assert_tag_instance_audit_log_empty,
@@ -71,10 +78,12 @@ def assert_db_state(packages):
     for n, row in enumerate(result):
         assert row.id == packages[n].id
         assert row.key == packages[n].key
-        assert row.title == packages[n].title
         assert row.status == packages[n].status
         assert_new_timestamp(row.timestamp)
         assert row.provider_id == packages[n].provider_id
+        assert row.metadata_ == packages[n].metadata_
+        assert row.schema_id == packages[n].schema_id
+        assert row.schema_type == packages[n].schema_type
 
     result = TestSession.execute(select(Resource.package_id, Resource.id)).all()
     result.sort(key=lambda r: (r.package_id, r.id))
@@ -94,9 +103,9 @@ def assert_audit_log(command, package, grant_type):
     assert_new_timestamp(result.timestamp)
     assert result._id == package.id
     assert result._key == package.key
-    assert result._title == package.title
     assert result._status == package.status
     assert result._provider_id == package.provider_id
+    assert result._schema_id == package.schema_id
     assert sorted(result._resources) == sorted(package.resource_ids)
 
 
@@ -104,46 +113,56 @@ def assert_no_audit_log():
     assert TestSession.execute(select(PackageAudit)).first() is None
 
 
-def assert_json_result(response, json, package, detail=False):
+def assert_json_result(response, json, package, detail=False, old_provider_key=None):
     """Verify that the API result matches the given package object."""
     # todo: check linked record
     assert response.status_code == 200
     assert json['id'] == package.id
-    assert json['key'] == package.key
-    assert json['title'] == package.title
+
+    # Numeric suffix will differ between factory- and API-generated package key;
+    # update the factory object to match API output. Pass in old_provider_key for
+    # updates, since the package key cannot change.
+    date = datetime.now().strftime('%Y_%m_%d')
+    assert json['key'].startswith(f'{old_provider_key or package.provider.key}_{date}_')
+    package.key = json['key']
+
     assert json['status'] == package.status
     assert_new_timestamp(datetime.fromisoformat(json['timestamp']))
     assert json['provider_id'] == package.provider_id
     assert json['provider_key'] == package.provider.key
     assert sorted(json['resource_ids']) == sorted(package.resource_ids)
+    assert json['schema_id'] == package.schema_id
+    assert json['schema_uri'] == package.schema.uri
+
+    json_resources = json['resources']
+    db_resources = TestSession.execute(
+        select(Resource).where(Resource.package_id == package.id)
+    ).scalars().all()
+    assert len(json_resources) == len(db_resources)
+    json_resources.sort(key=lambda r: r['id'])
+    db_resources.sort(key=lambda r: r.id)
+    for n, json_resource in enumerate(json_resources):
+        db_resources[n].archive_paths = {}  # stub for attr used locally in test_resource
+        test_resource.assert_json_result(response, json_resource, db_resources[n])
+
+    json_tags = json['tags']
+    db_tags = TestSession.execute(
+        select(PackageTag, Tag, User).join(Tag).join(User).where(PackageTag.package_id == package.id)
+    ).all()
+    assert len(json_tags) == len(db_tags)
+    json_tags.sort(key=lambda t: t['id'])
+    db_tags.sort(key=lambda t: t.PackageTag.id)
+    for n, json_tag in enumerate(json_tags):
+        assert json_tag['tag_id'] == db_tags[n].PackageTag.tag_id
+        assert json_tag['user_id'] == db_tags[n].PackageTag.user_id
+        assert json_tag['user_name'] == db_tags[n].User.name
+        assert json_tag['data'] == db_tags[n].PackageTag.data
+        assert_new_timestamp(db_tags[n].PackageTag.timestamp)
+        assert json_tag['cardinality'] == db_tags[n].Tag.cardinality
+        assert json_tag['public'] == db_tags[n].Tag.public
 
     if detail:
-        json_resources = json['resources']
-        db_resources = TestSession.execute(
-            select(Resource).where(Resource.package_id == package.id)
-        ).scalars().all()
-        assert len(json_resources) == len(db_resources)
-        json_resources.sort(key=lambda r: r['id'])
-        db_resources.sort(key=lambda r: r.id)
-        for n, json_resource in enumerate(json_resources):
-            db_resources[n].archive_paths = {}  # stub for attr used locally in test_resource
-            test_resource.assert_json_result(response, json_resource, db_resources[n])
-
-        json_tags = json['tags']
-        db_tags = TestSession.execute(
-            select(PackageTag, Tag, User).join(Tag).join(User).where(PackageTag.package_id == package.id)
-        ).all()
-        assert len(json_tags) == len(db_tags)
-        json_tags.sort(key=lambda t: t['id'])
-        db_tags.sort(key=lambda t: t.PackageTag.id)
-        for n, json_tag in enumerate(json_tags):
-            assert json_tag['tag_id'] == db_tags[n].PackageTag.tag_id
-            assert json_tag['user_id'] == db_tags[n].PackageTag.user_id
-            assert json_tag['user_name'] == db_tags[n].User.name
-            assert json_tag['data'] == db_tags[n].PackageTag.data
-            assert_new_timestamp(db_tags[n].PackageTag.timestamp)
-            assert json_tag['cardinality'] == db_tags[n].Tag.cardinality
-            assert json_tag['public'] == db_tags[n].Tag.public
+        assert json['metadata'] == package.metadata_
 
 
 def assert_json_results(response, json, packages):
@@ -416,8 +435,8 @@ def _test_create_package(
     )
 
     r = api(scopes, **api_kwargs).post(route, json=dict(
-        title=package.title,
         provider_id=package.provider_id,
+        schema_id=package.schema_id,
     ))
 
     if authorized:
@@ -431,43 +450,10 @@ def _test_create_package(
         assert_no_audit_log()
 
 
-@pytest.mark.require_scope(ODPScope.PACKAGE_WRITE)
-@pytest.mark.parametrize('package_new_provider', ['same', 'different'])
-@pytest.mark.package_batch_with_tags
-def test_update_package(
-        api,
-        scopes,
-        package_batch,
-        client_provider_constraint,
-        user_provider_constraint,
-        package_new_provider,
-):
-    api_kwargs = parameterize_api_fixture(
-        package_batch,
-        api.grant_type,
-        client_provider_constraint,
-        user_provider_constraint,
-    )
-    authorized = (
-            ODPScope.PACKAGE_WRITE in scopes and
-            client_provider_constraint in ('client_provider_any', 'client_provider_match') and
-            (api.grant_type == 'client_credentials' or user_provider_constraint == 'user_provider_match')
-    )
-    if (
-            client_provider_constraint == 'client_provider_match' or
-            user_provider_constraint == 'user_provider_match'
-    ):
-        authorized = authorized and package_new_provider == 'same'
-
-    _test_update_package(
-        api,
-        scopes,
-        package_batch,
-        package_new_provider,
-        '/package/',
-        authorized,
-        api_kwargs,
-    )
+def test_update_package(api):
+    r = api(all_scopes).put('/package/foo')
+    assert_method_not_allowed(r)
+    assert_no_audit_log()
 
 
 @pytest.mark.require_scope(ODPScope.PACKAGE_ADMIN)
@@ -489,48 +475,25 @@ def test_admin_update_package(
     )
     authorized = ODPScope.PACKAGE_ADMIN in scopes
 
-    _test_update_package(
-        api,
-        scopes,
-        package_batch,
-        package_new_provider,
-        '/package/admin/',
-        authorized,
-        api_kwargs,
-    )
-
-
-def _test_update_package(
-        api,
-        scopes,
-        package_batch,
-        package_new_provider,
-        route,
-        authorized,
-        api_kwargs,
-):
     package_provider = package_batch[2].provider if package_new_provider == 'same' else ProviderFactory()
-    package_build_args = dict(
+    package = package_build(
         id=package_batch[2].id,
+        key=package_batch[2].key,
         status=package_batch[2].status,
         provider=package_provider,
+        schema_id='SAEON.DataCite4' if package_batch[2].schema_id == 'SAEON.ISO19115' else 'SAEON.ISO19115',
+        metadata_=package_batch[2].metadata_,
+        resource_ids=[resource.id for resource in package_batch[2].resources],
     )
-    if package_batch[2].resources:
-        # key must stay the same if package #2 has any resources
-        package_build_args |= dict(
-            key=package_batch[2].key,
-            resource_ids=[resource.id for resource in package_batch[2].resources],
-        )
+    old_provider_key = package_batch[2].provider.key
 
-    package = package_build(**package_build_args)
-
-    r = api(scopes, **api_kwargs).put(f'{route}{package.id}', json=dict(
-        title=package.title,
+    r = api(scopes, **api_kwargs).put(f'/package/admin/{package.id}', json=dict(
         provider_id=package.provider_id,
+        schema_id=package.schema_id,
     ))
 
     if authorized:
-        assert_json_result(r, r.json(), package, detail=True)
+        assert_json_result(r, r.json(), package, detail=True, old_provider_key=old_provider_key)
         assert_db_state(package_batch[:2] + [package] + package_batch[3:])
         assert_audit_log('update', package, api.grant_type)
     else:
@@ -539,15 +502,13 @@ def _test_update_package(
         assert_no_audit_log()
 
 
-@pytest.mark.parametrize('route', ['/package/', '/package/admin/'])
-def test_update_package_not_found(
+def test_admin_update_package_not_found(
         api,
-        route,
         package_batch,
         client_provider_constraint,
         user_provider_constraint,
 ):
-    scopes = [ODPScope.PACKAGE_ADMIN] if 'admin' in route else [ODPScope.PACKAGE_WRITE]
+    scopes = [ODPScope.PACKAGE_ADMIN]
     api_kwargs = parameterize_api_fixture(
         package_batch,
         api.grant_type,
@@ -556,9 +517,9 @@ def test_update_package_not_found(
     )
     package = package_build(id='foo')
 
-    r = api(scopes, **api_kwargs).put(f'{route}{package.id}', json=dict(
-        title=package.title,
+    r = api(scopes, **api_kwargs).put(f'/package/admin/{package.id}', json=dict(
         provider_id=package.provider_id,
+        schema_id=package.schema_id,
     ))
 
     assert_not_found(r)
@@ -654,12 +615,14 @@ def _test_delete_package(
         deleted_package = PackageFactory.stub(
             id=package_batch[2].id,
             key=package_batch[2].key,
-            title=package_batch[2].title,
             status=package_batch[2].status,
             provider_id=package_batch[2].provider_id,
+            schema_id=package_batch[2].schema_id,
             resource_ids=[],
         )
         deleted_package_id = deleted_package.id
+
+    deleted_status = package_batch[2].status
 
     r = api(scopes, **api_kwargs).delete(f'{route}{deleted_package_id}')
 
@@ -670,6 +633,8 @@ def _test_delete_package(
         assert_not_found(r)
     elif not authorized_constraint:
         assert_forbidden(r)
+    elif 'admin' not in route and deleted_status != 'pending':
+        assert_unprocessable(r, "Package status must be 'pending'")
     elif error in ('has_resources', 'has_record'):
         assert_unprocessable(r, 'A package with an associated record or resources cannot be deleted.')
     else:
@@ -717,7 +682,7 @@ def test_tag_package(
             public=tag.public,
         ) | keyword_tag_args(tag.vocabulary, 0)))
 
-    if authorized:
+    if authorized and package_batch[2].status == 'pending':
         assert_tag_instance_output(r, package_tag_1, api.grant_type)
         assert_tag_instance_db_state('package', api.grant_type, package_id, package_tag_1)
         assert_tag_instance_audit_log(
@@ -808,8 +773,12 @@ def test_tag_package(
                 dict(command='insert', object_id=package_id, tag_instance=package_tag_3),
             )
 
-    else:  # not authorized
-        assert_forbidden(r)
+    else:
+        if not authorized:
+            assert_forbidden(r)
+        else:  # package_batch[2].status != 'pending'
+            assert_unprocessable(r, "Package status must be 'pending'")
+
         assert_tag_instance_db_state('package', api.grant_type, package_id)
         assert_tag_instance_audit_log_empty('package')
 
@@ -918,7 +887,11 @@ def _test_untag_package(
     r = client.delete(f'{route}{package.id}/tag/{package_tag_1.id}')
 
     if authorized:
-        if not admin_route and not same_user:
+        if not admin_route and package.status != 'pending':
+            assert_unprocessable(r, "Package status must be 'pending'")
+            assert_tag_instance_db_state('package', api.grant_type, package.id, *package_tags, package_tag_1)
+            assert_tag_instance_audit_log_empty('package')
+        elif not admin_route and not same_user:
             assert_forbidden(r)
             assert_tag_instance_db_state('package', api.grant_type, package.id, *package_tags, package_tag_1)
             assert_tag_instance_audit_log_empty('package')

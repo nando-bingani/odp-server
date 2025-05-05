@@ -31,7 +31,7 @@ def assert_db_state(archives):
     assert len(result) == len(archives)
     for n, row in enumerate(result):
         assert row.id == archives[n].id
-        assert row.adapter == archives[n].adapter
+        assert row.type == archives[n].type
         assert row.download_url == archives[n].download_url
         assert row.upload_url == archives[n].upload_url
         assert row.scope_id == archives[n].scope_id
@@ -42,9 +42,9 @@ def assert_json_result(response, json, archive):
     """Verify that the API result matches the given archive object."""
     assert response.status_code == 200
     assert json['id'] == archive.id
+    assert json['type'] == archive.type
     assert json['download_url'] == archive.download_url
     assert json['upload_url'] == archive.upload_url
-    assert json['adapter'] == archive.adapter
     assert json['scope_id'] == archive.scope_id
     assert json['resource_count'] == archive.resource_count
 
