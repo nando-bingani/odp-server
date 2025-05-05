@@ -5,3 +5,4 @@
 [submodule "jschon-translation"]
 	path = jschon-translation
 	url = https://github.com/marksparkza/jschon-translation.git
+	branch = odp-package-support
