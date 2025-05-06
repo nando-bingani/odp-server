@@ -78,7 +78,7 @@ def create_audit_record(
         _status=package.status,
         _provider_id=package.provider_id,
         _schema_id=package.schema_id,
-        _resources=[resource.id for resource in package.resources],
+        _resources=[resource.path for resource in package.resources],
     ).save()
 
 
@@ -101,7 +101,10 @@ async def list_packages(
     """
     List provider-accessible packages. Requires scope `odp.package:read`.
     """
-    stmt = select(Package)
+    stmt = (
+        select(Package)
+        .where(Package.status != PackageStatus.delete_pending)
+    )
 
     if auth.object_ids != '*':
         stmt = stmt.where(Package.provider_id.in_(auth.object_ids))
@@ -214,7 +217,7 @@ async def _create_package(
         try:
             package = Package(
                 key=f'{provider.key}_{date}_{n:03}',
-                status=PackageStatus.pending,
+                status=PackageStatus.editing,
                 timestamp=timestamp,
                 provider_id=package_in.provider_id,
                 schema_id=package_in.schema_id,
@@ -276,7 +279,7 @@ async def delete_package(
         auth: Authorized = Depends(Authorize(ODPScope.PACKAGE_WRITE)),
 ) -> None:
     """
-    Delete a provider-accessible package. The package status must be `pending`.
+    Delete a provider-accessible package. The package status must be `editing`.
     Requires scope `odp.package:write`.
     """
     await _delete_package(package_id, auth, True)
@@ -300,25 +303,32 @@ async def _delete_package(
         auth: Authorized,
         check_status: bool,
 ):
-    # TODO: allow deletion of package with resources - flag resources as delete_pending
-
     if not (package := Session.get(Package, package_id)):
         raise HTTPException(HTTP_404_NOT_FOUND)
 
     auth.enforce_constraint([package.provider_id])
 
     if check_status:
-        ensure_status(package, PackageStatus.pending)
+        ensure_status(package, PackageStatus.editing)
 
-    create_audit_record(auth, package, datetime.now(timezone.utc), PackageCommand.delete)
-
-    try:
-        package.delete()
-    except IntegrityError as e:
+    if package.package_records:
         raise HTTPException(
             HTTP_422_UNPROCESSABLE_ENTITY,
-            'A package with an associated record or resources cannot be deleted.',
-        ) from e
+            'A package with an associated record cannot be deleted.',
+        )
+
+    timestamp = datetime.now(timezone.utc)
+    create_audit_record(auth, package, timestamp, PackageCommand.delete)
+
+    package.status = PackageStatus.delete_pending
+    package.timestamp = timestamp
+    package.save()
+
+    for resource in package.resources:
+        if resource.status != ResourceStatus.delete_pending:
+            resource.status = ResourceStatus.delete_pending
+            resource.timestamp = timestamp
+            resource.save()
 
 
 @router.post(
@@ -331,7 +341,7 @@ async def tag_package(
 ) -> TagInstanceModel | None:
     """
     Set a tag instance on a package, returning the created or updated instance,
-    or null if no change was made. The package status must be `pending`. Requires
+    or null if no change was made. The package status must be `editing`. Requires
     the scope associated with the tag.
     """
     if not (package := Session.get(Package, package_id)):
@@ -339,7 +349,7 @@ async def tag_package(
 
     auth.enforce_constraint([package.provider_id])
 
-    ensure_status(package, PackageStatus.pending)
+    ensure_status(package, PackageStatus.editing)
 
     if package_tag := await Tagger(TagType.package).set_tag_instance(tag_instance_in, package, auth):
         return output_tag_instance_model(package_tag)
@@ -354,7 +364,7 @@ async def untag_package(
         auth: Authorized = Depends(UntagAuthorize(TagType.package)),
 ) -> None:
     """
-    Remove a tag instance set by the calling user. The package status must be `pending`.
+    Remove a tag instance set by the calling user. The package status must be `editing`.
     Requires the scope associated with the tag.
     """
     await _untag_package(package_id, tag_instance_id, auth, True)
@@ -386,7 +396,7 @@ async def _untag_package(
     auth.enforce_constraint([package.provider_id])
 
     if check_status:
-        ensure_status(package, PackageStatus.pending)
+        ensure_status(package, PackageStatus.editing)
 
     await Tagger(TagType.package).delete_tag_instance(tag_instance_id, package, auth)
 
@@ -426,7 +436,7 @@ async def _submit_package(
 
     auth.enforce_constraint([package.provider_id])
 
-    ensure_status(package, PackageStatus.pending)
+    ensure_status(package, PackageStatus.editing)
 
     tag_patch = []
     for package_tag in package.tags:
@@ -486,7 +496,7 @@ async def _cancel_package(
 
     ensure_status(package, PackageStatus.submitted)
 
-    package.status = PackageStatus.pending
+    package.status = PackageStatus.editing
     package.metadata_ = None
     package.validity = None
     package.timestamp = (timestamp := datetime.now(timezone.utc))
@@ -521,12 +531,12 @@ async def upload_file(
     Existing files are replaced.
 
     Requires scope `odp.package:write` along with the scope associated with
-    the archive. The package status must be `pending`.
+    the archive. The package status must be `editing`.
     """
     if not (package := Session.get(Package, package_id)):
         raise HTTPException(HTTP_404_NOT_FOUND, 'Package not found')
 
-    ensure_status(package, PackageStatus.pending)
+    ensure_status(package, PackageStatus.editing)
 
     await _upload_file(
         package_id, archive_id, path, file.file, sha256, title, description, unpack, auth,
@@ -673,13 +683,13 @@ async def delete_file(
     Updates the resource status to `delete_pending`; actual file deletions
     are performed by a background service.
 
-    Requires scope `odp.package:write`. The package status must be `pending`.
+    Requires scope `odp.package:write`. The package status must be `editing`.
     """
     if not (package := Session.get(Package, package_id)):
         raise HTTPException(HTTP_404_NOT_FOUND, 'Package not found')
 
     auth.enforce_constraint([package.provider_id])
-    ensure_status(package, PackageStatus.pending)
+    ensure_status(package, PackageStatus.editing)
 
     if not (resource := Session.get(Resource, resource_id)):
         raise HTTPException(HTTP_404_NOT_FOUND, 'Resource not found')
