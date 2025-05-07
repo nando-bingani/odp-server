@@ -5,17 +5,17 @@ from datetime import date, datetime, timezone
 from sqlalchemy import and_, select
 from sqlalchemy.orm import aliased
 
-from odp.const import ODPPackageTag, ODPDateRangeIncType
+from odp.const import ODPDateRangeIncType, ODPPackageTag
 from odp.db import Session
-from odp.db.models import PackageTag, Package
-from odp.package import PackageModule
+from odp.db.models import Package, PackageTag
+from odp.svc import ServiceModule
 
 logger = logging.getLogger(__name__)
 
 
-class DateRangeInc(PackageModule):
+class DateRangeIncModule(ServiceModule):
 
-    def _internal_execute(self):
+    def exec(self):
         """
         Fetch and increment date of package date range tag according to it's related date range increment tag.
         """

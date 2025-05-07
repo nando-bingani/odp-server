@@ -7,8 +7,8 @@ rootdir = pathlib.Path(__file__).parent.parent
 sys.path.append(str(rootdir))
 
 import odp.logfile
-import odp.package
+import odp.svc
 
 if __name__ == '__main__':
     odp.logfile.initialize()
-    odp.package.run_all()
+    odp.svc.run_service('package')
